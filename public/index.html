@@ -761,7 +761,8 @@ loginBtn.onclick = async () => {
   const p = passwordInput.value.trim();
   if (!l || !p) return;
 
-  ws = new WebSocket(`ws://${location.host}`);
+  const protocol = location.protocol === "https:" ? "wss://" : "ws://";
+  ws = new WebSocket(protocol + location.host);
 
   ws.onopen = () => {
     ws.send(JSON.stringify({
@@ -773,7 +774,6 @@ loginBtn.onclick = async () => {
 
   ws.onmessage = e => handle(JSON.parse(e.data));
 };
-
 /* =========================================================
    ======================= CALLS (WebRTC) ===================
    ========================================================= */
