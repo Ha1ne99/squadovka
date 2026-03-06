@@ -870,11 +870,28 @@ vol.oninput = () => {
 };
 
 async function ensureLocalAudio() {
+
+  await unlockAudio();
+
   if (localStream) return localStream;
-  localStream = await navigator.mediaDevices.getUserMedia({ audio:true });
+
+  try {
+
+    localStream = await navigator.mediaDevices.getUserMedia({
+      audio: true
+    });
+
+  } catch(e) {
+
+    alert("Разрешите доступ к микрофону для звонков");
+    throw e;
+
+  }
+
   isMicMuted = false;
   updateMicUI();
   startMicLevel(localStream);
+
   return localStream;
 }
 
