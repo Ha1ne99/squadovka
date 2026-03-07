@@ -42,7 +42,16 @@ CREATE TABLE IF NOT EXISTS friends (
 )
 `).run();
 
-/* UNREAD MESSAGES */
+/* FRIEND REQUESTS */
+db.prepare(`
+CREATE TABLE IF NOT EXISTS friend_requests (
+  fromUser TEXT NOT NULL,
+  toUser TEXT NOT NULL,
+  UNIQUE(fromUser, toUser)
+)
+`).run();
+
+/* UNREAD */
 db.prepare(`
 CREATE TABLE IF NOT EXISTS unread (
   fromUser TEXT,
@@ -53,11 +62,9 @@ CREATE TABLE IF NOT EXISTS unread (
 `).run();
 
 /* ================= CLIENTS ================= */
-// ws -> { login, nickname }
-const clients = new Map();
 
-/* simple "занято звонком" */
-const inCall = new Map(); // login -> peerLogin
+const clients = new Map();
+const inCall = new Map();
 
 /* ================= HELPERS ================= */
 
@@ -69,10 +76,16 @@ function send(ws, data) {
 
 function sendToUser(login, data) {
   for (const [ws, info] of clients) {
-    if (info.login === login) {
-      send(ws, data);
-    }
+    if (info.login === login) send(ws, data);
   }
+}
+
+function avatarColor(str) {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = str.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  return `hsl(${hash % 360},70%,55%)`;
 }
 
 function getFriends(login) {
@@ -85,6 +98,7 @@ function getFriends(login) {
 
 function broadcastOnlineFriends() {
   for (const [ws, info] of clients) {
+
     const friends = getFriends(info.login);
     const online = [];
 
@@ -105,15 +119,6 @@ function broadcastOnlineFriends() {
   }
 }
 
-/* Стабильный цвет аватара */
-function avatarColor(str) {
-  let hash = 0;
-  for (let i = 0; i < str.length; i++) {
-    hash = str.charCodeAt(i) + ((hash << 5) - hash);
-  }
-  return `hsl(${hash % 360},70%,55%)`;
-}
-
 function isBusy(login) {
   return inCall.has(login);
 }
@@ -129,60 +134,77 @@ function clearCall(login) {
 /* ================= WEBSOCKET ================= */
 
 wss.on('connection', ws => {
+
   let userLogin = null;
 
   ws.on('message', msg => {
+
     let data;
     try { data = JSON.parse(msg); } catch { return; }
 
-    /* ---------- REGISTER ---------- */
+    /* REGISTER */
+
     if (data.type === 'register') {
-      const { login, password } = data;
 
       const exists = db.prepare(
         `SELECT login FROM users WHERE login = ?`
-      ).get(login);
+      ).get(data.login);
 
       if (exists) {
-        send(ws, { type: 'error', message: 'Логин уже занят' });
+        send(ws,{ type:'error', message:'Логин занят' });
         return;
       }
 
       db.prepare(`
-        INSERT INTO users (login, password, nickname)
-        VALUES (?, ?, ?)
-      `).run(login, password, login);
+        INSERT INTO users (login,password,nickname)
+        VALUES (?,?,?)
+      `).run(data.login,data.password,data.login);
 
-      send(ws, { type: 'register_ok' });
+      send(ws,{ type:'register_ok' });
       return;
     }
 
-    /* ---------- LOGIN ---------- */
+    /* LOGIN */
+
     if (data.type === 'login') {
-      const { login, password } = data;
 
       const user = db.prepare(`
-        SELECT login, nickname FROM users
-        WHERE login = ? AND password = ?
-      `).get(login, password);
+        SELECT login,nickname FROM users
+        WHERE login=? AND password=?
+      `).get(data.login,data.password);
 
       if (!user) {
-        send(ws, { type: 'error', message: 'Неверный логин или пароль' });
+        send(ws,{ type:'error', message:'Неверный логин или пароль' });
         return;
       }
 
       userLogin = user.login;
-      clients.set(ws, user);
 
-      send(ws, {
-        type: 'login_ok',
-        login: user.login,
-        nickname: user.nickname,
-        avatar: {
-          letter: user.nickname[0].toUpperCase(),
-          color: avatarColor(user.login)
+      clients.set(ws,user);
+
+      send(ws,{
+        type:'login_ok',
+        login:user.login,
+        nickname:user.nickname,
+        avatar:{
+          letter:user.nickname[0].toUpperCase(),
+          color:avatarColor(user.login)
         }
       });
+
+      /* отправляем заявки */
+
+      const requests = db.prepare(`
+        SELECT fromUser FROM friend_requests
+        WHERE toUser=?
+      `).all(user.login);
+
+      for (const r of requests) {
+        send(ws,{
+          type:'friend_request',
+          from:r.fromUser
+        });
+      }
 
       broadcastOnlineFriends();
       return;
@@ -192,143 +214,170 @@ wss.on('connection', ws => {
 
     const me = clients.get(ws);
 
-    /* ---------- FRIEND REQUEST ---------- */
+    /* FRIEND REQUEST */
+
     if (data.type === 'friend_request') {
-      sendToUser(data.to, {
-        ...data,
-        from: userLogin,
-        fromNick: me?.nickname || userLogin,
-        avatar: {
-          letter: userLogin[0].toUpperCase(),
-          color: avatarColor(userLogin)
-        }
+
+      db.prepare(`
+        INSERT OR IGNORE INTO friend_requests (fromUser,toUser)
+        VALUES (?,?)
+      `).run(userLogin,data.to);
+
+      sendToUser(data.to,{
+        type:'friend_request',
+        from:userLogin,
+        fromNick:me.nickname
       });
+
       return;
     }
 
-    /* ---------- FRIEND ACCEPT ---------- */
-    if (data.type === 'friend_accept') {
-      db.prepare(`
-        INSERT OR IGNORE INTO friends (user1, user2)
-        VALUES (?, ?)
-      `).run(data.from, data.to);
+    /* FRIEND ACCEPT */
 
-      sendToUser(data.to, {
-        ...data,
-        from: userLogin,
-        fromNick: me?.nickname || userLogin,
-        avatar: {
-          letter: userLogin[0].toUpperCase(),
-          color: avatarColor(userLogin)
-        }
+    if (data.type === 'friend_accept') {
+
+      db.prepare(`
+        INSERT OR IGNORE INTO friends (user1,user2)
+        VALUES (?,?)
+      `).run(data.from,data.to);
+
+      db.prepare(`
+        DELETE FROM friend_requests
+        WHERE fromUser=? AND toUser=?
+      `).run(data.to,data.from);
+
+      sendToUser(data.to,{
+        type:'friend_accept',
+        from:userLogin,
+        fromNick:me.nickname
       });
 
       broadcastOnlineFriends();
       return;
     }
 
-    /* ---------- MESSAGE ---------- */
+    /* MESSAGE */
+
     if (data.type === 'message') {
-      db.prepare(`
-        INSERT INTO messages (fromUser, toUser, text, time)
-        VALUES (?, ?, ?, ?)
-      `).run(data.from, data.to, data.text, Date.now());
 
       db.prepare(`
-        INSERT INTO unread (fromUser, toUser, count)
-        VALUES (?, ?, 1)
-        ON CONFLICT(fromUser, toUser)
-        DO UPDATE SET count = count + 1
-      `).run(data.from, data.to);
+        INSERT INTO messages (fromUser,toUser,text,time)
+        VALUES (?,?,?,?)
+      `).run(userLogin,data.to,data.text,Date.now());
+
+      db.prepare(`
+        INSERT INTO unread (fromUser,toUser,count)
+        VALUES (?,?,1)
+        ON CONFLICT(fromUser,toUser)
+        DO UPDATE SET count=count+1
+      `).run(userLogin,data.to);
 
       const unreadCount = db.prepare(`
         SELECT count FROM unread
-        WHERE fromUser = ? AND toUser = ?
-      `).get(data.from, data.to)?.count || 0;
+        WHERE fromUser=? AND toUser=?
+      `).get(userLogin,data.to)?.count || 0;
 
-      const msgData = {
+      const msgData={
         ...data,
-        from: userLogin,
-        fromNick: me?.nickname || userLogin,
-        avatar: {
-          letter: userLogin[0].toUpperCase(),
-          color: avatarColor(userLogin)
+        from:userLogin,
+        fromNick:me.nickname,
+        avatar:{
+          letter:userLogin[0].toUpperCase(),
+          color:avatarColor(userLogin)
         },
-        unread: unreadCount
+        unread:unreadCount
       };
 
-      sendToUser(data.from, msgData);
-      sendToUser(data.to, msgData);
+      sendToUser(userLogin,msgData);
+      sendToUser(data.to,msgData);
+
       return;
     }
 
-    /* ---------- READ ---------- */
+    /* READ */
+
     if (data.type === 'read') {
+
       db.prepare(`
         DELETE FROM unread
-        WHERE fromUser = ? AND toUser = ?
-      `).run(data.from, userLogin);
+        WHERE fromUser=? AND toUser=?
+      `).run(data.from,userLogin);
+
       return;
     }
 
-    /* ===================== CALL SIGNALING ===================== */
-    const callTypes = new Set([
+    /* CALLS */
+
+    const callTypes=new Set([
       "call_offer","call_answer","call_ice",
       "call_cancel","call_decline","call_end","call_busy"
     ]);
 
     if (callTypes.has(data.type)) {
-      const to = data.to;
-      if (!to) return;
 
-      // если отправляем offer — проверим busy
-      if (data.type === "call_offer") {
-        if (isBusy(to)) {
-          sendToUser(userLogin, { type:"call_busy", from: to });
+      const to=data.to;
+      if(!to) return;
+
+      if(data.type==="call_offer"){
+
+        if(isBusy(to)){
+          sendToUser(userLogin,{type:"call_busy"});
           return;
         }
-        // помечаем занятость обоих
-        inCall.set(userLogin, to);
-        inCall.set(to, userLogin);
+
+        inCall.set(userLogin,to);
+        inCall.set(to,userLogin);
       }
 
-      // cancel/decline/end — чистим занятость
-      if (data.type === "call_cancel" || data.type === "call_decline" || data.type === "call_end") {
+      if(
+        data.type==="call_cancel"||
+        data.type==="call_decline"||
+        data.type==="call_end"
+      ){
         clearCall(userLogin);
         clearCall(to);
       }
 
-      // пересылаем сигнал собеседнику + добавляем ник отправителя
-      sendToUser(to, {
+      sendToUser(to,{
         ...data,
-        from: userLogin,
-        fromNick: me?.nickname || userLogin
+        from:userLogin,
+        fromNick:me.nickname
       });
 
       return;
     }
+
   });
 
-  ws.on('close', () => {
-    const info = clients.get(ws);
+  ws.on('close',()=>{
+
+    const info=clients.get(ws);
     clients.delete(ws);
 
-    if (info?.login) {
-      const peer = inCall.get(info.login);
-      if (peer) {
-        sendToUser(peer, { type:"call_end", from: info.login, fromNick: info.nickname });
+    if(info?.login){
+
+      const peer=inCall.get(info.login);
+
+      if(peer){
+        sendToUser(peer,{
+          type:"call_end",
+          from:info.login
+        });
       }
+
       clearCall(info.login);
     }
 
     broadcastOnlineFriends();
+
   });
+
 });
 
-/* ================= START ================= */
+/* START */
 
-const PORT = process.env.PORT || 3000;
+const PORT=process.env.PORT||3000;
 
-server.listen(PORT, () => {
-  console.log("Server started on port " + PORT);
+server.listen(PORT,()=>{
+  console.log("Server started on port "+PORT);
 });
