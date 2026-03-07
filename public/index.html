@@ -485,6 +485,21 @@ input[type="range"]{ width:190px; }
 #callFlag button#callFlagHang{
   background:#ed4245;
 }
+
+#profileBar{margin-top:auto;padding:10px;border-top:1px solid #333;display:flex;align-items:center;justify-content:space-between;gap:10px;position:relative;}
+#profileMain{display:flex;align-items:center;gap:10px;min-width:0;}
+#profileAvatarWrap{display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+#profileText{min-width:0;}
+#profileText b,#profileLoginText{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+#profileLoginText{font-size:12px;color:#b5bac1;}
+#profileMenuWrap{position:relative;flex-shrink:0;}
+#profileMenuBtn{width:34px;height:34px;border:none;border-radius:10px;background:#313338;color:white;cursor:pointer;font-size:22px;line-height:1;}
+#profileMenuBtn:hover,#profileMenuBtn.active{background:#404249;}
+#profileMenu{position:absolute;right:0;bottom:44px;min-width:180px;background:#111214;border:1px solid #2f3136;border-radius:12px;padding:6px;box-shadow:0 10px 30px rgba(0,0,0,0.35);display:none;z-index:1000;}
+#profileMenu.open{display:block;}
+#profileMenu button{width:100%;border:none;background:transparent;color:white;text-align:left;border-radius:8px;padding:10px;cursor:pointer;}
+#profileMenu button:hover{background:#313338;}
+
 </style>
 </head>
 
@@ -506,11 +521,21 @@ input[type="range"]{ width:190px; }
     <div id="online"></div>
 
     <!-- PROFILE -->
-    <div style="margin-top:auto;padding:10px;border-top:1px solid #333">
-      <b id="profileNick"></b><br>
-      <span style="font-size:12px;color:#b5bac1">
-        Логин: <span id="profileLogin"></span>
-      </span>
+    <div id="profileBar">
+      <div id="profileMain">
+        <div id="profileAvatarWrap"></div>
+        <div id="profileText">
+          <b id="profileNick"></b><br>
+          <span id="profileLoginText">Логин: <span id="profileLogin"></span></span>
+        </div>
+      </div>
+      <div id="profileMenuWrap">
+        <button id="profileMenuBtn" title="Меню профиля">⋯</button>
+        <div id="profileMenu">
+          <button id="changeAvatarBtn">Сменить аватар</button>
+        </div>
+      </div>
+      <input id="avatarFileInput" type="file" accept="image/*" hidden>
     </div>
   </div>
 
@@ -621,6 +646,12 @@ const switchMode = document.getElementById('switchMode');
 const online = document.getElementById('online');
 const profileNick = document.getElementById('profileNick');
 const profileLogin = document.getElementById('profileLogin');
+const profileAvatarWrap = document.getElementById('profileAvatarWrap');
+const profileMenuBtn = document.getElementById('profileMenuBtn');
+const profileMenu = document.getElementById('profileMenu');
+const profileMenuWrap = document.getElementById('profileMenuWrap');
+const changeAvatarBtn = document.getElementById('changeAvatarBtn');
+const avatarFileInput = document.getElementById('avatarFileInput');
 
 const emptyChat = document.getElementById('emptyChat');
 const messages = document.getElementById('messages');
@@ -667,6 +698,10 @@ let login, nickname;
 let currentDM = null;
 let currentDMNick = null;
 let chats = {}, requests = [], friends = [];
+let friendUsers = [];
+let onlineUsers = [];
+let userProfiles = {};
+let selfAvatar = null;
 let unread = {}; // { login: count }
 
 /* =========================================================
@@ -778,13 +813,104 @@ function stopRingtone() {
 document.addEventListener("pointerdown", unlockAudio, { passive: true });
 
 /* ---------- AVATAR ---------- */
+function normalizeAvatar(user) {
+  if (!user) return { letter: '?', color: '#5865f2' };
+  if (user.avatar) return normalizeAvatar(user.avatar);
+  return {
+    letter: user.letter || '?',
+    color: user.color || '#5865f2',
+    image: user.image || user.avatarImage || null
+  };
+}
+
 function createAvatar(user) {
+  const avatar = normalizeAvatar(user);
   const a = document.createElement('div');
   a.className = 'avatar';
-  a.textContent = user.letter;
-  a.style.background = user.color;
+
+  if (avatar.image) {
+    a.style.background = '#2b2d31';
+    a.style.backgroundImage = `url("${avatar.image}")`;
+    a.style.backgroundSize = 'cover';
+    a.style.backgroundPosition = 'center';
+    a.textContent = '';
+  } else {
+    a.textContent = avatar.letter;
+    a.style.background = avatar.color;
+  }
+
   return a;
 }
+
+function saveUserProfile(user) {
+  if (!user || !user.login) return;
+  userProfiles[user.login] = {
+    login: user.login,
+    nickname: user.nickname || user.login,
+    avatar: normalizeAvatar(user.avatar || user)
+  };
+}
+
+function getUserProfile(userLogin) {
+  return userProfiles[userLogin] || {
+    login: userLogin,
+    nickname: userLogin,
+    avatar: {
+      letter: (userLogin || '?')[0].toUpperCase(),
+      color: '#5865f2'
+    }
+  };
+}
+
+function renderProfileBar() {
+  profileNick.textContent = nickname || '';
+  profileLogin.textContent = login || '';
+  profileAvatarWrap.innerHTML = '';
+  profileAvatarWrap.appendChild(createAvatar(selfAvatar || {
+    letter: (nickname || login || '?')[0].toUpperCase(),
+    color: '#5865f2'
+  }));
+}
+
+
+profileMenuBtn.onclick = (e) => {
+  e.stopPropagation();
+  profileMenu.classList.toggle('open');
+  profileMenuBtn.classList.toggle('active');
+};
+
+changeAvatarBtn.onclick = () => {
+  profileMenu.classList.remove('open');
+  profileMenuBtn.classList.remove('active');
+  avatarFileInput.click();
+};
+
+document.addEventListener('click', (e) => {
+  if (!profileMenuWrap.contains(e.target)) {
+    profileMenu.classList.remove('open');
+    profileMenuBtn.classList.remove('active');
+  }
+});
+
+avatarFileInput.onchange = () => {
+  const file = avatarFileInput.files?.[0];
+  avatarFileInput.value = '';
+  if (!file) return;
+  if (!file.type.startsWith('image/')) {
+    alert('Выбери изображение');
+    return;
+  }
+  if (file.size > 1024 * 1024) {
+    alert('Аватар слишком большой. Максимум 1 МБ');
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = () => {
+    ws?.send(JSON.stringify({ type: 'update_avatar', image: reader.result }));
+  };
+  reader.readAsDataURL(file);
+};
+
 
 /* ---------- LOGIN / REGISTER ---------- */
 switchMode.onclick = () => {
@@ -1273,41 +1399,29 @@ if (d.type === 'login_ok') {
 
   login = d.login;
   nickname = d.nickname;
-  friends = (d.friends || []).map(u => u.login);
+  selfAvatar = normalizeAvatar(d.avatar);
+  friendUsers = d.friends || [];
+  friends = friendUsers.map(u => u.login);
   unread = d.unread || {};
 
-  // сохраняем данные
+  saveUserProfile({ login, nickname, avatar: selfAvatar });
+  friendUsers.forEach(saveUserProfile);
+
   localStorage.setItem("login", login);
   localStorage.setItem("password", passwordInput.value || localStorage.getItem("password") || '');
 
   loginDiv.style.display = 'none';
   appDiv.style.display = 'flex';
 
-  profileNick.textContent = nickname;
-  profileLogin.textContent = login;
-
+  renderProfileBar();
   renderFriends();
-  renderOnline();
+  renderOnlineList();
 }
 
   if (d.type === 'online_friends') {
-    online.innerHTML = '';
-    d.users.forEach(u => {
-      const div = document.createElement('div');
-      div.className = 'user';
-      div.appendChild(createAvatar(u.avatar || u));
-      div.appendChild(document.createTextNode(u.nickname));
-
-      if (unread[u.login]) {
-        const b = document.createElement('div');
-        b.className = 'unread';
-        b.textContent = unread[u.login];
-        div.appendChild(b);
-      }
-
-      div.onclick = () => openDM(u.login, u.nickname);
-      online.appendChild(div);
-    });
+    onlineUsers = d.users || [];
+    onlineUsers.forEach(saveUserProfile);
+    renderOnlineList();
   }
 
   if (d.type === 'message') {
@@ -1317,19 +1431,22 @@ if (d.type === 'login_ok') {
 
     const isIncoming = d.from !== login;
 
+    saveUserProfile({
+      login: d.from,
+      nickname: d.fromNick || getUserProfile(d.from).nickname,
+      avatar: d.avatar
+    });
+
     if (peer !== currentDM) unread[peer] = d.unread;
     else unread[peer] = 0;
 
-    // звук сообщения (входящее)
     if (isIncoming) {
-      // если не текущий диалог — точно пикаем
       if (peer !== currentDM) soundMessage();
-      // если в текущем диалоге — тоже пикаем (можешь убрать, если не надо)
       else soundMessage();
     }
 
     if (peer === currentDM) show(d.from, d.text, d.avatar, d.time);
-    renderOnline();
+    renderOnlineList();
   }
 
   if (d.type === 'friend_request') {
@@ -1343,18 +1460,47 @@ if (d.type === 'login_ok') {
   }
 
   if (d.type === 'friends_list') {
-    friends = (d.friends || []).map(u => u.login);
+    friendUsers = d.friends || [];
+    friends = friendUsers.map(u => u.login);
+    friendUsers.forEach(saveUserProfile);
     renderFriends();
+  }
+
+  if (d.type === 'avatar_updated') {
+    saveUserProfile({
+      login: d.login,
+      nickname: d.nickname || getUserProfile(d.login).nickname,
+      avatar: d.avatar
+    });
+
+    if (d.login === login) {
+      selfAvatar = normalizeAvatar(d.avatar);
+      renderProfileBar();
+    }
+
+    renderFriends();
+    renderOnlineList();
+
+    if (currentDM && (d.login === currentDM || d.login === login)) {
+      ws.send(JSON.stringify({ type: 'get_messages', with: currentDM }));
+    }
   }
 
   if (d.type === 'unread_update') {
     unread = d.unread || {};
-    renderOnline();
+    renderOnlineList();
   }
 
   if (d.type === 'chat_history') {
     if (d.with !== currentDM) return;
     chats[d.with] = d.messages || [];
+    (d.messages || []).forEach(m => {
+      saveUserProfile({
+        login: m.from,
+        nickname: getUserProfile(m.from).nickname,
+        avatar: m.avatar
+      });
+    });
     messages.innerHTML = '';
     (chats[d.with] || []).forEach(m => show(m.from, m.text, m.avatar, m.time));
   }
@@ -1428,7 +1574,7 @@ function escapeHtml(value) {
 /* ---------- CHAT ---------- */
 function openDM(l, n) {
   currentDM = l;
-  currentDMNick = n;
+  currentDMNick = n || getUserProfile(l).nickname;
 
   emptyChat.style.display = 'none';
   messages.style.display = 'block';
@@ -1437,7 +1583,7 @@ function openDM(l, n) {
 
   ws.send(JSON.stringify({ type: 'read', from: l }));
   ws.send(JSON.stringify({ type: 'get_messages', with: l }));
-  renderOnline();
+  renderOnlineList();
 }
 
 function show(f, t, avatar, time) {
@@ -1498,50 +1644,74 @@ function renderRequests() {
 function renderFriends() {
   friendsDiv.innerHTML = '';
 
-  const uniqueFriends = [...new Set(friends)];
-  friends = uniqueFriends;
+  const seen = new Set();
+  const uniqueFriendUsers = friendUsers.filter(u => {
+    if (!u?.login || seen.has(u.login)) return false;
+    seen.add(u.login);
+    return true;
+  });
 
-  if (!uniqueFriends.length) {
+  friends = uniqueFriendUsers.map(u => u.login);
+
+  if (!uniqueFriendUsers.length) {
     friendsDiv.textContent = 'Список друзей пуст';
     friendsDiv.className = 'emptyText';
     return;
   }
 
   friendsDiv.className = '';
-  uniqueFriends.forEach(u => {
+  uniqueFriendUsers.forEach(u => {
+    saveUserProfile(u);
     const d = document.createElement('div');
     d.className = 'friendEntry';
-    d.appendChild(createAvatar({ letter:u[0].toUpperCase(), color:'#5865f2' }));
-    d.appendChild(document.createTextNode(u));
+    d.appendChild(createAvatar(u.avatar || u));
+    d.appendChild(document.createTextNode(u.nickname || u.login));
+    d.onclick = () => openDM(u.login, u.nickname || u.login);
     friendsDiv.appendChild(d);
   });
 }
 
 /* ---------- ONLINE RENDER WITH UNREAD ---------- */
-function renderOnline() {
-  const divs = online.querySelectorAll('.user');
-  divs.forEach(d => {
-    const login = d.textContent;
-    const badge = d.querySelector('.unread');
-    if (unread[login] > 0) {
-      if (!badge) {
-        const b = document.createElement('div');
-        b.className = 'unread';
-        b.textContent = unread[login];
-        d.appendChild(b);
-      } else {
-        badge.textContent = unread[login];
-      }
-    } else {
-      if (badge) badge.remove();
+function renderOnlineList() {
+  online.innerHTML = '';
+
+  const uniqueUsers = [];
+  const seen = new Set();
+
+  (onlineUsers || []).forEach(u => {
+    if (!u?.login || seen.has(u.login)) return;
+    seen.add(u.login);
+    uniqueUsers.push(u);
+  });
+
+  uniqueUsers.forEach(u => {
+    saveUserProfile(u);
+
+    const div = document.createElement('div');
+    div.className = 'user';
+    if (u.login === currentDM) div.classList.add('active');
+
+    div.appendChild(createAvatar(u.avatar || u));
+    div.appendChild(document.createTextNode(u.nickname || u.login));
+
+    if (unread[u.login] > 0) {
+      const b = document.createElement('div');
+      b.className = 'unread';
+      b.textContent = unread[u.login];
+      div.appendChild(b);
     }
+
+    div.onclick = () => openDM(u.login, u.nickname || u.login);
+    online.appendChild(div);
   });
 }
 
 function accept(u) {
   ws.send(JSON.stringify({ type:'friend_accept', from:login, to:u }));
   requests = requests.filter(r => r !== u);
-  friends.push(u);
+  if (!friendUsers.some(x => x.login === u)) {
+    friendUsers.push({ login: u, nickname: u, avatar: { letter: u[0].toUpperCase(), color: '#5865f2' } });
+  }
   renderRequests();
   renderFriends();
 }

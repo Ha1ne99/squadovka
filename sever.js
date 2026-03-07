@@ -25,9 +25,14 @@ db.prepare(`
 CREATE TABLE IF NOT EXISTS users (
   login TEXT PRIMARY KEY,
   password TEXT NOT NULL,
-  nickname TEXT NOT NULL
+  nickname TEXT NOT NULL,
+  avatarImage TEXT
 )
 `).run();
+
+try {
+  db.prepare(`ALTER TABLE users ADD COLUMN avatarImage TEXT`).run();
+} catch {}
 
 /* MESSAGES */
 db.prepare(`
@@ -95,6 +100,30 @@ function avatarColor(str) {
   return `hsl(${Math.abs(hash) % 360},70%,55%)`;
 }
 
+function buildAvatar(login, nickname, avatarImage = null) {
+  return {
+    letter: (nickname?.[0] || login?.[0] || '?').toUpperCase(),
+    color: avatarColor(login || nickname || '?'),
+    image: avatarImage || null
+  };
+}
+
+function getUserPublic(login) {
+  const user = db.prepare(`
+    SELECT login, nickname, avatarImage
+    FROM users
+    WHERE login = ?
+  `).get(login);
+
+  if (!user) return null;
+
+  return {
+    login: user.login,
+    nickname: user.nickname,
+    avatar: buildAvatar(user.login, user.nickname, user.avatarImage)
+  };
+}
+
 function getFriends(login) {
   return db.prepare(`
     SELECT user1 AS friend FROM friends WHERE user2 = ?
@@ -107,23 +136,9 @@ function getFriendUsers(login) {
   const friends = getFriends(login);
   if (!friends.length) return [];
 
-  const stmt = db.prepare(`
-    SELECT login, nickname
-    FROM users
-    WHERE login = ?
-  `);
-
   return friends
-    .map(friendLogin => stmt.get(friendLogin))
-    .filter(Boolean)
-    .map(user => ({
-      login: user.login,
-      nickname: user.nickname,
-      avatar: {
-        letter: (user.nickname?.[0] || user.login?.[0] || '?').toUpperCase(),
-        color: avatarColor(user.login)
-      }
-    }));
+    .map(friendLogin => getUserPublic(friendLogin))
+    .filter(Boolean);
 }
 
 function getUnreadMap(login) {
@@ -145,17 +160,17 @@ function getChatHistory(userA, userB) {
     ORDER BY time ASC, id ASC
   `).all(userA, userB, userB, userA);
 
-  return rows.map(row => ({
-    id: row.id,
-    from: row.fromUser,
-    to: row.toUser,
-    text: row.text,
-    time: row.time,
-    avatar: {
-      letter: row.fromUser[0].toUpperCase(),
-      color: avatarColor(row.fromUser)
-    }
-  }));
+  return rows.map(row => {
+    const sender = getUserPublic(row.fromUser);
+    return {
+      id: row.id,
+      from: row.fromUser,
+      to: row.toUser,
+      text: row.text,
+      time: row.time,
+      avatar: sender?.avatar || buildAvatar(row.fromUser, row.fromUser)
+    };
+  });
 }
 
 function broadcastOnlineFriends() {
@@ -168,10 +183,7 @@ function broadcastOnlineFriends() {
         online.push({
           login: other.login,
           nickname: other.nickname,
-          avatar: {
-            letter: other.nickname[0].toUpperCase(),
-            color: avatarColor(other.login)
-          }
+          avatar: buildAvatar(other.login, other.nickname, other.avatarImage)
         });
       }
     }
@@ -211,8 +223,8 @@ wss.on('connection', ws => {
       }
 
       db.prepare(`
-        INSERT INTO users (login, password, nickname)
-        VALUES (?, ?, ?)
+        INSERT INTO users (login, password, nickname, avatarImage)
+        VALUES (?, ?, ?, NULL)
       `).run(data.login, data.password, data.login);
 
       send(ws, { type: 'register_ok' });
@@ -222,7 +234,7 @@ wss.on('connection', ws => {
     /* LOGIN */
     if (data.type === 'login') {
       const user = db.prepare(`
-        SELECT login, nickname FROM users
+        SELECT login, nickname, avatarImage FROM users
         WHERE login = ? AND password = ?
       `).get(data.login, data.password);
 
@@ -238,10 +250,7 @@ wss.on('connection', ws => {
         type: 'login_ok',
         login: user.login,
         nickname: user.nickname,
-        avatar: {
-          letter: user.nickname[0].toUpperCase(),
-          color: avatarColor(user.login)
-        },
+        avatar: buildAvatar(user.login, user.nickname, user.avatarImage),
         friends: getFriendUsers(user.login),
         unread: getUnreadMap(user.login)
       });
@@ -265,6 +274,57 @@ wss.on('connection', ws => {
     if (!userLogin) return;
 
     const me = clients.get(ws);
+
+    /* UPDATE AVATAR */
+    if (data.type === 'update_avatar') {
+      const image = typeof data.image === 'string' ? data.image : '';
+
+      if (!image.startsWith('data:image/')) {
+        send(ws, { type: 'error', message: 'Неверный формат аватара' });
+        return;
+      }
+
+      if (image.length > 1400000) {
+        send(ws, { type: 'error', message: 'Аватар слишком большой' });
+        return;
+      }
+
+      db.prepare(`
+        UPDATE users
+        SET avatarImage = ?
+        WHERE login = ?
+      `).run(image, userLogin);
+
+      const updatedUser = db.prepare(`
+        SELECT login, nickname, avatarImage
+        FROM users
+        WHERE login = ?
+      `).get(userLogin);
+
+      if (updatedUser) {
+        clients.set(ws, updatedUser);
+
+        const payload = {
+          type: 'avatar_updated',
+          login: updatedUser.login,
+          nickname: updatedUser.nickname,
+          avatar: buildAvatar(updatedUser.login, updatedUser.nickname, updatedUser.avatarImage)
+        };
+
+        for (const [clientWs] of clients) {
+          send(clientWs, payload);
+        }
+
+        send(ws, {
+          type: 'friends_list',
+          friends: getFriendUsers(userLogin)
+        });
+
+        broadcastOnlineFriends();
+      }
+
+      return;
+    }
 
     /* LOAD CHAT HISTORY */
     if (data.type === 'get_messages') {
@@ -355,10 +415,7 @@ wss.on('connection', ws => {
         text: data.text,
         time: messageTime,
         fromNick: me.nickname,
-        avatar: {
-          letter: userLogin[0].toUpperCase(),
-          color: avatarColor(userLogin)
-        },
+        avatar: buildAvatar(userLogin, me.nickname, me.avatarImage),
         unread: unreadCount
       };
 
