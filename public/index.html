@@ -1405,10 +1405,37 @@ function show(f, t, avatar) {
 
 sendBtn.onclick = async () => {
   await unlockAudio();
-  if (!text.value || !currentDM) return;
-  ws.send(JSON.stringify({ type:'message', from:login, to:currentDM, text:text.value }));
+  const message = text.value.trim();
+  if (!message || !currentDM) return;
+
+  ws.send(JSON.stringify({
+    type: 'message',
+    from: login,
+    to: currentDM,
+    text: message
+  }));
+
   text.value = '';
 };
+
+text.addEventListener('keydown', async (e) => {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+
+    const message = text.value.trim();
+    if (!message || !currentDM) return;
+
+    await unlockAudio();
+    ws.send(JSON.stringify({
+      type: 'message',
+      from: login,
+      to: currentDM,
+      text: message
+    }));
+
+    text.value = '';
+  }
+});
 
 /* ---------- FRIENDS ---------- */
 friendsBtn.onclick = () => {
