@@ -1,14 +1,14 @@
 const express = require('express');
 const http = require('http');
 const WebSocket = require('ws');
-const Database = require('better-sqlite3');
 const path = require('path');
+const { Pool } = require('pg');
+const bcrypt = require('bcryptjs');
 
 const app = express();
 const server = http.createServer(app);
 const wss = new WebSocket.Server({ server });
 
-// Отдаём index.html и остальные файлы из текущей папки.
 app.use(express.static(path.join(__dirname, 'public')));
 
 app.get('/', (req, res) => {
@@ -17,62 +17,61 @@ app.get('/', (req, res) => {
 
 /* ================= DATABASE ================= */
 
-const db = new Database(path.join(__dirname, 'chat.db'));
+if (!process.env.DATABASE_URL) {
+  console.error('DATABASE_URL not found in environment variables');
+  process.exit(1);
+}
 
-db.pragma('journal_mode = WAL');
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: { rejectUnauthorized: false }
+});
 
-/* USERS */
-db.prepare(`
-CREATE TABLE IF NOT EXISTS users (
-  login TEXT PRIMARY KEY,
-  password TEXT NOT NULL,
-  nickname TEXT NOT NULL,
-  avatarImage TEXT
-)
-`).run();
+async function initDb() {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS users (
+      login TEXT PRIMARY KEY,
+      password TEXT NOT NULL,
+      nickname TEXT NOT NULL,
+      avatarImage TEXT
+    )
+  `);
 
-try {
-  db.prepare(`ALTER TABLE users ADD COLUMN avatarImage TEXT`).run();
-} catch {}
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS messages (
+      id BIGSERIAL PRIMARY KEY,
+      fromUser TEXT NOT NULL,
+      toUser TEXT NOT NULL,
+      text TEXT NOT NULL,
+      time BIGINT NOT NULL
+    )
+  `);
 
-/* MESSAGES */
-db.prepare(`
-CREATE TABLE IF NOT EXISTS messages (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  fromUser TEXT NOT NULL,
-  toUser TEXT NOT NULL,
-  text TEXT NOT NULL,
-  time INTEGER NOT NULL
-)
-`).run();
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS friends (
+      user1 TEXT NOT NULL,
+      user2 TEXT NOT NULL,
+      UNIQUE(user1, user2)
+    )
+  `);
 
-/* FRIENDS */
-db.prepare(`
-CREATE TABLE IF NOT EXISTS friends (
-  user1 TEXT NOT NULL,
-  user2 TEXT NOT NULL,
-  UNIQUE(user1, user2)
-)
-`).run();
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS friend_requests (
+      fromUser TEXT NOT NULL,
+      toUser TEXT NOT NULL,
+      UNIQUE(fromUser, toUser)
+    )
+  `);
 
-/* FRIEND REQUESTS */
-db.prepare(`
-CREATE TABLE IF NOT EXISTS friend_requests (
-  fromUser TEXT NOT NULL,
-  toUser TEXT NOT NULL,
-  UNIQUE(fromUser, toUser)
-)
-`).run();
-
-/* UNREAD */
-db.prepare(`
-CREATE TABLE IF NOT EXISTS unread (
-  fromUser TEXT,
-  toUser TEXT,
-  count INTEGER,
-  UNIQUE(fromUser, toUser)
-)
-`).run();
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS unread (
+      fromUser TEXT NOT NULL,
+      toUser TEXT NOT NULL,
+      count INTEGER NOT NULL DEFAULT 0,
+      UNIQUE(fromUser, toUser)
+    )
+  `);
+}
 
 /* ================= CLIENTS ================= */
 
@@ -89,7 +88,9 @@ function send(ws, data) {
 
 function sendToUser(login, data) {
   for (const [ws, info] of clients) {
-    if (info.login === login) send(ws, data);
+    if (info.login === login) {
+      send(ws, data);
+    }
   }
 }
 
@@ -109,78 +110,99 @@ function buildAvatar(login, nickname, avatarImage = null) {
   };
 }
 
-function getUserPublic(login) {
-  const user = db.prepare(`
+async function getUserPublic(login) {
+  const result = await pool.query(
+    `
     SELECT login, nickname, avatarImage
     FROM users
-    WHERE login = ?
-  `).get(login);
+    WHERE login = $1
+    `,
+    [login]
+  );
 
+  const user = result.rows[0];
   if (!user) return null;
 
   return {
     login: user.login,
     nickname: user.nickname,
-    avatar: buildAvatar(user.login, user.nickname, user.avatarImage)
+    avatar: buildAvatar(user.login, user.nickname, user.avatarimage)
   };
 }
 
-function getFriends(login) {
-  return db.prepare(`
-    SELECT user1 AS friend FROM friends WHERE user2 = ?
+async function getFriends(login) {
+  const result = await pool.query(
+    `
+    SELECT user1 AS friend FROM friends WHERE user2 = $1
     UNION
-    SELECT user2 AS friend FROM friends WHERE user1 = ?
-  `).all(login, login).map(r => r.friend);
+    SELECT user2 AS friend FROM friends WHERE user1 = $1
+    `,
+    [login]
+  );
+
+  return result.rows.map(r => r.friend);
 }
 
-function getFriendUsers(login) {
-  const friends = getFriends(login);
+async function getFriendUsers(login) {
+  const friends = await getFriends(login);
   if (!friends.length) return [];
 
-  return friends
-    .map(friendLogin => getUserPublic(friendLogin))
-    .filter(Boolean);
+  const users = await Promise.all(friends.map(friendLogin => getUserPublic(friendLogin)));
+  return users.filter(Boolean);
 }
 
-function getUnreadMap(login) {
-  const rows = db.prepare(`
-    SELECT fromUser, count FROM unread WHERE toUser = ?
-  `).all(login);
+async function getUnreadMap(login) {
+  const result = await pool.query(
+    `
+    SELECT fromUser, count
+    FROM unread
+    WHERE toUser = $1
+    `,
+    [login]
+  );
 
-  const result = {};
-  for (const row of rows) result[row.fromUser] = row.count;
-  return result;
+  const unread = {};
+  for (const row of result.rows) {
+    unread[row.fromuser] = row.count;
+  }
+  return unread;
 }
 
-function getChatHistory(userA, userB) {
-  const rows = db.prepare(`
+async function getChatHistory(userA, userB) {
+  const result = await pool.query(
+    `
     SELECT id, fromUser, toUser, text, time
     FROM messages
-    WHERE (fromUser = ? AND toUser = ?)
-       OR (fromUser = ? AND toUser = ?)
+    WHERE (fromUser = $1 AND toUser = $2)
+       OR (fromUser = $2 AND toUser = $1)
     ORDER BY time ASC, id ASC
-  `).all(userA, userB, userB, userA);
+    `,
+    [userA, userB]
+  );
 
-  return rows.map(row => {
-    const sender = getUserPublic(row.fromUser);
-    return {
+  const messages = [];
+  for (const row of result.rows) {
+    const sender = await getUserPublic(row.fromuser);
+    messages.push({
       id: row.id,
-      from: row.fromUser,
-      to: row.toUser,
+      from: row.fromuser,
+      to: row.touser,
       text: row.text,
-      time: row.time,
-      avatar: sender?.avatar || buildAvatar(row.fromUser, row.fromUser)
-    };
-  });
+      time: Number(row.time),
+      avatar: sender?.avatar || buildAvatar(row.fromuser, row.fromuser)
+    });
+  }
+
+  return messages;
 }
 
-function broadcastOnlineFriends() {
+async function broadcastOnlineFriends() {
   for (const [ws, info] of clients) {
-    const friends = getFriends(info.login);
+    const friendLogins = await getFriends(info.login);
     const online = [];
 
     for (const [, other] of clients) {
-      if (friends.includes(other.login)) {
+      if (friendLogins.includes(other.login)) {
         online.push({
           login: other.login,
           nickname: other.nickname,
@@ -210,290 +232,414 @@ function clearCall(login) {
 wss.on('connection', ws => {
   let userLogin = null;
 
-  ws.on('message', msg => {
+  ws.on('message', async msg => {
     let data;
-    try { data = JSON.parse(msg); } catch { return; }
-
-    /* REGISTER */
-    if (data.type === 'register') {
-      const exists = db.prepare(`SELECT login FROM users WHERE login = ?`).get(data.login);
-
-      if (exists) {
-        send(ws, { type: 'error', message: 'Логин занят' });
-        return;
-      }
-
-      db.prepare(`
-        INSERT INTO users (login, password, nickname, avatarImage)
-        VALUES (?, ?, ?, NULL)
-      `).run(data.login, data.password, data.login);
-
-      send(ws, { type: 'register_ok' });
+    try {
+      data = JSON.parse(msg);
+    } catch {
       return;
     }
 
-    /* LOGIN */
-    if (data.type === 'login') {
-      const user = db.prepare(`
-        SELECT login, nickname, avatarImage FROM users
-        WHERE login = ? AND password = ?
-      `).get(data.login, data.password);
-
-      if (!user) {
-        send(ws, { type: 'error', message: 'Неверный логин или пароль' });
-        return;
-      }
-
-      userLogin = user.login;
-      clients.set(ws, user);
-
-      send(ws, {
-        type: 'login_ok',
-        login: user.login,
-        nickname: user.nickname,
-        avatar: buildAvatar(user.login, user.nickname, user.avatarImage),
-        friends: getFriendUsers(user.login),
-        unread: getUnreadMap(user.login)
-      });
-
-      const requests = db.prepare(`
-        SELECT fromUser FROM friend_requests
-        WHERE toUser = ?
-      `).all(user.login);
-
-      for (const r of requests) {
-        send(ws, {
-          type: 'friend_request',
-          from: r.fromUser
-        });
-      }
-
-      broadcastOnlineFriends();
-      return;
-    }
-
-    if (!userLogin) return;
-
-    const me = clients.get(ws);
-
-    /* UPDATE AVATAR */
-    if (data.type === 'update_avatar') {
-      const image = typeof data.image === 'string' ? data.image : '';
-
-      if (!image.startsWith('data:image/')) {
-        send(ws, { type: 'error', message: 'Неверный формат аватара' });
-        return;
-      }
-
-      if (image.length > 1400000) {
-        send(ws, { type: 'error', message: 'Аватар слишком большой' });
-        return;
-      }
-
-      db.prepare(`
-        UPDATE users
-        SET avatarImage = ?
-        WHERE login = ?
-      `).run(image, userLogin);
-
-      const updatedUser = db.prepare(`
-        SELECT login, nickname, avatarImage
-        FROM users
-        WHERE login = ?
-      `).get(userLogin);
-
-      if (updatedUser) {
-        clients.set(ws, updatedUser);
-
-        const payload = {
-          type: 'avatar_updated',
-          login: updatedUser.login,
-          nickname: updatedUser.nickname,
-          avatar: buildAvatar(updatedUser.login, updatedUser.nickname, updatedUser.avatarImage)
-        };
-
-        for (const [clientWs] of clients) {
-          send(clientWs, payload);
+    try {
+      /* REGISTER */
+      if (data.type === 'register') {
+        if (!data.login || !data.password) {
+          send(ws, { type: 'error', message: 'Введите логин и пароль' });
+          return;
         }
+
+        const exists = await pool.query(
+          `SELECT login FROM users WHERE login = $1`,
+          [data.login]
+        );
+
+        if (exists.rows.length) {
+          send(ws, { type: 'error', message: 'Логин занят' });
+          return;
+        }
+
+        const hashedPassword = await bcrypt.hash(data.password, 10);
+
+        await pool.query(
+          `
+          INSERT INTO users (login, password, nickname, avatarImage)
+          VALUES ($1, $2, $3, $4)
+          `,
+          [data.login, hashedPassword, data.login, null]
+        );
+
+        send(ws, { type: 'register_ok' });
+        return;
+      }
+
+      /* LOGIN */
+      if (data.type === 'login') {
+        const result = await pool.query(
+          `
+          SELECT login, password, nickname, avatarImage
+          FROM users
+          WHERE login = $1
+          `,
+          [data.login]
+        );
+
+        const user = result.rows[0];
+
+        if (!user) {
+          send(ws, { type: 'error', message: 'Неверный логин или пароль' });
+          return;
+        }
+
+        const ok = await bcrypt.compare(data.password, user.password);
+        if (!ok) {
+          send(ws, { type: 'error', message: 'Неверный логин или пароль' });
+          return;
+        }
+
+        userLogin = user.login;
+
+        clients.set(ws, {
+          login: user.login,
+          nickname: user.nickname,
+          avatarImage: user.avatarimage
+        });
+
+        send(ws, {
+          type: 'login_ok',
+          login: user.login,
+          nickname: user.nickname,
+          avatar: buildAvatar(user.login, user.nickname, user.avatarimage),
+          friends: await getFriendUsers(user.login),
+          unread: await getUnreadMap(user.login)
+        });
+
+        const requests = await pool.query(
+          `
+          SELECT fromUser
+          FROM friend_requests
+          WHERE toUser = $1
+          `,
+          [user.login]
+        );
+
+        for (const r of requests.rows) {
+          send(ws, {
+            type: 'friend_request',
+            from: r.fromuser
+          });
+        }
+
+        await broadcastOnlineFriends();
+        return;
+      }
+
+      if (!userLogin) return;
+
+      const me = clients.get(ws);
+
+      /* UPDATE AVATAR */
+      if (data.type === 'update_avatar') {
+        const image = typeof data.image === 'string' ? data.image : '';
+
+        if (!image.startsWith('data:image/')) {
+          send(ws, { type: 'error', message: 'Неверный формат аватара' });
+          return;
+        }
+
+        if (image.length > 1400000) {
+          send(ws, { type: 'error', message: 'Аватар слишком большой' });
+          return;
+        }
+
+        await pool.query(
+          `
+          UPDATE users
+          SET avatarImage = $1
+          WHERE login = $2
+          `,
+          [image, userLogin]
+        );
+
+        const updatedResult = await pool.query(
+          `
+          SELECT login, nickname, avatarImage
+          FROM users
+          WHERE login = $1
+          `,
+          [userLogin]
+        );
+
+        const updatedUser = updatedResult.rows[0];
+
+        if (updatedUser) {
+          clients.set(ws, {
+            login: updatedUser.login,
+            nickname: updatedUser.nickname,
+            avatarImage: updatedUser.avatarimage
+          });
+
+          const payload = {
+            type: 'avatar_updated',
+            login: updatedUser.login,
+            nickname: updatedUser.nickname,
+            avatar: buildAvatar(
+              updatedUser.login,
+              updatedUser.nickname,
+              updatedUser.avatarimage
+            )
+          };
+
+          for (const [clientWs] of clients) {
+            send(clientWs, payload);
+          }
+
+          send(ws, {
+            type: 'friends_list',
+            friends: await getFriendUsers(userLogin)
+          });
+
+          await broadcastOnlineFriends();
+        }
+
+        return;
+      }
+
+      /* LOAD CHAT HISTORY */
+      if (data.type === 'get_messages') {
+        if (!data.with) return;
+
+        send(ws, {
+          type: 'chat_history',
+          with: data.with,
+          messages: await getChatHistory(userLogin, data.with)
+        });
+        return;
+      }
+
+      /* FRIEND REQUEST */
+      if (data.type === 'friend_request') {
+        if (!data.to || data.to === userLogin) return;
+
+        const target = await pool.query(
+          `SELECT login FROM users WHERE login = $1`,
+          [data.to]
+        );
+
+        if (!target.rows.length) {
+          send(ws, { type: 'error', message: 'Пользователь не найден' });
+          return;
+        }
+
+        const alreadyFriends = await pool.query(
+          `
+          SELECT 1
+          FROM friends
+          WHERE (user1 = $1 AND user2 = $2)
+             OR (user1 = $2 AND user2 = $1)
+          LIMIT 1
+          `,
+          [userLogin, data.to]
+        );
+
+        if (alreadyFriends.rows.length) {
+          send(ws, { type: 'error', message: 'Вы уже друзья' });
+          return;
+        }
+
+        await pool.query(
+          `
+          INSERT INTO friend_requests (fromUser, toUser)
+          VALUES ($1, $2)
+          ON CONFLICT (fromUser, toUser) DO NOTHING
+          `,
+          [userLogin, data.to]
+        );
+
+        sendToUser(data.to, {
+          type: 'friend_request',
+          from: userLogin,
+          fromNick: me.nickname
+        });
+
+        return;
+      }
+
+      /* FRIEND ACCEPT */
+      if (data.type === 'friend_accept') {
+        if (!data.from || !data.to) return;
+
+        await pool.query(
+          `
+          INSERT INTO friends (user1, user2)
+          VALUES ($1, $2)
+          ON CONFLICT (user1, user2) DO NOTHING
+          `,
+          [data.from, data.to]
+        );
+
+        await pool.query(
+          `
+          DELETE FROM friend_requests
+          WHERE fromUser = $1 AND toUser = $2
+          `,
+          [data.to, data.from]
+        );
+
+        sendToUser(data.to, {
+          type: 'friend_accept',
+          from: userLogin,
+          fromNick: me.nickname
+        });
 
         send(ws, {
           type: 'friends_list',
-          friends: getFriendUsers(userLogin)
+          friends: await getFriendUsers(userLogin)
         });
 
-        broadcastOnlineFriends();
-      }
+        sendToUser(data.to, {
+          type: 'friends_list',
+          friends: await getFriendUsers(data.to)
+        });
 
-      return;
-    }
-
-    /* LOAD CHAT HISTORY */
-    if (data.type === 'get_messages') {
-      if (!data.with) return;
-      send(ws, {
-        type: 'chat_history',
-        with: data.with,
-        messages: getChatHistory(userLogin, data.with)
-      });
-      return;
-    }
-
-    /* FRIEND REQUEST */
-    if (data.type === 'friend_request') {
-      if (!data.to || data.to === userLogin) return;
-
-      db.prepare(`
-        INSERT OR IGNORE INTO friend_requests (fromUser, toUser)
-        VALUES (?, ?)
-      `).run(userLogin, data.to);
-
-      sendToUser(data.to, {
-        type: 'friend_request',
-        from: userLogin,
-        fromNick: me.nickname
-      });
-
-      return;
-    }
-
-    /* FRIEND ACCEPT */
-    if (data.type === 'friend_accept') {
-      db.prepare(`
-        INSERT OR IGNORE INTO friends (user1, user2)
-        VALUES (?, ?)
-      `).run(data.from, data.to);
-
-      db.prepare(`
-        DELETE FROM friend_requests
-        WHERE fromUser = ? AND toUser = ?
-      `).run(data.to, data.from);
-
-      sendToUser(data.to, {
-        type: 'friend_accept',
-        from: userLogin,
-        fromNick: me.nickname
-      });
-
-      // Обновляем списки друзей у обеих сторон.
-      send(ws, {
-        type: 'friends_list',
-        friends: getFriendUsers(userLogin)
-      });
-      sendToUser(data.to, {
-        type: 'friends_list',
-        friends: getFriendUsers(data.to)
-      });
-
-      broadcastOnlineFriends();
-      return;
-    }
-
-    /* MESSAGE */
-    if (data.type === 'message') {
-      const messageTime = Date.now();
-
-      db.prepare(`
-        INSERT INTO messages (fromUser, toUser, text, time)
-        VALUES (?, ?, ?, ?)
-      `).run(userLogin, data.to, data.text, messageTime);
-
-      db.prepare(`
-        INSERT INTO unread (fromUser, toUser, count)
-        VALUES (?, ?, 1)
-        ON CONFLICT(fromUser, toUser)
-        DO UPDATE SET count = count + 1
-      `).run(userLogin, data.to);
-
-      const unreadCount = db.prepare(`
-        SELECT count FROM unread
-        WHERE fromUser = ? AND toUser = ?
-      `).get(userLogin, data.to)?.count || 0;
-
-      const msgData = {
-        type: 'message',
-        from: userLogin,
-        to: data.to,
-        text: data.text,
-        time: messageTime,
-        fromNick: me.nickname,
-        avatar: buildAvatar(userLogin, me.nickname, me.avatarImage),
-        unread: unreadCount
-      };
-
-      sendToUser(userLogin, msgData);
-      sendToUser(data.to, msgData);
-      return;
-    }
-
-    /* READ */
-    if (data.type === 'read') {
-      db.prepare(`
-        DELETE FROM unread
-        WHERE fromUser = ? AND toUser = ?
-      `).run(data.from, userLogin);
-
-      send(ws, {
-        type: 'unread_update',
-        unread: getUnreadMap(userLogin)
-      });
-      return;
-    }
-
-    /* CALLS */
-    const callTypes = new Set([
-      'call_offer', 'call_answer', 'call_ice',
-      'call_cancel', 'call_decline', 'call_end', 'call_busy'
-    ]);
-
-    if (callTypes.has(data.type)) {
-      const to = data.to;
-      if (!to || to === userLogin) return;
-
-      const targetOnline = [...clients.values()].some(c => c.login === to);
-
-      if (data.type === 'call_offer') {
-        if (!targetOnline) {
-          send(ws, { type: 'error', message: 'Пользователь не в сети' });
-          return;
-        }
-
-        if (isBusy(userLogin) || isBusy(to)) {
-          sendToUser(userLogin, { type: 'call_busy' });
-          return;
-        }
-
-        inCall.set(userLogin, to);
-        inCall.set(to, userLogin);
-      }
-
-      if (
-        (data.type === 'call_answer' || data.type === 'call_ice') &&
-        inCall.get(userLogin) !== to
-      ) {
+        await broadcastOnlineFriends();
         return;
       }
 
-      if (
-        data.type === 'call_cancel' ||
-        data.type === 'call_decline' ||
-        data.type === 'call_end' ||
-        data.type === 'call_busy'
-      ) {
-        clearCall(userLogin);
-        clearCall(to);
+      /* MESSAGE */
+      if (data.type === 'message') {
+        if (!data.to || typeof data.text !== 'string' || !data.text.trim()) return;
+
+        const messageText = data.text.trim();
+        const messageTime = Date.now();
+
+        await pool.query(
+          `
+          INSERT INTO messages (fromUser, toUser, text, time)
+          VALUES ($1, $2, $3, $4)
+          `,
+          [userLogin, data.to, messageText, messageTime]
+        );
+
+        await pool.query(
+          `
+          INSERT INTO unread (fromUser, toUser, count)
+          VALUES ($1, $2, 1)
+          ON CONFLICT (fromUser, toUser)
+          DO UPDATE SET count = unread.count + 1
+          `,
+          [userLogin, data.to]
+        );
+
+        const unreadResult = await pool.query(
+          `
+          SELECT count
+          FROM unread
+          WHERE fromUser = $1 AND toUser = $2
+          `,
+          [userLogin, data.to]
+        );
+
+        const unreadCount = unreadResult.rows[0]?.count || 0;
+
+        const msgData = {
+          type: 'message',
+          from: userLogin,
+          to: data.to,
+          text: messageText,
+          time: messageTime,
+          fromNick: me.nickname,
+          avatar: buildAvatar(userLogin, me.nickname, me.avatarImage),
+          unread: unreadCount
+        };
+
+        sendToUser(userLogin, msgData);
+        sendToUser(data.to, msgData);
+        return;
       }
 
-      sendToUser(to, {
-        ...data,
-        from: userLogin,
-        fromNick: me.nickname
-      });
+      /* READ */
+      if (data.type === 'read') {
+        if (!data.from) return;
 
-      return;
+        await pool.query(
+          `
+          DELETE FROM unread
+          WHERE fromUser = $1 AND toUser = $2
+          `,
+          [data.from, userLogin]
+        );
+
+        send(ws, {
+          type: 'unread_update',
+          unread: await getUnreadMap(userLogin)
+        });
+        return;
+      }
+
+      /* CALLS */
+      const callTypes = new Set([
+        'call_offer',
+        'call_answer',
+        'call_ice',
+        'call_cancel',
+        'call_decline',
+        'call_end',
+        'call_busy'
+      ]);
+
+      if (callTypes.has(data.type)) {
+        const to = data.to;
+        if (!to || to === userLogin) return;
+
+        const targetOnline = [...clients.values()].some(c => c.login === to);
+
+        if (data.type === 'call_offer') {
+          if (!targetOnline) {
+            send(ws, { type: 'error', message: 'Пользователь не в сети' });
+            return;
+          }
+
+          if (isBusy(userLogin) || isBusy(to)) {
+            sendToUser(userLogin, { type: 'call_busy' });
+            return;
+          }
+
+          inCall.set(userLogin, to);
+          inCall.set(to, userLogin);
+        }
+
+        if (
+          (data.type === 'call_answer' || data.type === 'call_ice') &&
+          inCall.get(userLogin) !== to
+        ) {
+          return;
+        }
+
+        if (
+          data.type === 'call_cancel' ||
+          data.type === 'call_decline' ||
+          data.type === 'call_end' ||
+          data.type === 'call_busy'
+        ) {
+          clearCall(userLogin);
+          clearCall(to);
+        }
+
+        sendToUser(to, {
+          ...data,
+          from: userLogin,
+          fromNick: me.nickname
+        });
+
+        return;
+      }
+    } catch (err) {
+      console.error('WS message error:', err);
+      send(ws, { type: 'error', message: 'Ошибка сервера' });
     }
   });
 
-  ws.on('close', () => {
+  ws.on('close', async () => {
     const info = clients.get(ws);
     clients.delete(ws);
 
@@ -510,12 +656,24 @@ wss.on('connection', ws => {
       clearCall(info.login);
     }
 
-    broadcastOnlineFriends();
+    try {
+      await broadcastOnlineFriends();
+    } catch (err) {
+      console.error('broadcastOnlineFriends on close error:', err);
+    }
   });
 });
 
 /* START */
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => {
-  console.log('Server started on port ' + PORT);
-});
+
+initDb()
+  .then(() => {
+    server.listen(PORT, () => {
+      console.log('Server started on port ' + PORT);
+    });
+  })
+  .catch(err => {
+    console.error('Database init error:', err);
+    process.exit(1);
+  });
