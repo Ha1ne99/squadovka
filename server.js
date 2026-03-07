@@ -11,7 +11,7 @@ const wss = new WebSocket.Server({ server });
 // Отдаём index.html и остальные файлы из текущей папки.
 app.use(express.static(__dirname));
 app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, '/public/index.html'));
+  res.sendFile(path.join(__dirname, 'index.html'));
 });
 
 /* ================= DATABASE ================= */
@@ -446,10 +446,17 @@ wss.on('connection', ws => {
 
     if (callTypes.has(data.type)) {
       const to = data.to;
-      if (!to) return;
+      if (!to || to === userLogin) return;
+
+      const targetOnline = [...clients.values()].some(c => c.login === to);
 
       if (data.type === 'call_offer') {
-        if (isBusy(to)) {
+        if (!targetOnline) {
+          send(ws, { type: 'error', message: 'Пользователь не в сети' });
+          return;
+        }
+
+        if (isBusy(userLogin) || isBusy(to)) {
           sendToUser(userLogin, { type: 'call_busy' });
           return;
         }
@@ -459,9 +466,17 @@ wss.on('connection', ws => {
       }
 
       if (
+        (data.type === 'call_answer' || data.type === 'call_ice') &&
+        inCall.get(userLogin) !== to
+      ) {
+        return;
+      }
+
+      if (
         data.type === 'call_cancel' ||
         data.type === 'call_decline' ||
-        data.type === 'call_end'
+        data.type === 'call_end' ||
+        data.type === 'call_busy'
       ) {
         clearCall(userLogin);
         clearCall(to);

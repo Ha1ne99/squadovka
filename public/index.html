@@ -667,6 +667,38 @@ let currentDMNick = null;
 let chats = {}, requests = [], friends = [];
 let unread = {}; // { login: count }
 
+function getChatsStorageKey(userLogin) {
+  return `messenger_chats_${userLogin}`;
+}
+
+function getUnreadStorageKey(userLogin) {
+  return `messenger_unread_${userLogin}`;
+}
+
+function saveLocalChatState() {
+  if (!login) return;
+  try {
+    localStorage.setItem(getChatsStorageKey(login), JSON.stringify(chats));
+    localStorage.setItem(getUnreadStorageKey(login), JSON.stringify(unread));
+  } catch (e) {
+    console.warn('Не удалось сохранить переписку локально:', e);
+  }
+}
+
+function loadLocalChatState(userLogin) {
+  try {
+    const savedChats = localStorage.getItem(getChatsStorageKey(userLogin));
+    const savedUnread = localStorage.getItem(getUnreadStorageKey(userLogin));
+
+    chats = savedChats ? JSON.parse(savedChats) : {};
+    unread = savedUnread ? JSON.parse(savedUnread) : {};
+  } catch (e) {
+    console.warn('Не удалось загрузить переписку локально:', e);
+    chats = {};
+    unread = {};
+  }
+}
+
 /* =========================================================
    ======================= SOUNDS ==========================
    =========================================================
@@ -941,6 +973,19 @@ function stopLocalAudio() {
     localStream = null;
   }
   stopMicLevel();
+}
+
+async function flushPendingIce() {
+  if (!pc || !pc.remoteDescription) return;
+
+  while (pendingIceCandidates.length) {
+    const candidate = pendingIceCandidates.shift();
+    try {
+      await pc.addIceCandidate(new RTCIceCandidate(candidate));
+    } catch (e) {
+      console.warn("ICE add failed:", e);
+    }
+  }
 }
 
 function createPeerConnection() {
@@ -1276,11 +1321,15 @@ if (d.type === 'login_ok') {
   localStorage.setItem("login", login);
   localStorage.setItem("password", passwordInput.value);
 
+  loadLocalChatState(login);
+
   loginDiv.style.display = 'none';
   appDiv.style.display = 'flex';
 
   profileNick.textContent = nickname;
   profileLogin.textContent = login;
+
+  renderOnline();
 }
 
   if (d.type === 'online_friends') {
@@ -1312,6 +1361,8 @@ if (d.type === 'login_ok') {
 
     if (peer !== currentDM) unread[peer] = d.unread;
     else unread[peer] = 0;
+
+    saveLocalChatState();
 
     // звук сообщения (входящее)
     if (isIncoming) {
@@ -1364,11 +1415,33 @@ if (d.type === 'login_ok') {
 
   if (d.type === "call_answer") {
     stopRingtone();
-    if (pc) pc.setRemoteDescription(new RTCSessionDescription(d.answer)).catch(()=>{});
+
+    if (pc && d.answer) {
+      pc.setRemoteDescription(new RTCSessionDescription(d.answer))
+        .then(() => flushPendingIce())
+        .catch(err => {
+          console.warn("call_answer setRemoteDescription error:", err);
+          endCall("Ошибка ответа звонка");
+        });
+    }
   }
 
   if (d.type === "call_ice") {
-    if (pc && d.candidate) pc.addIceCandidate(new RTCIceCandidate(d.candidate)).catch(()=>{});
+    if (!d.candidate) return;
+
+    if (!pc) {
+      pendingIceCandidates.push(d.candidate);
+      return;
+    }
+
+    if (!pc.remoteDescription) {
+      pendingIceCandidates.push(d.candidate);
+      return;
+    }
+
+    pc.addIceCandidate(new RTCIceCandidate(d.candidate)).catch(err => {
+      console.warn("ICE add error:", err);
+    });
   }
 
   if (d.type === "call_decline") { stopRingtone(); soundDecline(); endCall("Отклонено"); }
@@ -1386,6 +1459,7 @@ function openDM(l, n) {
   messages.style.display = 'block';
   messages.innerHTML = '';
   unread[l] = 0;
+  saveLocalChatState();
 
   ws.send(JSON.stringify({ type: 'read', from: l }));
   (chats[l] || []).forEach(m => show(m.from, m.text, m.avatar));
@@ -1407,32 +1481,17 @@ sendBtn.onclick = async () => {
   await unlockAudio();
   const message = text.value.trim();
   if (!message || !currentDM) return;
-
-  ws.send(JSON.stringify({
-    type: 'message',
-    from: login,
-    to: currentDM,
-    text: message
-  }));
-
+  ws.send(JSON.stringify({ type:'message', from:login, to:currentDM, text:message }));
   text.value = '';
 };
 
 text.addEventListener('keydown', async (e) => {
   if (e.key === 'Enter') {
     e.preventDefault();
-
     const message = text.value.trim();
     if (!message || !currentDM) return;
-
     await unlockAudio();
-    ws.send(JSON.stringify({
-      type: 'message',
-      from: login,
-      to: currentDM,
-      text: message
-    }));
-
+    ws.send(JSON.stringify({ type:'message', from:login, to:currentDM, text:message }));
     text.value = '';
   }
 });
@@ -1501,12 +1560,14 @@ function accept(u) {
   ws.send(JSON.stringify({ type:'friend_accept', from:login, to:u }));
   requests = requests.filter(r => r !== u);
   friends.push(u);
+  saveLocalChatState();
   renderRequests();
   renderFriends();
 }
 
 function decline(u) {
   requests = requests.filter(r => r !== u);
+  saveLocalChatState();
   renderRequests();
 }
 
