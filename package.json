@@ -1,21 +1,18 @@
 {
-  "name": "webmessenger",
+  "name": "Squadovka",
   "version": "1.0.0",
   "description": "",
-  "main": "sever.js",
+  "main": "server.js",
   "type": "commonjs",
   "license": "ISC",
-
   "scripts": {
-    "start": "node sever.js",
-    "postinstall": "npm rebuild better-sqlite3 --build-from-source"
+    "start": "node server.js"
   },
-
   "dependencies": {
     "bcrypt": "^6.0.0",
     "bcryptjs": "^3.0.3",
-    "better-sqlite3": "^12.6.2",
     "express": "^5.2.1",
+    "pg": "^8.13.1",
     "ws": "^8.19.0"
   }
 }
