@@ -122,30 +122,6 @@ body {
   flex-shrink:0;
 }
 
-
-function formatMessageTime(ts) {
-  if (!ts) return '';
-  const d = new Date(ts);
-  const date = d.toLocaleDateString('ru-RU', {
-    day: '2-digit',
-    month: '2-digit'
-  });
-  const time = d.toLocaleTimeString('ru-RU', {
-    hour: '2-digit',
-    minute: '2-digit'
-  });
-  return `${date} ${time}`;
-}
-
-function escapeHtml(value) {
-  return String(value)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#039;');
-}
-
 /* ---------- CHAT ---------- */
 #chat {
   flex:1;
@@ -179,24 +155,6 @@ function escapeHtml(value) {
   background:#313338;
   padding:8px;
   border-radius:8px;
-}
-
-.messageHeader {
-  display:flex;
-  align-items:center;
-  gap:8px;
-  margin-bottom:4px;
-  flex-wrap:wrap;
-}
-
-.messageTime {
-  font-size:12px;
-  color:#b5bac1;
-}
-
-.messageText {
-  white-space:pre-wrap;
-  word-break:break-word;
 }
 
 #input {
@@ -1273,21 +1231,16 @@ if (d.type === 'login_ok') {
 
   login = d.login;
   nickname = d.nickname;
-  friends = (d.friends || []).map(u => u.login);
-  unread = d.unread || {};
 
   // сохраняем данные
   localStorage.setItem("login", login);
-  localStorage.setItem("password", passwordInput.value || localStorage.getItem("password") || '');
+  localStorage.setItem("password", passwordInput.value);
 
   loginDiv.style.display = 'none';
   appDiv.style.display = 'flex';
 
   profileNick.textContent = nickname;
   profileLogin.textContent = login;
-
-  renderFriends();
-  renderOnline();
 }
 
   if (d.type === 'online_friends') {
@@ -1328,7 +1281,7 @@ if (d.type === 'login_ok') {
       else soundMessage();
     }
 
-    if (peer === currentDM) show(d.from, d.text, d.avatar, d.time);
+    if (peer === currentDM) show(d.from, d.text, d.avatar);
     renderOnline();
   }
 
@@ -1338,25 +1291,8 @@ if (d.type === 'login_ok') {
   }
 
   if (d.type === 'friend_accept') {
-    if (!friends.includes(d.from)) friends.push(d.from);
+    friends.push(d.from);
     renderFriends();
-  }
-
-  if (d.type === 'friends_list') {
-    friends = (d.friends || []).map(u => u.login);
-    renderFriends();
-  }
-
-  if (d.type === 'unread_update') {
-    unread = d.unread || {};
-    renderOnline();
-  }
-
-  if (d.type === 'chat_history') {
-    if (d.with !== currentDM) return;
-    chats[d.with] = d.messages || [];
-    messages.innerHTML = '';
-    (chats[d.with] || []).forEach(m => show(m.from, m.text, m.avatar, m.time));
   }
 
   /* =================== CALL SIGNALING =================== */
@@ -1401,30 +1337,6 @@ if (d.type === 'login_ok') {
   if (d.type === "call_busy")    { stopRingtone(); soundDecline(); endCall("Пользователь занят"); }
 }
 
-
-function formatMessageTime(ts) {
-  if (!ts) return '';
-  const d = new Date(ts);
-  const date = d.toLocaleDateString('ru-RU', {
-    day: '2-digit',
-    month: '2-digit'
-  });
-  const time = d.toLocaleTimeString('ru-RU', {
-    hour: '2-digit',
-    minute: '2-digit'
-  });
-  return `${date} ${time}`;
-}
-
-function escapeHtml(value) {
-  return String(value)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#039;');
-}
-
 /* ---------- CHAT ---------- */
 function openDM(l, n) {
   currentDM = l;
@@ -1436,28 +1348,19 @@ function openDM(l, n) {
   unread[l] = 0;
 
   ws.send(JSON.stringify({ type: 'read', from: l }));
-  ws.send(JSON.stringify({ type: 'get_messages', with: l }));
+  (chats[l] || []).forEach(m => show(m.from, m.text, m.avatar));
   renderOnline();
 }
 
-function show(f, t, avatar, time) {
+function show(f, t, avatar) {
   const m = document.createElement('div');
   m.className = 'message';
-  m.appendChild(createAvatar(avatar || { letter: (f || '?')[0].toUpperCase(), color: '#5865f2' }));
-
+  m.appendChild(createAvatar(avatar));
   const c = document.createElement('div');
   c.className = 'messageContent';
-  c.innerHTML = `
-    <div class="messageHeader">
-      <b>${escapeHtml(f)}</b>
-      <span class="messageTime">${formatMessageTime(time)}</span>
-    </div>
-    <div class="messageText">${escapeHtml(t)}</div>
-  `;
-
+  c.innerHTML = `<b>${f}</b><br>${t}`;
   m.appendChild(c);
   messages.appendChild(m);
-  messages.scrollTop = messages.scrollHeight;
 }
 
 sendBtn.onclick = async () => {
@@ -1497,18 +1400,7 @@ function renderRequests() {
 
 function renderFriends() {
   friendsDiv.innerHTML = '';
-
-  const uniqueFriends = [...new Set(friends)];
-  friends = uniqueFriends;
-
-  if (!uniqueFriends.length) {
-    friendsDiv.textContent = 'Список друзей пуст';
-    friendsDiv.className = 'emptyText';
-    return;
-  }
-
-  friendsDiv.className = '';
-  uniqueFriends.forEach(u => {
+  friends.forEach(u => {
     const d = document.createElement('div');
     d.className = 'friendEntry';
     d.appendChild(createAvatar({ letter:u[0].toUpperCase(), color:'#5865f2' }));
