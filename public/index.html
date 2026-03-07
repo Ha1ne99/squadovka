@@ -1227,16 +1227,21 @@ function handle(d) {
     switchMode.onclick();
   }
 
-  if (d.type === 'login_ok') {
-    login = d.login;
-    nickname = d.nickname;
+if (d.type === 'login_ok') {
 
-    loginDiv.style.display = 'none';
-    appDiv.style.display = 'flex';
+  login = d.login;
+  nickname = d.nickname;
 
-    profileNick.textContent = nickname;
-    profileLogin.textContent = login;
-  }
+  // сохраняем данные
+  localStorage.setItem("login", login);
+  localStorage.setItem("password", passwordInput.value);
+
+  loginDiv.style.display = 'none';
+  appDiv.style.display = 'flex';
+
+  profileNick.textContent = nickname;
+  profileLogin.textContent = login;
+}
 
   if (d.type === 'online_friends') {
     online.innerHTML = '';
@@ -1445,6 +1450,27 @@ window.addEventListener("beforeunload", () => {
       ws.send(JSON.stringify({ type:"call_end", to: callPeer }));
     }
   } catch {}
+});
+window.addEventListener("load", () => {
+
+  const savedLogin = localStorage.getItem("login");
+  const savedPassword = localStorage.getItem("password");
+
+  if (!savedLogin || !savedPassword) return;
+
+  const protocol = location.protocol === "https:" ? "wss://" : "ws://";
+  ws = new WebSocket(protocol + location.host);
+
+  ws.onopen = () => {
+    ws.send(JSON.stringify({
+      type: "login",
+      login: savedLogin,
+      password: savedPassword
+    }));
+  };
+
+  ws.onmessage = e => handle(JSON.parse(e.data));
+
 });
 </script>
 
