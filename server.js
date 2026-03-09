@@ -22,7 +22,15 @@ if (!process.env.DATABASE_URL) {
   process.exit(1);
 }
 
-const databaseUrl = process.env.DATABASE_URL.replace(/([?&])sslmode=[^&]*/i, '').replace(/[?&]$/, '');
+let databaseUrl = process.env.DATABASE_URL;
+
+try {
+  const url = new URL(databaseUrl);
+  url.searchParams.delete('sslmode');
+  databaseUrl = url.toString();
+} catch (e) {
+  console.error('Invalid DATABASE_URL:', e);
+}
 
 const pool = new Pool({
   connectionString: databaseUrl,
