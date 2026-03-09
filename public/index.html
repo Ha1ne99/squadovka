@@ -281,6 +281,10 @@ button:hover { transform: translateY(-1px); }
 .messageHeader b { font-size:14px; }
 .messageTime { color:var(--muted); font-size:11px; }
 .messageText { line-height:1.4; word-break:break-word; white-space:pre-wrap; }
+.message.deleted .messageText { color: var(--muted); font-style: italic; }
+.messageActions { margin-left:auto; display:flex; align-items:center; gap:6px; }
+.messageDeleteBtn { border:none; background:transparent; color:var(--muted); cursor:pointer; padding:2px 6px; border-radius:8px; font-size:12px; }
+.messageDeleteBtn:hover { background:rgba(255,255,255,.06); color:#fff; }
 #input {
   display:flex;
   border-top:1px solid var(--line);
@@ -759,7 +763,9 @@ const I18N = {
     localLoadError: 'Failed to load local chat:',
     allowMic: 'Allow microphone access for calls',
     muted: 'Mute',
-    unmuted: 'Unmute'
+    unmuted: 'Unmute',
+    delete: 'Delete',
+    messageDeleted: 'Message deleted'
   },
   ru: {
     languageLabel: 'Язык',
@@ -834,7 +840,9 @@ const I18N = {
     localLoadError: 'Не удалось загрузить переписку локально:',
     allowMic: 'Разрешите доступ к микрофону для звонков',
     muted: 'Mute',
-    unmuted: 'Unmute'
+    unmuted: 'Unmute',
+    delete: 'Delete',
+    messageDeleted: 'Message deleted'
   },
   uk: {
     languageLabel: 'Мова',
@@ -909,7 +917,9 @@ const I18N = {
     localLoadError: 'Не вдалося завантажити переписку локально:',
     allowMic: 'Дозвольте доступ до мікрофона для дзвінків',
     muted: 'Mute',
-    unmuted: 'Unmute'
+    unmuted: 'Unmute',
+    delete: 'Delete',
+    messageDeleted: 'Message deleted'
   }
 };
 
@@ -951,6 +961,10 @@ function applyLanguage(lang) {
   document.getElementById('emptyTitle').textContent = t('welcome');
   document.getElementById('emptySubtitle').textContent = t('welcomeText');
   text.placeholder = t('messagePlaceholder');
+  if (currentDM && Array.isArray(chats[currentDM])) {
+    messages.innerHTML = '';
+    chats[currentDM].forEach(m => show(m));
+  }
   document.getElementById('addFriendTitle').textContent = t('friendsPanelAdd');
   friendNick.placeholder = t('friendLoginPlaceholder');
   addFriendBtn.textContent = t('sendRequest');
@@ -1023,7 +1037,6 @@ function loadLocalChatState(userLogin) {
 languageSelect.addEventListener('change', () => {
   applyLanguage(languageSelect.value);
 });
-applyLanguage(currentLang);
 
 /* =========================================================
    ======================= SOUNDS ==========================
@@ -1238,6 +1251,8 @@ let audioCtx = null;
 let levelRaf = null;
 
 let pendingOffer = null; // {offer, from, fromNick}
+
+applyLanguage(currentLang);
 
 function openCallUI({peer, nick, status, hint = ""}) {
   callOverlay.style.display = "flex";
@@ -1755,8 +1770,24 @@ if (d.type === 'login_ok') {
       else soundMessage();
     }
 
-    if (peer === currentDM) show(d.fromNick || d.from, d.text, d.avatar, d.time);
+    if (peer === currentDM) show(d);
     renderOnline();
+  }
+
+  if (d.type === 'message_deleted') {
+    const peer = d.from === login ? d.to : d.from;
+    chats[peer] ??= [];
+    chats[peer] = chats[peer].map(m => m.id === d.id ? { ...m, text: d.text, deleted: true } : m);
+    saveLocalChatState();
+
+    if (peer === currentDM) {
+      const textEl = messages.querySelector(`[data-message-id="${String(d.id)}"] .messageText`);
+      const rowEl = messages.querySelector(`[data-message-id="${String(d.id)}"]`);
+      const deleteBtn = messages.querySelector(`[data-message-id="${String(d.id)}"] .messageDeleteBtn`);
+      if (textEl) textEl.textContent = t('messageDeleted');
+      if (rowEl) rowEl.classList.add('deleted');
+      if (deleteBtn) deleteBtn.remove();
+    }
   }
 
   if (d.type === 'chat_history') {
@@ -1765,7 +1796,7 @@ if (d.type === 'login_ok') {
     saveLocalChatState();
     if (currentDM === d.with) {
       messages.innerHTML = '';
-      chats[d.with].forEach(m => show(m.fromNick || m.from, m.text, m.avatar, m.time));
+      chats[d.with].forEach(m => show(m));
     }
   }
 
@@ -1880,17 +1911,58 @@ function openDM(l, n, avatar = null) {
   updateChatHeader(l, n, avatar);
   ws.send(JSON.stringify({ type: 'read', from: l }));
   ws.send(JSON.stringify({ type: 'get_messages', with: l }));
-  (chats[l] || []).forEach(m => show(m.fromNick || m.from, m.text, m.avatar, m.time));
+  (chats[l] || []).forEach(m => show(m));
   renderOnline();
 }
 
-function show(f, t, avatar, time = null) {
+function show(message) {
+  const senderName = message.fromNick || message.from || '?';
+  const messageText = message.deleted ? t('messageDeleted') : (message.text || '');
+  const isOwn = message.from === login;
+
   const m = document.createElement('div');
-  m.className = 'message';
-  m.appendChild(createAvatar(avatar || { letter: String(f || '?').charAt(0).toUpperCase(), color: '#5865f2' }));
+  m.className = 'message' + (message.deleted ? ' deleted' : '');
+  if (message.id != null) m.dataset.messageId = String(message.id);
+
+  m.appendChild(createAvatar(message.avatar || { letter: String(senderName || '?').charAt(0).toUpperCase(), color: '#5865f2' }));
+
   const c = document.createElement('div');
   c.className = 'messageContent';
-  c.innerHTML = `<div class="messageHeader"><b>${escapeHtml(f)}</b><span class="messageTime">${escapeHtml(formatMessageTime(time))}</span></div><div class="messageText">${escapeHtml(t)}</div>`;
+
+  const header = document.createElement('div');
+  header.className = 'messageHeader';
+
+  const nameEl = document.createElement('b');
+  nameEl.textContent = senderName;
+  header.appendChild(nameEl);
+
+  const timeEl = document.createElement('span');
+  timeEl.className = 'messageTime';
+  timeEl.textContent = formatMessageTime(message.time);
+  header.appendChild(timeEl);
+
+  if (isOwn && !message.deleted && message.id != null) {
+    const actions = document.createElement('div');
+    actions.className = 'messageActions';
+
+    const deleteBtn = document.createElement('button');
+    deleteBtn.className = 'messageDeleteBtn';
+    deleteBtn.type = 'button';
+    deleteBtn.textContent = t('delete');
+    deleteBtn.onclick = () => {
+      ws.send(JSON.stringify({ type: 'delete_message', id: message.id, with: currentDM }));
+    };
+
+    actions.appendChild(deleteBtn);
+    header.appendChild(actions);
+  }
+
+  const textEl = document.createElement('div');
+  textEl.className = 'messageText';
+  textEl.textContent = messageText;
+
+  c.appendChild(header);
+  c.appendChild(textEl);
   m.appendChild(c);
   messages.appendChild(m);
   messages.scrollTop = messages.scrollHeight;
