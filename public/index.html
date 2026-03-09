@@ -383,10 +383,8 @@ input[type="range"]{ width:190px; }
 .profileMeta span { font-size:12px; color:var(--muted); }
 #avatarUploadInput { display:none; }
 #avatarUploadBtn { padding:9px 10px; min-width:auto; height:auto; font-size:13px; }
-.mobileOnly { display:none; }
-
 @media (max-width: 900px) {
-  body { display:block; overflow:hidden; }
+  body { display:block; }
   #login { margin:18px auto; }
   #app { height:100vh; }
   #sidebar { width:88px; min-width:88px; padding:10px 8px; }
@@ -405,102 +403,6 @@ input[type="range"]{ width:190px; }
   .messageContent { max-width: 100%; }
   #input { padding:12px; }
   #callModal { width:min(92vw, 420px); }
-}
-
-@media (max-width: 700px) {
-  body { display:block; overflow:hidden; }
-  #app { position:relative; height:100vh; }
-  #sidebar {
-    position:fixed;
-    left:0;
-    top:0;
-    bottom:0;
-    width:min(84vw, 320px);
-    min-width:min(84vw, 320px);
-    z-index:4500;
-    transform:translateX(-100%);
-    transition:transform .24s ease;
-    padding:14px;
-  }
-  #sidebar.open { transform:translateX(0); }
-  .sidebarBrandText, .sectionLabel, #profileNick, #profileLogin, #friendsBtn span, .userInfo, #avatarUploadBtn {
-    display:block;
-  }
-  #friendsBtn { padding:12px; }
-  #friendsBtn::before { content:none; }
-  .user { justify-content:flex-start; padding:10px 12px; }
-  .user .unread { right:10px; top:50%; transform:translateY(-50%); }
-  .profileCard { padding:12px; justify-content:flex-start; }
-  .profileMeta { display:block; }
-  #chat {
-    width:100%;
-    min-width:0;
-  }
-  #chatHeader {
-    padding:10px 12px;
-    gap:10px;
-  }
-  #chatHeader .left { gap:8px; }
-  .mobileOnly {
-    display:inline-flex;
-    align-items:center;
-    justify-content:center;
-  }
-  #mobileBackBtn { display:none; }
-  body.dm-open #mobileBackBtn { display:inline-flex; }
-  body.dm-open #mobileSidebarBtn { display:none; }
-  #chatAvatar { width:36px; height:36px; }
-  #chatTitleWrap { min-width:0; }
-  #chatTitle { font-size:15px; }
-  #chatStatus { font-size:11px; }
-  #messages {
-    padding:10px;
-  }
-  .message {
-    gap:8px;
-    margin-bottom:10px;
-  }
-  .message .avatar {
-    width:34px;
-    height:34px;
-    font-size:13px;
-  }
-  .messageContent {
-    max-width:100%;
-    padding:9px 11px;
-    border-radius:14px;
-  }
-  #input {
-    padding:10px;
-    gap:8px;
-  }
-  #input input {
-    min-width:0;
-    padding:12px 13px;
-    border-radius:14px;
-  }
-  #input button {
-    min-width:42px;
-    height:42px;
-    padding:0 12px;
-  }
-  #friendsPanel {
-    width:100vw;
-    padding:12px;
-  }
-  .friendSection {
-    padding:12px;
-    border-radius:18px;
-  }
-  #callFlag {
-    padding:10px 12px;
-  }
-  #callFlag .left, #callFlag .right {
-    gap:8px;
-  }
-  input[type="range"] {
-    width:120px;
-  }
 }
 </style>
 </head>
@@ -554,8 +456,6 @@ input[type="range"]{ width:190px; }
   <div id="chat">
     <div id="chatHeader">
       <div class="left">
-        <button id="mobileSidebarBtn" class="ghostBtn mobileOnly" title="Меню">☰</button>
-        <button id="mobileBackBtn" class="ghostBtn mobileOnly" title="Назад">←</button>
         <div id="chatAvatar" class="avatar" style="background:#5865f2">S</div>
         <div id="chatTitleWrap">
           <div id="chatTitle">Squadovka</div>
@@ -680,8 +580,6 @@ const chatAvatar = document.getElementById('chatAvatar');
 const chatTitle = document.getElementById('chatTitle');
 const chatStatus = document.getElementById('chatStatus');
 const headerFriendsBtn = document.getElementById('headerFriendsBtn');
-const mobileSidebarBtn = document.getElementById('mobileSidebarBtn');
-const mobileBackBtn = document.getElementById('mobileBackBtn');
 
 const emptyChat = document.getElementById('emptyChat');
 const messages = document.getElementById('messages');
@@ -731,55 +629,6 @@ let chats = {}, requests = [], friends = [];
 let unread = {}; // { login: count }
 let onlineUsers = [];
 let pendingIceCandidates = [];
-let lastSentSignature = '';
-let lastSentAt = 0;
-
-function isMobileUI() {
-  return window.innerWidth <= 700;
-}
-
-function openSidebarMobile() {
-  const sidebar = document.getElementById('sidebar');
-  if (isMobileUI()) sidebar.classList.add('open');
-}
-
-function closeSidebarMobile() {
-  const sidebar = document.getElementById('sidebar');
-  if (isMobileUI()) sidebar.classList.remove('open');
-}
-
-function setMobileDMState(open) {
-  document.body.classList.toggle('dm-open', !!open);
-  if (open) closeSidebarMobile();
-}
-
-function normalizeUser(u) {
-  if (!u) return null;
-  if (typeof u === 'string') {
-    return {
-      login: u,
-      nickname: u,
-      avatar: { letter: u[0]?.toUpperCase() || '?', color: '#5865f2' }
-    };
-  }
-  return {
-    login: u.login || u.nickname || '',
-    nickname: u.nickname || u.login || '',
-    avatar: u.avatar || { letter: (u.nickname || u.login || '?')[0]?.toUpperCase() || '?', color: '#5865f2' }
-  };
-}
-
-function messageSignature(d) {
-  return [d.from, d.to, d.text, d.time].join('|');
-}
-
-function pushMessageUnique(peer, msg) {
-  chats[peer] ??= [];
-  const sig = messageSignature(msg);
-  const exists = chats[peer].some(m => messageSignature(m) === sig);
-  if (!exists) chats[peer].push(msg);
-  return !exists;
-}
 
 function getChatsStorageKey(userLogin) {
   return `messenger_chats_${userLogin}`;
@@ -928,7 +777,7 @@ function createAvatar(user) {
   if (user?.image) {
     a.textContent = '';
     a.style.backgroundImage = `url(${user.image})`;
-    a.style.background = '#2a2f3a';
+    a.style.backgroundColor = '#2a2f3a';
   } else {
     a.textContent = user?.letter || '?';
     a.style.background = user?.color || '#5865f2';
@@ -966,7 +815,7 @@ function updateChatHeader(peerLogin = null, peerNick = null, avatar = null) {
   if (avatar?.image) {
     chatAvatar.textContent = '';
     chatAvatar.style.backgroundImage = `url(${avatar.image})`;
-    chatAvatar.style.background = '#2a2f3a';
+    chatAvatar.style.backgroundColor = '#2a2f3a';
   } else {
     chatAvatar.textContent = avatar?.letter || (peerNick || peerLogin || '?')[0]?.toUpperCase() || '?';
     chatAvatar.style.backgroundImage = '';
@@ -992,7 +841,6 @@ loginBtn.onclick = async () => {
   if (!l || !p) return;
 
   const protocol = location.protocol === "https:" ? "wss://" : "ws://";
-  if (ws && ws.readyState <= 1) ws.close();
   ws = new WebSocket(protocol + location.host);
 
   ws.onopen = () => {
@@ -1497,8 +1345,6 @@ if (d.type === 'login_ok') {
   renderFriends();
   renderRequests();
   renderOnline();
-  setMobileDMState(false);
-  closeSidebarMobile();
 }
 
   if (d.type === 'online_friends') {
@@ -1530,7 +1376,8 @@ if (d.type === 'login_ok') {
 
   if (d.type === 'message') {
     const peer = d.from === login ? d.to : d.from;
-    const added = pushMessageUnique(peer, d);
+    chats[peer] ??= [];
+    chats[peer].push(d);
 
     const isIncoming = d.from !== login;
 
@@ -1539,22 +1386,21 @@ if (d.type === 'login_ok') {
 
     saveLocalChatState();
 
+    // звук сообщения (входящее)
     if (isIncoming) {
-      soundMessage();
+      // если не текущий диалог — точно пикаем
+      if (peer !== currentDM) soundMessage();
+      // если в текущем диалоге — тоже пикаем (можешь убрать, если не надо)
+      else soundMessage();
     }
 
-    if (peer === currentDM && added) show(d.fromNick || d.from, d.text, d.avatar, d.time);
+    if (peer === currentDM) show(d.fromNick || d.from, d.text, d.avatar, d.time);
     renderOnline();
   }
 
   if (d.type === 'chat_history') {
     if (!d.with) return;
-    const merged = [];
-    for (const m of (Array.isArray(d.messages) ? d.messages : [])) {
-      const sig = messageSignature(m);
-      if (!merged.some(x => messageSignature(x) === sig)) merged.push(m);
-    }
-    chats[d.with] = merged;
+    chats[d.with] = Array.isArray(d.messages) ? d.messages : [];
     saveLocalChatState();
     if (currentDM === d.with) {
       messages.innerHTML = '';
@@ -1586,15 +1432,12 @@ if (d.type === 'login_ok') {
   }
 
   if (d.type === 'friend_request') {
-    if (!requests.includes(d.from)) requests.push(d.from);
+    requests.push(d.from);
     renderRequests();
   }
 
   if (d.type === 'friend_accept') {
-    const accepted = normalizeUser(d.friend || d.from);
-    if (accepted && !friends.some(f => normalizeUser(f)?.login === accepted.login)) {
-      friends.push(accepted);
-    }
+    friends.push(d.from);
     renderFriends();
   }
 
@@ -1672,7 +1515,6 @@ function openDM(l, n, avatar = null) {
   messages.innerHTML = '';
   unread[l] = 0;
   saveLocalChatState();
-  setMobileDMState(true);
 
   updateChatHeader(l, n, avatar);
   ws.send(JSON.stringify({ type: 'read', from: l }));
@@ -1693,34 +1535,22 @@ function show(f, t, avatar, time = null) {
   messages.scrollTop = messages.scrollHeight;
 }
 
-async function sendCurrentMessage() {
-  const message = text.value.trim();
-  if (!message || !currentDM || !ws || ws.readyState !== WebSocket.OPEN) return;
-
+sendBtn.onclick = async () => {
   await unlockAudio();
-
-  const signature = `${currentDM}|${message}`;
-  const now = Date.now();
-
-  if (signature === lastSentSignature && now - lastSentAt < 700) {
-    return;
-  }
-
-  lastSentSignature = signature;
-  lastSentAt = now;
-
+  const message = text.value.trim();
+  if (!message || !currentDM) return;
   ws.send(JSON.stringify({ type:'message', from:login, to:currentDM, text:message }));
   text.value = '';
-}
-
-sendBtn.onclick = () => {
-  sendCurrentMessage();
 };
 
-text.addEventListener('keydown', (e) => {
-  if (e.key === 'Enter' && !e.shiftKey) {
+text.addEventListener('keydown', async (e) => {
+  if (e.key === 'Enter') {
     e.preventDefault();
-    sendCurrentMessage();
+    const message = text.value.trim();
+    if (!message || !currentDM) return;
+    await unlockAudio();
+    ws.send(JSON.stringify({ type:'message', from:login, to:currentDM, text:message }));
+    text.value = '';
   }
 });
 
@@ -1728,7 +1558,6 @@ text.addEventListener('keydown', (e) => {
 function toggleFriendsPanel() {
   friendsPanel.classList.toggle('open');
   friendsBtn.classList.toggle('active');
-  closeSidebarMobile();
 }
 
 friendsBtn.onclick = toggleFriendsPanel;
@@ -1744,21 +1573,19 @@ addFriendBtn.onclick = () => {
 function renderRequests() {
   requestsDiv.innerHTML = '';
   if (!requests.length) { requestsDiv.textContent = 'Нет входящих заявок'; requestsDiv.className = 'emptyText'; return; }
-  requests.forEach(rawUser => {
-    const u = normalizeUser(rawUser);
-    if (!u) return;
+  requests.forEach(u => {
     const d = document.createElement('div');
     d.className = 'friendEntry';
     const main = document.createElement('div');
     main.className = 'friendMain';
-    main.appendChild(createAvatar(u.avatar));
+    main.appendChild(createAvatar({ letter:u[0].toUpperCase(), color:'#5865f2' }));
     const meta = document.createElement('div');
     meta.className = 'friendMeta';
-    meta.innerHTML = `<b>${escapeHtml(u.nickname || u.login)}</b><span>@${escapeHtml(u.login)}</span>`;
+    meta.innerHTML = `<b>${escapeHtml(u)}</b><span>Входящая заявка</span>`;
     main.appendChild(meta);
     d.appendChild(main);
     const s = document.createElement('span');
-    s.innerHTML = `<button onclick="accept('${u.login}')">✔</button><button onclick="decline('${u.login}')">✖</button>`;
+    s.innerHTML = `<button onclick="accept('${u}')">✔</button><button onclick="decline('${u}')">✖</button>`;
     d.appendChild(s);
     requestsDiv.appendChild(d);
   });
@@ -1766,20 +1593,17 @@ function renderRequests() {
 
 function renderFriends() {
   friendsDiv.innerHTML = '';
-  const normalizedFriends = friends.map(normalizeUser).filter(Boolean);
-  if (!normalizedFriends.length) { friendsDiv.textContent = 'Список друзей пуст'; friendsDiv.className = 'emptyText'; return; }
-  normalizedFriends.forEach(u => {
+  if (!friends.length) { friendsDiv.textContent = 'Список друзей пуст'; friendsDiv.className = 'emptyText'; return; }
+  friends.forEach(u => {
     const d = document.createElement('div');
     d.className = 'friendEntry';
     const main = document.createElement('div');
     main.className = 'friendMain';
-    main.style.cursor = 'pointer';
-    main.appendChild(createAvatar(u.avatar));
+    main.appendChild(createAvatar({ letter:u[0].toUpperCase(), color:'#5865f2' }));
     const meta = document.createElement('div');
     meta.className = 'friendMeta';
-    meta.innerHTML = `<b>${escapeHtml(u.nickname || u.login)}</b><span>@${escapeHtml(u.login)}</span>`;
+    meta.innerHTML = `<b>${escapeHtml(u)}</b><span>Друг</span>`;
     main.appendChild(meta);
-    main.onclick = () => openDM(u.login, u.nickname, u.avatar);
     d.appendChild(main);
     friendsDiv.appendChild(d);
   });
@@ -1821,48 +1645,18 @@ function renderOnline() {
 
 function accept(u) {
   ws.send(JSON.stringify({ type:'friend_accept', from:login, to:u }));
-  requests = requests.filter(r => normalizeUser(r)?.login !== u);
-  if (!friends.some(f => normalizeUser(f)?.login === u)) {
-    friends.push(normalizeUser(u));
-  }
+  requests = requests.filter(r => r !== u);
+  friends.push(u);
   saveLocalChatState();
   renderRequests();
   renderFriends();
 }
 
 function decline(u) {
-  requests = requests.filter(r => normalizeUser(r)?.login !== u);
+  requests = requests.filter(r => r !== u);
   saveLocalChatState();
   renderRequests();
 }
-
-mobileSidebarBtn.onclick = () => openSidebarMobile();
-mobileBackBtn.onclick = () => {
-  currentDM = null;
-  currentDMNick = null;
-  messages.style.display = 'none';
-  emptyChat.style.display = 'flex';
-  updateChatHeader();
-  setMobileDMState(false);
-  renderOnline();
-};
-
-document.addEventListener('click', (e) => {
-  if (!isMobileUI()) return;
-  const sidebar = document.getElementById('sidebar');
-  const clickInsideSidebar = sidebar.contains(e.target);
-  const clickMenuBtn = mobileSidebarBtn.contains(e.target);
-  if (!clickInsideSidebar && !clickMenuBtn) {
-    closeSidebarMobile();
-  }
-});
-
-window.addEventListener('resize', () => {
-  if (!isMobileUI()) {
-    document.body.classList.remove('dm-open');
-    document.getElementById('sidebar').classList.remove('open');
-  }
-});
 
 avatarUploadBtn.onclick = () => avatarUploadInput.click();
 avatarUploadInput.onchange = () => {
@@ -1891,7 +1685,6 @@ window.addEventListener("load", () => {
   if (!savedLogin || !savedPassword) return;
 
   const protocol = location.protocol === "https:" ? "wss://" : "ws://";
-  if (ws && ws.readyState <= 1) ws.close();
   ws = new WebSocket(protocol + location.host);
 
   ws.onopen = () => {
