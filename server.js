@@ -9,10 +9,18 @@ const app = express();
 const server = http.createServer(app);
 const wss = new WebSocket.Server({ server });
 
-app.use(express.static(path.join(__dirname, 'public')));
+const publicDir = path.join(__dirname, 'public');
+const rootIndex = path.join(__dirname, 'index.html');
+const publicIndex = path.join(publicDir, 'index.html');
+
+app.use(express.static(publicDir));
+app.use(express.static(__dirname));
 
 app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+  if (require('fs').existsSync(publicIndex)) {
+    return res.sendFile(publicIndex);
+  }
+  return res.sendFile(rootIndex);
 });
 
 /* ================= DATABASE ================= */
@@ -526,10 +534,14 @@ wss.on('connection', ws => {
           [data.to, data.from]
         );
 
+        const acceptedMe = await getUserPublic(userLogin);
+        const acceptedFriend = await getUserPublic(data.to);
+
         sendToUser(data.to, {
           type: 'friend_accept',
           from: userLogin,
-          fromNick: me.nickname
+          fromNick: me.nickname,
+          friend: acceptedMe
         });
 
         send(ws, {
@@ -590,7 +602,8 @@ wss.on('connection', ws => {
           time: messageTime,
           fromNick: me.nickname,
           avatar: buildAvatar(userLogin, me.nickname, me.avatarImage),
-          unread: unreadCount
+          unread: unreadCount,
+          clientMsgId: typeof data.clientMsgId === 'string' ? data.clientMsgId : null
         };
 
         sendToUser(userLogin, msgData);
