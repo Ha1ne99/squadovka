@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
 <meta charset="UTF-8">
-<title>Messenger</title>
+<title>Squadovka</title>
 
 <style>
 body {
@@ -483,6 +483,29 @@ input[type="range"]{ width:190px; }
   }
 }
 
+
+.brandBlock{display:flex;align-items:center;gap:14px;margin-bottom:6px;}
+.brandBlock h1{margin:0;font-size:24px;line-height:1;}
+.brandBlock p{margin:4px 0 0;color:#b5bac1;font-size:13px;}
+.brandLogo{width:52px;height:52px;border-radius:16px;background:linear-gradient(135deg,#5865f2,#7c5cff);display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:800;box-shadow:0 8px 24px rgba(88,101,242,.35);}
+#brandMini{margin-top:10px;padding:10px 12px;border-radius:12px;background:linear-gradient(135deg,rgba(88,101,242,.18),rgba(124,92,255,.18));border:1px solid rgba(255,255,255,.07);font-weight:700;letter-spacing:.3px;text-align:center;}
+#chatTopbar{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid #333;background:rgba(30,31,34,.95);backdrop-filter:blur(8px);}
+.chatTopLeft{display:flex;align-items:center;gap:12px;min-width:0;}
+.chatTopAvatar{width:42px;height:42px;border-radius:14px;background:linear-gradient(135deg,#5865f2,#7c5cff);display:flex;align-items:center;justify-content:center;font-weight:800;flex-shrink:0;}
+#chatTopName{font-weight:700;font-size:15px;}
+#chatTopStatus{font-size:12px;color:#b5bac1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:320px;}
+.chip{padding:8px 12px;border-radius:999px;background:#313338;border:1px solid #3f4147;color:#d7dadc;font-size:12px;}
+.message{align-items:flex-start;margin-bottom:10px;}
+.messageMeta{display:flex;align-items:center;gap:8px;margin-bottom:4px;}
+.messageTime{font-size:11px;color:#a0a4ab;}
+.messageContent{max-width:min(70ch,80vw);line-height:1.35;}
+.messageContent b{font-size:13px;}
+.userStatusDot{width:10px;height:10px;border-radius:50%;background:#3ba55c;box-shadow:0 0 0 3px rgba(59,165,92,.15);margin-left:auto;margin-right:10px;flex-shrink:0;}
+#messages{scroll-behavior:smooth;background:linear-gradient(180deg,rgba(255,255,255,.01),rgba(255,255,255,0));}
+#input{background:#24262b;}
+#sendBtn{font-size:16px;font-weight:800;}
+@media (max-width: 900px){#brandMini{display:none;} #chatTopStatus{max-width:160px;} #chatTopbar{padding:12px 10px;}}
+
 </style>
 </head>
 
@@ -490,6 +513,7 @@ input[type="range"]{ width:190px; }
 
 <!-- LOGIN / REGISTER -->
 <div id="login">
+  <div class="brandBlock"><div class="brandLogo">S</div><div><h1>Squadovka</h1><p>Мессенджер для своей команды</p></div></div>
   <h2 id="loginTitle">Вход</h2>
   <input id="loginInput" placeholder="Логин">
   <input id="passwordInput" type="password" placeholder="Пароль">
@@ -501,6 +525,7 @@ input[type="range"]{ width:190px; }
 <div id="app" style="display:none;">
   <div id="sidebar">
     <div id="friendsBtn">👥 Друзья</div>
+    <div id="brandMini">Squadovka</div>
     <div id="online"></div>
 
     <!-- PROFILE -->
@@ -513,6 +538,18 @@ input[type="range"]{ width:190px; }
   </div>
 
   <div id="chat">
+    <div id="chatTopbar">
+      <div class="chatTopLeft">
+        <div class="chatTopAvatar" id="chatTopAvatar">#</div>
+        <div>
+          <div id="chatTopName">Squadovka</div>
+          <div id="chatTopStatus">Выберите диалог, чтобы начать общение</div>
+        </div>
+      </div>
+      <div class="chatTopRight">
+        <div class="chip" id="chatInfoChip">Личные сообщения</div>
+      </div>
+    </div>
 
     <!-- CALL FLAG (MINIMIZED) -->
     <div id="callFlag">
@@ -529,8 +566,8 @@ input[type="range"]{ width:190px; }
 
     <div id="emptyChat">
       <div>
-        <h2>Нет активного диалога</h2>
-        <p>Добавьте друга или выберите пользователя</p>
+        <h2>Добро пожаловать в Squadovka</h2>
+        <p>Выберите друга слева или отправьте заявку, чтобы начать общение</p>
       </div>
     </div>
 
@@ -538,7 +575,7 @@ input[type="range"]{ width:190px; }
 
     <div id="input">
       <button id="callBtn" title="Позвонить">📞</button>
-      <input id="text" placeholder="Сообщение...">
+      <input id="text" placeholder="Написать в Squadovka...">
       <button id="sendBtn">▶</button>
     </div>
   </div>
@@ -624,6 +661,10 @@ const emptyChat = document.getElementById('emptyChat');
 const messages = document.getElementById('messages');
 const text = document.getElementById('text');
 const sendBtn = document.getElementById('sendBtn');
+const chatTopAvatar = document.getElementById('chatTopAvatar');
+const chatTopName = document.getElementById('chatTopName');
+const chatTopStatus = document.getElementById('chatTopStatus');
+const chatInfoChip = document.getElementById('chatInfoChip');
 
 const friendsBtn = document.getElementById('friendsBtn');
 const friendsPanel = document.getElementById('friendsPanel');
@@ -816,6 +857,33 @@ function createAvatar(user) {
   return a;
 }
 
+function escapeHtml(text) {
+  return String(text)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+function formatTime(ts = Date.now()) {
+  const d = new Date(ts);
+  return d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+}
+
+function updateChatTopbar(name = 'Squadovka', subtitle = 'Выберите диалог, чтобы начать общение', avatar = null) {
+  chatTopName.textContent = name;
+  chatTopStatus.textContent = subtitle;
+  chatInfoChip.textContent = currentDM ? 'Диалог активен' : 'Личные сообщения';
+  if (avatar) {
+    chatTopAvatar.textContent = avatar.letter || '#';
+    chatTopAvatar.style.background = avatar.color || 'linear-gradient(135deg,#5865f2,#7c5cff)';
+  } else {
+    chatTopAvatar.textContent = 'S';
+    chatTopAvatar.style.background = 'linear-gradient(135deg,#5865f2,#7c5cff)';
+  }
+}
+
 /* ---------- LOGIN / REGISTER ---------- */
 switchMode.onclick = () => {
   isRegister = !isRegister;
@@ -871,6 +939,8 @@ let audioCtx = null;
 let levelRaf = null;
 
 let pendingOffer = null; // {offer, from, fromNick}
+let pendingIceCandidates = [];
+
 
 function openCallUI({peer, nick, status, hint = ""}) {
   callOverlay.style.display = "flex";
@@ -1152,6 +1222,8 @@ function endCall(statusText="Звонок завершён") {
   callState = "idle";
   callPeer = null;
   callPeerNick = null;
+  pendingOffer = null;
+  pendingIceCandidates = [];
 
   callBtn.disabled = false;
 
@@ -1329,6 +1401,10 @@ if (d.type === 'login_ok') {
   profileNick.textContent = nickname;
   profileLogin.textContent = login;
 
+  friends = Array.isArray(d.friends) ? d.friends.map(f => f.login || f) : [];
+  unread = d.unread || unread || {};
+  renderFriends(d.friends || []);
+  updateChatTopbar();
   renderOnline();
 }
 
@@ -1337,8 +1413,15 @@ if (d.type === 'login_ok') {
     d.users.forEach(u => {
       const div = document.createElement('div');
       div.className = 'user';
+      div.dataset.login = u.login;
+      div.dataset.nickname = u.nickname;
       div.appendChild(createAvatar(u.avatar || u));
-      div.appendChild(document.createTextNode(u.nickname));
+      const label = document.createElement('span');
+      label.textContent = u.nickname;
+      div.appendChild(label);
+      const statusDot = document.createElement('div');
+      statusDot.className = 'userStatusDot';
+      div.appendChild(statusDot);
 
       if (unread[u.login]) {
         const b = document.createElement('div');
@@ -1372,7 +1455,7 @@ if (d.type === 'login_ok') {
       else soundMessage();
     }
 
-    if (peer === currentDM) show(d.from, d.text, d.avatar);
+    if (peer === currentDM) show(d.fromNick || d.from, d.text, d.avatar, d.time);
     renderOnline();
   }
 
@@ -1384,6 +1467,16 @@ if (d.type === 'login_ok') {
   if (d.type === 'friend_accept') {
     friends.push(d.from);
     renderFriends();
+  }
+
+  if (d.type === 'chat_history') {
+    const peer = d.with;
+    chats[peer] = Array.isArray(d.messages) ? d.messages : [];
+    saveLocalChatState();
+    if (peer === currentDM) {
+      messages.innerHTML = '';
+      chats[peer].forEach(m => show(m.fromNick || m.from, m.text, m.avatar, m.time));
+    }
   }
 
   /* =================== CALL SIGNALING =================== */
@@ -1447,6 +1540,23 @@ if (d.type === 'login_ok') {
   if (d.type === "call_decline") { stopRingtone(); soundDecline(); endCall("Отклонено"); }
   if (d.type === "call_cancel")  { stopRingtone(); soundDecline(); endCall("Отменено"); }
   if (d.type === "call_end")     { stopRingtone(); endCall("Собеседник завершил звонок"); }
+  if (d.type === 'friends_list') {
+    renderFriends(d.friends || []);
+  }
+
+  if (d.type === 'unread_update') {
+    unread = d.unread || {};
+    saveLocalChatState();
+    renderOnline();
+  }
+
+  if (d.type === 'avatar_updated') {
+    renderOnline();
+    if (currentDM === d.login) {
+      updateChatTopbar(d.nickname || d.login, 'Онлайн сейчас', d.avatar);
+    }
+  }
+
   if (d.type === "call_busy")    { stopRingtone(); soundDecline(); endCall("Пользователь занят"); }
 }
 
@@ -1462,19 +1572,24 @@ function openDM(l, n) {
   saveLocalChatState();
 
   ws.send(JSON.stringify({ type: 'read', from: l }));
-  (chats[l] || []).forEach(m => show(m.from, m.text, m.avatar));
+  ws.send(JSON.stringify({ type: 'get_messages', with: l }));
+  updateChatTopbar(n, 'Онлайн сейчас', { letter: (n || l)[0].toUpperCase(), color: '#5865f2' });
+  (chats[l] || []).forEach(m => show(m.from, m.text, m.avatar, m.time));
   renderOnline();
 }
 
-function show(f, t, avatar) {
+function show(f, t, avatar, time = Date.now()) {
   const m = document.createElement('div');
   m.className = 'message';
   m.appendChild(createAvatar(avatar));
+
   const c = document.createElement('div');
   c.className = 'messageContent';
-  c.innerHTML = `<b>${f}</b><br>${t}`;
+  c.innerHTML = `<div class="messageMeta"><b>${escapeHtml(f)}</b><span class="messageTime">${formatTime(time)}</span></div><div>${escapeHtml(t)}</div>`;
+
   m.appendChild(c);
   messages.appendChild(m);
+  messages.scrollTop = messages.scrollHeight;
 }
 
 sendBtn.onclick = async () => {
@@ -1524,13 +1639,40 @@ function renderRequests() {
   });
 }
 
-function renderFriends() {
+function renderFriends(friendUsers = null) {
   friendsDiv.innerHTML = '';
-  friends.forEach(u => {
+  const list = Array.isArray(friendUsers) && friendUsers.length
+    ? friendUsers
+    : friends.map(u => typeof u === 'string' ? { login: u, nickname: u, avatar: { letter: u[0].toUpperCase(), color: '#5865f2' } } : u);
+
+  if (!list.length) {
+    friendsDiv.innerHTML = '<div class="emptyText">Список друзей пуст</div>';
+    return;
+  }
+
+  list.forEach(u => {
     const d = document.createElement('div');
     d.className = 'friendEntry';
-    d.appendChild(createAvatar({ letter:u[0].toUpperCase(), color:'#5865f2' }));
-    d.appendChild(document.createTextNode(u));
+    const left = document.createElement('span');
+    left.style.alignItems = 'center';
+    left.appendChild(createAvatar(u.avatar || { letter:(u.nickname || u.login || '?')[0].toUpperCase(), color:'#5865f2' }));
+    const textWrap = document.createElement('span');
+    textWrap.style.display = 'flex';
+    textWrap.style.flexDirection = 'column';
+    textWrap.style.gap = '2px';
+    textWrap.innerHTML = `<b>${escapeHtml(u.nickname || u.login)}</b><small style="color:#8e9297">@${escapeHtml(u.login || u.nickname)}</small>`;
+    left.appendChild(textWrap);
+    d.appendChild(left);
+
+    const btn = document.createElement('button');
+    btn.textContent = 'Открыть';
+    btn.style.background = '#5865f2';
+    btn.style.color = 'white';
+    btn.style.border = 'none';
+    btn.style.borderRadius = '8px';
+    btn.style.padding = '8px 10px';
+    btn.onclick = () => openDM(u.login, u.nickname || u.login);
+    d.appendChild(btn);
     friendsDiv.appendChild(d);
   });
 }
@@ -1539,20 +1681,22 @@ function renderFriends() {
 function renderOnline() {
   const divs = online.querySelectorAll('.user');
   divs.forEach(d => {
-    const login = d.textContent;
+    const itemLogin = d.dataset.login;
     const badge = d.querySelector('.unread');
-    if (unread[login] > 0) {
+    if (unread[itemLogin] > 0) {
       if (!badge) {
         const b = document.createElement('div');
         b.className = 'unread';
-        b.textContent = unread[login];
+        b.textContent = unread[itemLogin];
         d.appendChild(b);
       } else {
-        badge.textContent = unread[login];
+        badge.textContent = unread[itemLogin];
       }
-    } else {
-      if (badge) badge.remove();
+    } else if (badge) {
+      badge.remove();
     }
+
+    d.classList.toggle('active', itemLogin === currentDM);
   });
 }
 
