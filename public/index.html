@@ -630,28 +630,6 @@ let unread = {}; // { login: count }
 let onlineUsers = [];
 let pendingIceCandidates = [];
 
-function updateLanguageSwitcherVisibility() {
-  if (!languageSwitcher) return;
-  const isFriendsOpen = friendsPanel?.classList?.contains('open');
-  languageSwitcher.style.display = isFriendsOpen ? 'none' : 'flex';
-}
-
-function friendLoginOf(friend) {
-  return typeof friend === 'string' ? friend : friend?.login || '';
-}
-
-function friendNickOf(friend) {
-  if (typeof friend === 'string') return friend;
-  return friend?.nickname || friend?.login || '';
-}
-
-function friendAvatarOf(friend) {
-  if (typeof friend === 'string') {
-    return { letter: String(friend || '?')[0]?.toUpperCase() || '?', color: '#5865f2' };
-  }
-  return friend?.avatar || { letter: String(friend?.nickname || friend?.login || '?')[0]?.toUpperCase() || '?', color: '#5865f2' };
-}
-
 function getChatsStorageKey(userLogin) {
   return `messenger_chats_${userLogin}`;
 }
@@ -799,7 +777,7 @@ function createAvatar(user) {
   if (user?.image) {
     a.textContent = '';
     a.style.backgroundImage = `url(${user.image})`;
-    a.style.background = '#2a2f3a';
+    a.style.backgroundColor = '#2a2f3a';
   } else {
     a.textContent = user?.letter || '?';
     a.style.background = user?.color || '#5865f2';
@@ -837,7 +815,7 @@ function updateChatHeader(peerLogin = null, peerNick = null, avatar = null) {
   if (avatar?.image) {
     chatAvatar.textContent = '';
     chatAvatar.style.backgroundImage = `url(${avatar.image})`;
-    chatAvatar.style.background = '#2a2f3a';
+    chatAvatar.style.backgroundColor = '#2a2f3a';
   } else {
     chatAvatar.textContent = avatar?.letter || (peerNick || peerLogin || '?')[0]?.toUpperCase() || '?';
     chatAvatar.style.backgroundImage = '';
@@ -1541,66 +1519,19 @@ function openDM(l, n, avatar = null) {
   updateChatHeader(l, n, avatar);
   ws.send(JSON.stringify({ type: 'read', from: l }));
   ws.send(JSON.stringify({ type: 'get_messages', with: l }));
-  (chats[l] || []).forEach(show);
+  (chats[l] || []).forEach(m => show(m.fromNick || m.from, m.text, m.avatar, m.time));
   renderOnline();
-
-  if (friendsPanel.classList.contains('open')) {
-    friendsPanel.classList.remove('open');
-    friendsBtn.classList.remove('active');
-    updateLanguageSwitcherVisibility();
-  }
 }
 
-function show(message) {
-  if (!message) return;
-
-  const senderLogin = message.from || '';
-  const senderName = message.fromNick || message.nickname || senderLogin || '?';
-  const isOwn = senderLogin === login;
-  const isDeleted = !!message.deleted;
-
-  const row = document.createElement('div');
-  row.className = 'message' + (isDeleted ? ' deleted' : '');
-  if (message.id != null) row.dataset.messageId = String(message.id);
-
-  row.appendChild(createAvatar(message.avatar || { letter: String(senderName || '?')[0]?.toUpperCase() || '?', color: '#5865f2' }));
-
-  const content = document.createElement('div');
-  content.className = 'messageContent';
-  const header = document.createElement('div');
-  header.className = 'messageHeader';
-
-  const nameEl = document.createElement('b');
-  nameEl.textContent = senderName;
-  const timeEl = document.createElement('span');
-  timeEl.className = 'messageTime';
-  timeEl.textContent = formatMessageTime(message.time);
-  header.appendChild(nameEl);
-  header.appendChild(timeEl);
-  content.appendChild(header);
-
-  const textEl = document.createElement('div');
-  textEl.className = 'messageText';
-  textEl.textContent = isDeleted ? t('messageDeleted') : (message.text || '');
-  content.appendChild(textEl);
-  row.appendChild(content);
-
-  if (isOwn && !isDeleted && message.id != null) {
-    const actions = document.createElement('div');
-    actions.className = 'messageActions';
-    const delBtn = document.createElement('button');
-    delBtn.className = 'messageDeleteBtn';
-    delBtn.type = 'button';
-    delBtn.textContent = t('delete');
-    delBtn.onclick = () => {
-      if (!ws || ws.readyState !== WebSocket.OPEN) return;
-      ws.send(JSON.stringify({ type: 'delete_message', id: message.id, to: message.to }));
-    };
-    actions.appendChild(delBtn);
-    row.appendChild(actions);
-  }
-
-  messages.appendChild(row);
+function show(f, t, avatar, time = null) {
+  const m = document.createElement('div');
+  m.className = 'message';
+  m.appendChild(createAvatar(avatar || { letter: String(f || '?').charAt(0).toUpperCase(), color: '#5865f2' }));
+  const c = document.createElement('div');
+  c.className = 'messageContent';
+  c.innerHTML = `<div class="messageHeader"><b>${escapeHtml(f)}</b><span class="messageTime">${escapeHtml(formatMessageTime(time))}</span></div><div class="messageText">${escapeHtml(t)}</div>`;
+  m.appendChild(c);
+  messages.appendChild(m);
   messages.scrollTop = messages.scrollHeight;
 }
 
@@ -1625,10 +1556,8 @@ text.addEventListener('keydown', async (e) => {
 
 /* ---------- FRIENDS ---------- */
 function toggleFriendsPanel() {
-  const willOpen = !friendsPanel.classList.contains('open');
-  friendsPanel.classList.toggle('open', willOpen);
-  friendsBtn.classList.toggle('active', willOpen);
-  updateLanguageSwitcherVisibility();
+  friendsPanel.classList.toggle('open');
+  friendsBtn.classList.toggle('active');
 }
 
 friendsBtn.onclick = toggleFriendsPanel;
@@ -1643,34 +1572,20 @@ addFriendBtn.onclick = () => {
 
 function renderRequests() {
   requestsDiv.innerHTML = '';
-  if (!requests.length) {
-    requestsDiv.textContent = t('noRequests');
-    requestsDiv.className = 'emptyText';
-    return;
-  }
-  requestsDiv.className = '';
+  if (!requests.length) { requestsDiv.textContent = 'Нет входящих заявок'; requestsDiv.className = 'emptyText'; return; }
   requests.forEach(u => {
-    const loginValue = friendLoginOf(u);
-    const nickValue = friendNickOf(u);
     const d = document.createElement('div');
     d.className = 'friendEntry';
     const main = document.createElement('div');
     main.className = 'friendMain';
-    main.appendChild(createAvatar(friendAvatarOf(u)));
+    main.appendChild(createAvatar({ letter:u[0].toUpperCase(), color:'#5865f2' }));
     const meta = document.createElement('div');
     meta.className = 'friendMeta';
-    meta.innerHTML = `<b>${escapeHtml(nickValue || loginValue)}</b><span>${escapeHtml(t('incomingRequest'))}</span>`;
+    meta.innerHTML = `<b>${escapeHtml(u)}</b><span>Входящая заявка</span>`;
     main.appendChild(meta);
     d.appendChild(main);
     const s = document.createElement('span');
-    const acceptBtn = document.createElement('button');
-    acceptBtn.textContent = '✔';
-    acceptBtn.onclick = () => accept(loginValue);
-    const declineBtn = document.createElement('button');
-    declineBtn.textContent = '✖';
-    declineBtn.onclick = () => decline(loginValue);
-    s.appendChild(acceptBtn);
-    s.appendChild(declineBtn);
+    s.innerHTML = `<button onclick="accept('${u}')">✔</button><button onclick="decline('${u}')">✖</button>`;
     d.appendChild(s);
     requestsDiv.appendChild(d);
   });
@@ -1678,27 +1593,17 @@ function renderRequests() {
 
 function renderFriends() {
   friendsDiv.innerHTML = '';
-  if (!friends.length) {
-    friendsDiv.textContent = t('friendsEmpty');
-    friendsDiv.className = 'emptyText';
-    return;
-  }
-  friendsDiv.className = '';
+  if (!friends.length) { friendsDiv.textContent = 'Список друзей пуст'; friendsDiv.className = 'emptyText'; return; }
   friends.forEach(u => {
-    const loginValue = friendLoginOf(u);
-    const nickValue = friendNickOf(u);
-    const avatarValue = friendAvatarOf(u);
     const d = document.createElement('div');
     d.className = 'friendEntry';
     const main = document.createElement('div');
     main.className = 'friendMain';
-    main.style.cursor = 'pointer';
-    main.appendChild(createAvatar(avatarValue));
+    main.appendChild(createAvatar({ letter:u[0].toUpperCase(), color:'#5865f2' }));
     const meta = document.createElement('div');
     meta.className = 'friendMeta';
-    meta.innerHTML = `<b>${escapeHtml(nickValue || loginValue)}</b><span>${escapeHtml(t('friend'))}</span>`;
+    meta.innerHTML = `<b>${escapeHtml(u)}</b><span>Друг</span>`;
     main.appendChild(meta);
-    main.onclick = () => openDM(loginValue, nickValue || loginValue, avatarValue);
     d.appendChild(main);
     friendsDiv.appendChild(d);
   });
@@ -1710,7 +1615,7 @@ function renderOnline() {
   if (!onlineUsers.length) {
     const e = document.createElement('div');
     e.className = 'emptyText';
-    e.textContent = t('noOnlineFriends');
+    e.textContent = 'Пока никто из друзей не в сети';
     online.appendChild(e);
     return;
   }
@@ -1723,7 +1628,7 @@ function renderOnline() {
 
     const info = document.createElement('div');
     info.className = 'userInfo';
-    info.innerHTML = `<div class="userName">${escapeHtml(u.nickname || u.login)}</div><div class="userSub">${escapeHtml(t('online'))}</div>`;
+    info.innerHTML = `<div class="userName">${escapeHtml(u.nickname || u.login)}</div><div class="userSub">онлайн</div>`;
     div.appendChild(info);
 
     if (unread[u.login] > 0) {
@@ -1740,12 +1645,16 @@ function renderOnline() {
 
 function accept(u) {
   ws.send(JSON.stringify({ type:'friend_accept', from:login, to:u }));
-  requests = requests.filter(r => friendLoginOf(r) !== u);
+  requests = requests.filter(r => r !== u);
+  friends.push(u);
+  saveLocalChatState();
   renderRequests();
+  renderFriends();
 }
 
 function decline(u) {
-  requests = requests.filter(r => friendLoginOf(r) !== u);
+  requests = requests.filter(r => r !== u);
+  saveLocalChatState();
   renderRequests();
 }
 
@@ -1769,8 +1678,6 @@ window.addEventListener("beforeunload", () => {
   } catch {}
 });
 window.addEventListener("load", () => {
-  applyLanguage(localStorage.getItem('squadovka_lang') || 'en');
-  updateLanguageSwitcherVisibility();
 
   const savedLogin = localStorage.getItem("login");
   const savedPassword = localStorage.getItem("password");
