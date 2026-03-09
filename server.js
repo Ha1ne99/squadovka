@@ -22,8 +22,18 @@ if (!process.env.DATABASE_URL) {
   process.exit(1);
 }
 
+let databaseUrl = process.env.DATABASE_URL;
+
+try {
+  const url = new URL(databaseUrl);
+  url.searchParams.delete('sslmode');
+  databaseUrl = url.toString();
+} catch (e) {
+  console.error('Invalid DATABASE_URL:', e);
+}
+
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
+  connectionString: databaseUrl,
   ssl: { rejectUnauthorized: false }
 });
 
@@ -243,14 +253,17 @@ wss.on('connection', ws => {
     try {
       /* REGISTER */
       if (data.type === 'register') {
-        if (!data.login || !data.password) {
+        const login = typeof data.login === 'string' ? data.login.trim() : '';
+        const password = typeof data.password === 'string' ? data.password : '';
+
+        if (!login || !password) {
           send(ws, { type: 'error', message: 'Введите логин и пароль' });
           return;
         }
 
         const exists = await pool.query(
           `SELECT login FROM users WHERE login = $1`,
-          [data.login]
+          [login]
         );
 
         if (exists.rows.length) {
@@ -258,14 +271,14 @@ wss.on('connection', ws => {
           return;
         }
 
-        const hashedPassword = await bcrypt.hash(data.password, 10);
+        const hashedPassword = await bcrypt.hash(password, 10);
 
         await pool.query(
           `
           INSERT INTO users (login, password, nickname, avatarImage)
           VALUES ($1, $2, $3, $4)
           `,
-          [data.login, hashedPassword, data.login, null]
+          [login, hashedPassword, login, null]
         );
 
         send(ws, { type: 'register_ok' });
@@ -274,13 +287,21 @@ wss.on('connection', ws => {
 
       /* LOGIN */
       if (data.type === 'login') {
+        const login = typeof data.login === 'string' ? data.login.trim() : '';
+        const password = typeof data.password === 'string' ? data.password : '';
+
+        if (!login || !password) {
+          send(ws, { type: 'error', message: 'Введите логин и пароль' });
+          return;
+        }
+
         const result = await pool.query(
           `
           SELECT login, password, nickname, avatarImage
           FROM users
           WHERE login = $1
           `,
-          [data.login]
+          [login]
         );
 
         const user = result.rows[0];
@@ -293,21 +314,21 @@ wss.on('connection', ws => {
         let ok = false;
 
         if (typeof user.password === 'string' && user.password.startsWith('$2')) {
-          ok = await bcrypt.compare(data.password, user.password);
+          ok = await bcrypt.compare(password, user.password);
         } else {
-          ok = data.password === user.password;
+          ok = password === user.password;
 
           if (ok) {
-            const newHash = await bcrypt.hash(data.password, 10);
+            const upgradedHash = await bcrypt.hash(password, 10);
             await pool.query(
               `
               UPDATE users
               SET password = $1
               WHERE login = $2
               `,
-              [newHash, user.login]
+              [upgradedHash, user.login]
             );
-            user.password = newHash;
+            user.password = upgradedHash;
           }
         }
 
@@ -522,21 +543,6 @@ wss.on('connection', ws => {
         });
 
         await broadcastOnlineFriends();
-        return;
-      }
-
-      /* FRIEND DECLINE */
-      if (data.type === 'friend_decline') {
-        if (!data.from || !data.to) return;
-
-        await pool.query(
-          `
-          DELETE FROM friend_requests
-          WHERE fromUser = $1 AND toUser = $2
-          `,
-          [data.to, data.from]
-        );
-
         return;
       }
 
