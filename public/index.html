@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ru">
 <head>
 <meta charset="UTF-8">
 <title>Squadovka</title>
@@ -281,10 +281,6 @@ button:hover { transform: translateY(-1px); }
 .messageHeader b { font-size:14px; }
 .messageTime { color:var(--muted); font-size:11px; }
 .messageText { line-height:1.4; word-break:break-word; white-space:pre-wrap; }
-.message.deleted .messageText { color: var(--muted); font-style: italic; }
-.messageActions { margin-left:auto; display:flex; align-items:center; gap:6px; }
-.messageDeleteBtn { border:none; background:transparent; color:var(--muted); cursor:pointer; padding:2px 6px; border-radius:8px; font-size:12px; }
-.messageDeleteBtn:hover { background:rgba(255,255,255,.06); color:#fff; }
 #input {
   display:flex;
   border-top:1px solid var(--line);
@@ -408,61 +404,10 @@ input[type="range"]{ width:190px; }
   #input { padding:12px; }
   #callModal { width:min(92vw, 420px); }
 }
-
-.langSwitcher {
-  position: fixed;
-  top: 14px;
-  right: 14px;
-  z-index: 12000;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  background: rgba(18, 22, 30, 0.92);
-  border: 1px solid var(--line);
-  backdrop-filter: blur(10px);
-  border-radius: 14px;
-  padding: 8px 10px;
-  box-shadow: var(--shadow);
-}
-.langSwitcher label {
-  color: var(--muted);
-  font-size: 12px;
-}
-.langSwitcher select {
-  background: #171b23;
-  color: white;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  padding: 8px 10px;
-  outline: none;
-}
-@media (max-width: 700px) {
-  .langSwitcher {
-    top: 10px;
-    right: 10px;
-    left: 10px;
-    justify-content: space-between;
-  }
-  .langSwitcher select {
-    flex: 1;
-    max-width: 180px;
-  }
-}
-
 </style>
 </head>
 
 <body>
-
-<div class="langSwitcher">
-  <label for="languageSelect" id="languageLabel">Language</label>
-  <select id="languageSelect">
-    <option value="en">English</option>
-    <option value="ru">Русский</option>
-    <option value="uk">Українська</option>
-  </select>
-</div>
-
 
 <!-- LOGIN / REGISTER -->
 <div id="login">
@@ -470,14 +415,14 @@ input[type="range"]{ width:190px; }
     <div class="brandLogo">S</div>
     <div class="brandText">
       <b>Squadovka</b>
-      <span id="brandSubtitle">Your cozy messenger for friends</span>
+      <span>Твой уютный мессенджер для друзей</span>
     </div>
   </div>
-  <h2 id="loginTitle">Login</h2>
-  <input id="loginInput" placeholder="Login">
-  <input id="passwordInput" type="password" placeholder="Password">
-  <button id="loginBtn">Login</button>
-  <div id="switchMode">No account? Register</div>
+  <h2 id="loginTitle">Вход</h2>
+  <input id="loginInput" placeholder="Логин">
+  <input id="passwordInput" type="password" placeholder="Пароль">
+  <button id="loginBtn">Войти</button>
+  <div id="switchMode">Нет аккаунта? Зарегистрироваться</div>
 </div>
 
 <!-- APP -->
@@ -488,12 +433,12 @@ input[type="range"]{ width:190px; }
         <div class="brandLogo" style="width:42px;height:42px;border-radius:14px;font-size:20px;">S</div>
         <div class="sidebarBrandText">
           <b>Squadovka</b>
-          <span id="sidebarSubtitle">Stay connected with friends</span>
+          <span>На связи с друзьями</span>
         </div>
       </div>
     </div>
-    <div id="friendsBtn"><span id="friendsBtnLabel">👥 Friends</span></div>
-    <div class="sectionLabel" id="onlineLabel">Friends online</div>
+    <div id="friendsBtn"><span>👥 Друзья</span></div>
+    <div class="sectionLabel">Друзья онлайн</div>
     <div id="online"></div>
 
     <!-- PROFILE -->
@@ -501,9 +446,9 @@ input[type="range"]{ width:190px; }
       <div id="profileAvatar" class="avatar" style="background:#5865f2">?</div>
       <div class="profileMeta">
         <b id="profileNick"></b>
-        <span id="profileLoginLabel">Login: <span id="profileLogin"></span></span>
+        <span>Логин: <span id="profileLogin"></span></span>
       </div>
-      <button id="avatarUploadBtn" class="ghostBtn">Avatar</button>
+      <button id="avatarUploadBtn" class="ghostBtn">Аватар</button>
       <input type="file" id="avatarUploadInput" accept="image/*">
     </div>
   </div>
@@ -514,11 +459,11 @@ input[type="range"]{ width:190px; }
         <div id="chatAvatar" class="avatar" style="background:#5865f2">S</div>
         <div id="chatTitleWrap">
           <div id="chatTitle">Squadovka</div>
-          <div id="chatStatus">Choose a friend on the left to open chat</div>
+          <div id="chatStatus">Выбери друга слева, чтобы открыть переписку</div>
         </div>
       </div>
       <div class="headerActions">
-        <button id="headerFriendsBtn" class="ghostBtn">👥 <span id="headerFriendsBtnLabel">Friends</span></button>
+        <button id="headerFriendsBtn" class="ghostBtn">👥 <span>Друзья</span></button>
       </div>
     </div>
 
@@ -526,28 +471,28 @@ input[type="range"]{ width:190px; }
     <div id="callFlag">
       <div class="left">
         <span class="dot"></span>
-        <b id="callFlagText">Call</b>
-        <span id="callFlagSub">tap to open</span>
+        <b id="callFlagText">Звонок</b>
+        <span id="callFlagSub">нажми чтобы открыть</span>
       </div>
       <div class="right">
-        <button id="callFlagOpen" title="Open">Open</button>
-        <button id="callFlagHang" title="Hang up">Hang up</button>
+        <button id="callFlagOpen" title="Открыть">Открыть</button>
+        <button id="callFlagHang" title="Сбросить">Сбросить</button>
       </div>
     </div>
 
     <div id="emptyChat">
       <div class="emptyCard">
         <div class="emptyIcon">💬</div>
-        <h2 id="emptyTitle">Welcome to Squadovka</h2>
-        <p id="emptySubtitle">Choose a friend on the left or open the friends panel to send a request and start chatting.</p>
+        <h2>Добро пожаловать в Squadovka</h2>
+        <p>Выбери друга слева или открой панель друзей, чтобы отправить заявку и начать переписку.</p>
       </div>
     </div>
 
     <div id="messages"></div>
 
     <div id="input">
-      <button id="callBtn" title="Call">📞</button>
-      <input id="text" placeholder="Message...">
+      <button id="callBtn" title="Позвонить">📞</button>
+      <input id="text" placeholder="Сообщение...">
       <button id="sendBtn">▶</button>
     </div>
   </div>
@@ -556,19 +501,19 @@ input[type="range"]{ width:190px; }
 <!-- FRIEND PANEL -->
 <div id="friendsPanel" style="transform:translateX(100%);">
   <div class="friendSection">
-    <h3 id="addFriendTitle">Add friend (by login)</h3>
-    <input id="friendNick" class="addFriendInput" placeholder="User login">
-    <button class="addFriendBtn" id="addFriendBtn">Send request</button>
+    <h3>Добавить друга (по логину)</h3>
+    <input id="friendNick" class="addFriendInput" placeholder="Логин пользователя">
+    <button class="addFriendBtn" id="addFriendBtn">Отправить заявку</button>
   </div>
 
   <div class="friendSection">
-    <h3 id="requestsTitle">Requests</h3>
-    <div id="requests" class="emptyText">No incoming requests</div>
+    <h3>Заявки</h3>
+    <div id="requests" class="emptyText">Нет входящих заявок</div>
   </div>
 
   <div class="friendSection">
-    <h3 id="friendsTitle">Friends</h3>
-    <div id="friends" class="emptyText">Friends list is empty</div>
+    <h3>Друзья</h3>
+    <div id="friends" class="emptyText">Список друзей пуст</div>
   </div>
 </div>
 
@@ -579,7 +524,7 @@ input[type="range"]{ width:190px; }
       <div class="callTitle">
         <div class="avatar" id="callAvatar" style="background:#5865f2">?</div>
         <div>
-          <b id="callName">Call</b><br>
+          <b id="callName">Звонок</b><br>
           <span id="callStatus">—</span>
         </div>
       </div>
@@ -588,28 +533,28 @@ input[type="range"]{ width:190px; }
 
     <div class="callBody">
       <div class="row">
-        <div class="pill" id="micState">🎙️ Microphone: on</div>
-        <div class="pill" id="volumeLabelWrap">🔊 Volume:
+        <div class="pill" id="micState">🎙️ Микрофон: включён</div>
+        <div class="pill">🔊 Громкость:
           <input id="vol" type="range" min="0" max="1" step="0.01" value="1">
         </div>
       </div>
 
       <div class="row">
-        <div id="voiceLevelLabel" style="min-width:120px">Voice level:</div>
+        <div style="min-width:120px">Уровень голоса:</div>
         <div class="level"><div id="levelFill"></div></div>
       </div>
 
       <div class="small">
-        If someone cannot connect, it is usually NAT. For “always works”, you need a TURN server.
+        Если не соединяется у кого-то — это NAT. Для “всегда работает” нужен TURN-сервер.
       </div>
     </div>
 
     <div class="callActions">
-      <button class="btn btnGreen" id="btnAccept">Accept</button>
-      <button class="btn btnRed" id="btnDecline">Decline</button>
+      <button class="btn btnGreen" id="btnAccept">Принять</button>
+      <button class="btn btnRed" id="btnDecline">Отклонить</button>
       <button class="btn btnBlue" id="btnMute">Mute</button>
-      <button class="btn btnRed" id="btnHang">Hang up</button>
-      <button class="btn btnGray" id="btnClose">Close</button>
+      <button class="btn btnRed" id="btnHang">Сбросить</button>
+      <button class="btn btnGray" id="btnClose">Закрыть</button>
     </div>
   </div>
 </div>
@@ -624,8 +569,6 @@ const loginInput = document.getElementById('loginInput');
 const passwordInput = document.getElementById('passwordInput');
 const loginBtn = document.getElementById('loginBtn');
 const switchMode = document.getElementById('switchMode');
-const languageSelect = document.getElementById('languageSelect');
-const brandSubtitle = document.getElementById('brandSubtitle');
 
 const online = document.getElementById('online');
 const profileNick = document.getElementById('profileNick');
@@ -687,319 +630,27 @@ let unread = {}; // { login: count }
 let onlineUsers = [];
 let pendingIceCandidates = [];
 
-let currentLang = localStorage.getItem('squadovka_lang') || 'en';
-
-const I18N = {
-  en: {
-    languageLabel: 'Language',
-    brandSubtitle: 'Your cozy messenger for friends',
-    loginTitle: 'Login',
-    registerTitle: 'Register',
-    loginPlaceholder: 'Login',
-    passwordPlaceholder: 'Password',
-    loginBtn: 'Login',
-    registerBtn: 'Create account',
-    switchToRegister: 'No account? Register',
-    switchToLogin: 'Already have an account? Login',
-    sidebarSubtitle: 'Stay connected with friends',
-    friends: 'Friends',
-    friendsEmoji: '👥 Friends',
-    friendsOnline: 'Friends online',
-    profileLogin: 'Login:',
-    avatar: 'Avatar',
-    chooseFriend: 'Choose a friend on the left to open chat',
-    privateDialog: 'Direct message',
-    call: 'Call',
-    callWith: 'Call with {name}',
-    friendsPanelAdd: 'Add friend (by login)',
-    friendLoginPlaceholder: 'User login',
-    sendRequest: 'Send request',
-    requests: 'Requests',
-    noRequests: 'No incoming requests',
-    incomingRequest: 'Incoming request',
-    friend: 'Friend',
-    friendsEmpty: 'Friends list is empty',
-    noOnlineFriends: 'No friends are online yet',
-    online: 'online',
-    tapToOpen: 'tap to open',
-    open: 'Open',
-    hangUp: 'Hang up',
-    welcome: 'Welcome to Squadovka',
-    welcomeText: 'Choose a friend on the left or open the friends panel to send a request and start chatting.',
-    messagePlaceholder: 'Message...',
-    microphoneOn: '🎙️ Microphone: on',
-    microphoneOff: '🎙️ Microphone: off',
-    volume: '🔊 Volume:',
-    voiceLevel: 'Voice level:',
-    natHint: 'If someone cannot connect, it is usually NAT. For “always works”, you need a TURN server.',
-    accept: 'Accept',
-    decline: 'Decline',
-    cancel: 'Cancel',
-    close: 'Close',
-    connected: '✅ Connected',
-    connecting: '🔄 Connecting…',
-    calling: '📞 Calling…',
-    waitingAnswer: 'Waiting for answer',
-    incomingCall: '📲 Incoming call',
-    incomingCallTap: 'Incoming call — tap to open',
-    incomingCallHint: 'Tap “Accept” or “Decline”',
-    clickToOpenCall: 'Tap to open call window',
-    callEnded: 'Call ended',
-    callDeclined: 'Declined',
-    callCancelled: 'Cancelled',
-    peerEndedCall: 'The other user ended the call',
-    userBusy: 'User is busy',
-    answerError: 'Call answer error',
-    youEndedCall: 'You ended the call',
-    callDeclinedLocal: 'Call declined',
-    callCancelledLocal: 'Call cancelled',
-    connectionClosed: 'Connection ended',
-    incomingFlag: '📲 Incoming: {name}',
-    callingFlag: '📞 Calling: {name}',
-    inCallFlag: '✅ In call: {name}',
-    userFallback: 'User',
-    accountCreated: 'Account created, please log in',
-    localSaveError: 'Failed to save chat locally:',
-    localLoadError: 'Failed to load local chat:',
-    allowMic: 'Allow microphone access for calls',
-    muted: 'Mute',
-    unmuted: 'Unmute',
-    delete: 'Delete',
-    messageDeleted: 'Message deleted'
-  },
-  ru: {
-    languageLabel: 'Язык',
-    brandSubtitle: 'Твой уютный мессенджер для друзей',
-    loginTitle: 'Вход',
-    registerTitle: 'Регистрация',
-    loginPlaceholder: 'Логин',
-    passwordPlaceholder: 'Пароль',
-    loginBtn: 'Войти',
-    registerBtn: 'Создать аккаунт',
-    switchToRegister: 'Нет аккаунта? Зарегистрироваться',
-    switchToLogin: 'Уже есть аккаунт? Войти',
-    sidebarSubtitle: 'На связи с друзьями',
-    friends: 'Друзья',
-    friendsEmoji: '👥 Друзья',
-    friendsOnline: 'Друзья онлайн',
-    profileLogin: 'Логин:',
-    avatar: 'Аватар',
-    chooseFriend: 'Выбери друга слева, чтобы открыть переписку',
-    privateDialog: 'Личный диалог',
-    call: 'Звонок',
-    callWith: 'Звонок с {name}',
-    friendsPanelAdd: 'Добавить друга (по логину)',
-    friendLoginPlaceholder: 'Логин пользователя',
-    sendRequest: 'Отправить заявку',
-    requests: 'Заявки',
-    noRequests: 'Нет входящих заявок',
-    incomingRequest: 'Входящая заявка',
-    friend: 'Друг',
-    friendsEmpty: 'Список друзей пуст',
-    noOnlineFriends: 'Пока никто из друзей не в сети',
-    online: 'онлайн',
-    tapToOpen: 'нажми чтобы открыть',
-    open: 'Открыть',
-    hangUp: 'Сбросить',
-    welcome: 'Добро пожаловать в Squadovka',
-    welcomeText: 'Выбери друга слева или открой панель друзей, чтобы отправить заявку и начать переписку.',
-    messagePlaceholder: 'Сообщение...',
-    microphoneOn: '🎙️ Микрофон: включён',
-    microphoneOff: '🎙️ Микрофон: выключён',
-    volume: '🔊 Громкость:',
-    voiceLevel: 'Уровень голоса:',
-    natHint: 'Если не соединяется у кого-то — это NAT. Для “всегда работает” нужен TURN-сервер.',
-    accept: 'Принять',
-    decline: 'Отклонить',
-    cancel: 'Отменить',
-    close: 'Закрыть',
-    connected: '✅ Соединено',
-    connecting: '🔄 Подключаем…',
-    calling: '📞 Звоним…',
-    waitingAnswer: 'Ожидаем ответ',
-    incomingCall: '📲 Входящий звонок',
-    incomingCallTap: 'Входящий звонок — нажми чтобы открыть',
-    incomingCallHint: 'Нажми «Принять» или «Отклонить»',
-    clickToOpenCall: 'Нажми чтобы открыть окно звонка',
-    callEnded: 'Звонок завершён',
-    callDeclined: 'Отклонено',
-    callCancelled: 'Отменено',
-    peerEndedCall: 'Собеседник завершил звонок',
-    userBusy: 'Пользователь занят',
-    answerError: 'Ошибка ответа звонка',
-    youEndedCall: 'Вы завершили звонок',
-    callDeclinedLocal: 'Звонок отклонён',
-    callCancelledLocal: 'Звонок отменён',
-    connectionClosed: 'Соединение завершено',
-    incomingFlag: '📲 Входящий: {name}',
-    callingFlag: '📞 Звоним: {name}',
-    inCallFlag: '✅ В звонке: {name}',
-    userFallback: 'Пользователь',
-    accountCreated: 'Аккаунт создан, войдите',
-    localSaveError: 'Не удалось сохранить переписку локально:',
-    localLoadError: 'Не удалось загрузить переписку локально:',
-    allowMic: 'Разрешите доступ к микрофону для звонков',
-    muted: 'Mute',
-    unmuted: 'Unmute',
-    delete: 'Delete',
-    messageDeleted: 'Message deleted'
-  },
-  uk: {
-    languageLabel: 'Мова',
-    brandSubtitle: 'Твій затишний месенджер для друзів',
-    loginTitle: 'Вхід',
-    registerTitle: 'Реєстрація',
-    loginPlaceholder: 'Логін',
-    passwordPlaceholder: 'Пароль',
-    loginBtn: 'Увійти',
-    registerBtn: 'Створити акаунт',
-    switchToRegister: 'Немає акаунта? Зареєструватися',
-    switchToLogin: 'Вже є акаунт? Увійти',
-    sidebarSubtitle: 'На зв’язку з друзями',
-    friends: 'Друзі',
-    friendsEmoji: '👥 Друзі',
-    friendsOnline: 'Друзі онлайн',
-    profileLogin: 'Логін:',
-    avatar: 'Аватар',
-    chooseFriend: 'Обери друга зліва, щоб відкрити переписку',
-    privateDialog: 'Особистий чат',
-    call: 'Дзвінок',
-    callWith: 'Дзвінок з {name}',
-    friendsPanelAdd: 'Додати друга (за логіном)',
-    friendLoginPlaceholder: 'Логін користувача',
-    sendRequest: 'Надіслати запит',
-    requests: 'Запити',
-    noRequests: 'Немає вхідних запитів',
-    incomingRequest: 'Вхідний запит',
-    friend: 'Друг',
-    friendsEmpty: 'Список друзів порожній',
-    noOnlineFriends: 'Поки що ніхто з друзів не онлайн',
-    online: 'онлайн',
-    tapToOpen: 'натисни, щоб відкрити',
-    open: 'Відкрити',
-    hangUp: 'Завершити',
-    welcome: 'Ласкаво просимо до Squadovka',
-    welcomeText: 'Обери друга зліва або відкрий панель друзів, щоб надіслати запит і почати листування.',
-    messagePlaceholder: 'Повідомлення...',
-    microphoneOn: '🎙️ Мікрофон: увімкнено',
-    microphoneOff: '🎙️ Мікрофон: вимкнено',
-    volume: '🔊 Гучність:',
-    voiceLevel: 'Рівень голосу:',
-    natHint: 'Якщо в когось не з’єднується — це NAT. Щоб “завжди працювало”, потрібен TURN-сервер.',
-    accept: 'Прийняти',
-    decline: 'Відхилити',
-    cancel: 'Скасувати',
-    close: 'Закрити',
-    connected: '✅ З’єднано',
-    connecting: '🔄 Підключаємо…',
-    calling: '📞 Дзвонимо…',
-    waitingAnswer: 'Очікуємо відповідь',
-    incomingCall: '📲 Вхідний дзвінок',
-    incomingCallTap: 'Вхідний дзвінок — натисни, щоб відкрити',
-    incomingCallHint: 'Натисни «Прийняти» або «Відхилити»',
-    clickToOpenCall: 'Натисни, щоб відкрити вікно дзвінка',
-    callEnded: 'Дзвінок завершено',
-    callDeclined: 'Відхилено',
-    callCancelled: 'Скасовано',
-    peerEndedCall: 'Співрозмовник завершив дзвінок',
-    userBusy: 'Користувач зайнятий',
-    answerError: 'Помилка відповіді на дзвінок',
-    youEndedCall: 'Ви завершили дзвінок',
-    callDeclinedLocal: 'Дзвінок відхилено',
-    callCancelledLocal: 'Дзвінок скасовано',
-    connectionClosed: 'З’єднання завершено',
-    incomingFlag: '📲 Вхідний: {name}',
-    callingFlag: '📞 Дзвонимо: {name}',
-    inCallFlag: '✅ У дзвінку: {name}',
-    userFallback: 'Користувач',
-    accountCreated: 'Акаунт створено, увійдіть',
-    localSaveError: 'Не вдалося зберегти переписку локально:',
-    localLoadError: 'Не вдалося завантажити переписку локально:',
-    allowMic: 'Дозвольте доступ до мікрофона для дзвінків',
-    muted: 'Mute',
-    unmuted: 'Unmute',
-    delete: 'Delete',
-    messageDeleted: 'Message deleted'
-  }
-};
-
-function t(key, vars = {}) {
-  const dict = I18N[currentLang] || I18N.en;
-  let value = dict[key] ?? I18N.en[key] ?? key;
-  for (const [k, v] of Object.entries(vars)) {
-    value = value.replaceAll(`{${k}}`, v);
-  }
-  return value;
+function updateLanguageSwitcherVisibility() {
+  if (!languageSwitcher) return;
+  const isFriendsOpen = friendsPanel?.classList?.contains('open');
+  languageSwitcher.style.display = isFriendsOpen ? 'none' : 'flex';
 }
 
-function applyLanguage(lang) {
-  currentLang = I18N[lang] ? lang : 'en';
-  localStorage.setItem('squadovka_lang', currentLang);
-  document.documentElement.lang = currentLang;
-  if (languageSelect) languageSelect.value = currentLang;
-
-  const isReg = isRegister;
-  document.getElementById('languageLabel').textContent = t('languageLabel');
-  brandSubtitle.textContent = t('brandSubtitle');
-  loginTitle.textContent = isReg ? t('registerTitle') : t('loginTitle');
-  loginInput.placeholder = t('loginPlaceholder');
-  passwordInput.placeholder = t('passwordPlaceholder');
-  loginBtn.textContent = isReg ? t('registerBtn') : t('loginBtn');
-  switchMode.textContent = isReg ? t('switchToLogin') : t('switchToRegister');
-  const sidebarSubtitle = document.getElementById('sidebarSubtitle');
-  if (sidebarSubtitle) sidebarSubtitle.textContent = t('sidebarSubtitle');
-  const friendsBtnLabel = document.getElementById('friendsBtnLabel');
-  if (friendsBtnLabel) friendsBtnLabel.textContent = t('friendsEmoji');
-  const onlineLabel = document.getElementById('onlineLabel');
-  if (onlineLabel) onlineLabel.textContent = t('friendsOnline');
-  const profileLoginLabel = document.getElementById('profileLoginLabel');
-  if (profileLoginLabel) profileLoginLabel.childNodes[0].textContent = t('profileLogin') + ' ';
-  avatarUploadBtn.textContent = t('avatar');
-  if (!currentDM) updateChatHeader();
-  const headerFriendsBtnLabel = document.getElementById('headerFriendsBtnLabel');
-  if (headerFriendsBtnLabel) headerFriendsBtnLabel.textContent = t('friends');
-  document.getElementById('emptyTitle').textContent = t('welcome');
-  document.getElementById('emptySubtitle').textContent = t('welcomeText');
-  text.placeholder = t('messagePlaceholder');
-  if (currentDM && Array.isArray(chats[currentDM])) {
-    messages.innerHTML = '';
-    chats[currentDM].forEach(m => show(m));
-  }
-  document.getElementById('addFriendTitle').textContent = t('friendsPanelAdd');
-  friendNick.placeholder = t('friendLoginPlaceholder');
-  addFriendBtn.textContent = t('sendRequest');
-  document.getElementById('requestsTitle').textContent = t('requests');
-  document.getElementById('friendsTitle').textContent = t('friends');
-  callFlagOpen.textContent = t('open');
-  callFlagHang.textContent = t('hangUp');
-  callFlagOpen.title = t('open');
-  callFlagHang.title = t('hangUp');
-  if (!callFlag.classList.contains('show')) {
-    callFlagText.textContent = t('call');
-    callFlagSub.textContent = t('tapToOpen');
-  }
-  document.getElementById('voiceLevelLabel').textContent = t('voiceLevel');
-  document.getElementById('volumeLabelWrap').childNodes[0].textContent = t('volume');
-  document.getElementById('btnAccept').textContent = t('accept');
-  document.getElementById('btnHang').textContent = t('hangUp');
-  document.getElementById('btnClose').textContent = t('close');
-  if (callState === 'ringing') {
-    btnDecline.textContent = t('decline');
-  } else if (callState === 'calling') {
-    btnDecline.textContent = t('cancel');
-  } else if (!btnDecline.disabled) {
-    btnDecline.textContent = t('decline');
-  } else {
-    btnDecline.textContent = t('decline');
-  }
-  const natHintEl = document.querySelector('#callModal .small:last-of-type');
-  if (natHintEl) natHintEl.textContent = t('natHint');
-  updateMicUI();
-  renderRequests();
-  renderFriends();
-  renderOnline();
+function friendLoginOf(friend) {
+  return typeof friend === 'string' ? friend : friend?.login || '';
 }
 
+function friendNickOf(friend) {
+  if (typeof friend === 'string') return friend;
+  return friend?.nickname || friend?.login || '';
+}
+
+function friendAvatarOf(friend) {
+  if (typeof friend === 'string') {
+    return { letter: String(friend || '?')[0]?.toUpperCase() || '?', color: '#5865f2' };
+  }
+  return friend?.avatar || { letter: String(friend?.nickname || friend?.login || '?')[0]?.toUpperCase() || '?', color: '#5865f2' };
+}
 
 function getChatsStorageKey(userLogin) {
   return `messenger_chats_${userLogin}`;
@@ -1015,7 +666,7 @@ function saveLocalChatState() {
     localStorage.setItem(getChatsStorageKey(login), JSON.stringify(chats));
     localStorage.setItem(getUnreadStorageKey(login), JSON.stringify(unread));
   } catch (e) {
-    console.warn(t('localSaveError'), e);
+    console.warn('Не удалось сохранить переписку локально:', e);
   }
 }
 
@@ -1027,16 +678,11 @@ function loadLocalChatState(userLogin) {
     chats = savedChats ? JSON.parse(savedChats) : {};
     unread = savedUnread ? JSON.parse(savedUnread) : {};
   } catch (e) {
-    console.warn(t('localLoadError'), e);
+    console.warn('Не удалось загрузить переписку локально:', e);
     chats = {};
     unread = {};
   }
 }
-
-
-languageSelect.addEventListener('change', () => {
-  applyLanguage(languageSelect.value);
-});
 
 /* =========================================================
    ======================= SOUNDS ==========================
@@ -1153,11 +799,10 @@ function createAvatar(user) {
   if (user?.image) {
     a.textContent = '';
     a.style.backgroundImage = `url(${user.image})`;
-    a.style.backgroundColor = '#2a2f3a';
+    a.style.background = '#2a2f3a';
   } else {
     a.textContent = user?.letter || '?';
-    a.style.backgroundImage = '';
-    a.style.backgroundColor = user?.color || '#5865f2';
+    a.style.background = user?.color || '#5865f2';
   }
   return a;
 }
@@ -1181,29 +826,33 @@ function formatMessageTime(ts) {
 function updateChatHeader(peerLogin = null, peerNick = null, avatar = null) {
   if (!peerLogin) {
     chatTitle.textContent = 'Squadovka';
-    chatStatus.textContent = t('chooseFriend');
+    chatStatus.textContent = 'Выбери друга слева, чтобы открыть переписку';
     chatAvatar.textContent = 'S';
     chatAvatar.style.backgroundImage = '';
-    chatAvatar.style.backgroundColor = '#5865f2';
+    chatAvatar.style.background = '#5865f2';
     return;
   }
   chatTitle.textContent = peerNick || peerLogin;
-  chatStatus.textContent = t('privateDialog');
+  chatStatus.textContent = 'Личный диалог';
   if (avatar?.image) {
     chatAvatar.textContent = '';
     chatAvatar.style.backgroundImage = `url(${avatar.image})`;
-    chatAvatar.style.backgroundColor = '#2a2f3a';
+    chatAvatar.style.background = '#2a2f3a';
   } else {
     chatAvatar.textContent = avatar?.letter || (peerNick || peerLogin || '?')[0]?.toUpperCase() || '?';
     chatAvatar.style.backgroundImage = '';
-    chatAvatar.style.backgroundColor = avatar?.color || '#5865f2';
+    chatAvatar.style.background = avatar?.color || '#5865f2';
   }
 }
 
 /* ---------- LOGIN / REGISTER ---------- */
 switchMode.onclick = () => {
   isRegister = !isRegister;
-  applyLanguage(currentLang);
+  loginTitle.textContent = isRegister ? 'Регистрация' : 'Вход';
+  loginBtn.textContent = isRegister ? 'Создать аккаунт' : 'Войти';
+  switchMode.textContent = isRegister
+    ? 'Уже есть аккаунт? Войти'
+    : 'Нет аккаунта? Зарегистрироваться';
 };
 
 loginBtn.onclick = async () => {
@@ -1252,11 +901,9 @@ let levelRaf = null;
 
 let pendingOffer = null; // {offer, from, fromNick}
 
-applyLanguage(currentLang);
-
 function openCallUI({peer, nick, status, hint = ""}) {
   callOverlay.style.display = "flex";
-  callName.textContent = nick ? t('callWith', { name: nick }) : t('call');
+  callName.textContent = nick ? `Звонок с ${nick}` : "Звонок";
   callStatus.textContent = status || "";
   callHint.textContent = hint || "";
 
@@ -1279,14 +926,14 @@ function setCallButtons(mode) {
   if (mode === "outgoing") {
     btnAccept.style.display = "none";
     btnDecline.style.display = "inline-block";
-    btnDecline.textContent = t('cancel');
+    btnDecline.textContent = "Отменить";
     btnMute.disabled = true;
     btnHang.disabled = true;
   }
   if (mode === "incoming") {
     btnAccept.style.display = "inline-block";
     btnDecline.style.display = "inline-block";
-    btnDecline.textContent = t('decline');
+    btnDecline.textContent = "Отклонить";
     btnMute.disabled = true;
     btnHang.disabled = true;
   }
@@ -1305,8 +952,8 @@ function setCallButtons(mode) {
 }
 
 function updateMicUI() {
-  micState.textContent = isMicMuted ? t('microphoneOff') : t('microphoneOn');
-  btnMute.textContent = isMicMuted ? t('unmuted') : t('muted');
+  micState.textContent = isMicMuted ? "🎙️ Микрофон: выключён" : "🎙️ Микрофон: включён";
+  btnMute.textContent = isMicMuted ? "Unmute" : "Mute";
 }
 
 function attachRemoteAudio(stream) {
@@ -1337,7 +984,7 @@ async function ensureLocalAudio() {
 
   } catch(e) {
 
-    alert(t('allowMic'));
+    alert("Разрешите доступ к микрофону для звонков");
     throw e;
 
   }
@@ -1392,13 +1039,13 @@ function createPeerConnection() {
     const s = pc.connectionState;
     if (s === "connected") {
       callState = "in_call";
-      openCallUI({peer:callPeer, nick:callPeerNick, status:t('connected'), hint:''});
+      openCallUI({peer:callPeer, nick:callPeerNick, status:"✅ Соединено", hint:""});
       setCallButtons("in_call");
-      showCallFlag(makeFlagTitle(), t('clickToOpenCall'));
+      showCallFlag(makeFlagTitle(), "Нажми чтобы открыть окно звонка");
       stopRingtone();
     }
     if (s === "failed" || s === "disconnected" || s === "closed") {
-      if (callState !== 'idle') endCall(t('connectionClosed'));
+      if (callState !== "idle") endCall("Соединение завершено");
     }
   };
 
@@ -1406,7 +1053,7 @@ function createPeerConnection() {
 }
 
 function makeFlagTitle() {
-  const who = callPeerNick || callPeer || t('userFallback');
+  const who = callPeerNick || callPeer || "Пользователь";
   if (callState === "ringing") return `📲 Входящий: ${who}`;
   if (callState === "calling") return `📞 Звоним: ${who}`;
   if (callState === "in_call") return `✅ В звонке: ${who}`;
@@ -1423,10 +1070,10 @@ async function startOutgoingCall(peer, nick) {
   callPeerNick = nick || peer;
   callState = "calling";
 
-  openCallUI({peer, nick:callPeerNick, status:t('calling'), hint:t('waitingAnswer')});
+  openCallUI({peer, nick:callPeerNick, status:"📞 Звоним…", hint:"Ожидаем ответ"});
   setCallButtons("outgoing");
 
-  showCallFlag(makeFlagTitle(), t('clickToOpenCall'));
+  showCallFlag(makeFlagTitle(), "Нажми чтобы открыть окно звонка");
   callBtn.disabled = true;
 
   await ensureLocalAudio();
@@ -1455,10 +1102,10 @@ async function acceptIncomingCall(offer, from, fromNick) {
   callPeerNick = fromNick || from;
   callState = "calling";
 
-  openCallUI({peer:callPeer, nick:callPeerNick, status:t('connecting'), hint:''});
+  openCallUI({peer:callPeer, nick:callPeerNick, status:"🔄 Подключаем…", hint:""});
   setCallButtons("outgoing");
 
-  showCallFlag(makeFlagTitle(), t('clickToOpenCall'));
+  showCallFlag(makeFlagTitle(), "Нажми чтобы открыть окно звонка");
   callBtn.disabled = true;
 
   await ensureLocalAudio();
@@ -1481,7 +1128,7 @@ function declineIncomingCall(reason="Отклонено") {
   stopRingtone();
   soundDecline();
   ws.send(JSON.stringify({ type:"call_decline", to: callPeer, reason }));
-  endCall(t('callDeclinedLocal'));
+  endCall("Звонок отклонён");
 }
 
 function cancelOutgoingCall() {
@@ -1489,14 +1136,14 @@ function cancelOutgoingCall() {
   stopRingtone();
   soundDecline();
   ws.send(JSON.stringify({ type:"call_cancel", to: callPeer }));
-  endCall(t('callCancelledLocal'));
+  endCall("Звонок отменён");
 }
 
 function hangup() {
   if (!callPeer) return;
   stopRingtone();
   ws.send(JSON.stringify({ type:"call_end", to: callPeer }));
-  endCall(t('youEndedCall'));
+  endCall("Вы завершили звонок");
 }
 
 /* ВАЖНО: это “полное завершение” */
@@ -1605,7 +1252,7 @@ function minimizeCallUI(){
     hideCallFlag();
     return;
   }
-  showCallFlag(makeFlagTitle(), t('clickToOpenCall'));
+  showCallFlag(makeFlagTitle(), "Нажми чтобы открыть окно звонка");
   closeCallUI();
 }
 function restoreCallUI(){
@@ -1615,11 +1262,11 @@ function restoreCallUI(){
   }
   hideCallFlag();
 
-  const who = callPeerNick || callPeer || t('userFallback');
+  const who = callPeerNick || callPeer || "Пользователь";
   let status = "";
-  if (callState === 'ringing') status = t('incomingCall');
-  else if (callState === 'calling') status = t('calling');
-  else if (callState === 'in_call') status = t('connected');
+  if (callState === "ringing") status = "📲 Входящий звонок";
+  else if (callState === "calling") status = "📞 Звоним…";
+  else if (callState === "in_call") status = "✅ Соединено";
 
   openCallUI({peer:callPeer, nick:who, status, hint:""});
   if (callState === "ringing") setCallButtons("incoming");
@@ -1690,7 +1337,7 @@ function handle(d) {
   if (d.type === 'error') alert(d.message);
 
   if (d.type === 'register_ok') {
-    alert(t('accountCreated'));
+    alert('Аккаунт создан, войдите');
     switchMode.onclick();
   }
 
@@ -1720,7 +1367,6 @@ if (d.type === 'login_ok') {
   renderFriends();
   renderRequests();
   renderOnline();
-  applyLanguage(currentLang);
 }
 
   if (d.type === 'online_friends') {
@@ -1735,7 +1381,7 @@ if (d.type === 'login_ok') {
 
       const info = document.createElement('div');
       info.className = 'userInfo';
-      info.innerHTML = `<div class="userName">${escapeHtml(u.nickname || u.login)}</div><div class="userSub">${escapeHtml(t('online'))}</div>`;
+      info.innerHTML = `<div class="userName">${escapeHtml(u.nickname || u.login)}</div><div class="userSub">онлайн</div>`;
       div.appendChild(info);
 
       if (unread[u.login]) {
@@ -1770,24 +1416,8 @@ if (d.type === 'login_ok') {
       else soundMessage();
     }
 
-    if (peer === currentDM) show(d);
+    if (peer === currentDM) show(d.fromNick || d.from, d.text, d.avatar, d.time);
     renderOnline();
-  }
-
-  if (d.type === 'message_deleted') {
-    const peer = d.from === login ? d.to : d.from;
-    chats[peer] ??= [];
-    chats[peer] = chats[peer].map(m => m.id === d.id ? { ...m, text: d.text, deleted: true } : m);
-    saveLocalChatState();
-
-    if (peer === currentDM) {
-      const textEl = messages.querySelector(`[data-message-id="${String(d.id)}"] .messageText`);
-      const rowEl = messages.querySelector(`[data-message-id="${String(d.id)}"]`);
-      const deleteBtn = messages.querySelector(`[data-message-id="${String(d.id)}"] .messageDeleteBtn`);
-      if (textEl) textEl.textContent = t('messageDeleted');
-      if (rowEl) rowEl.classList.add('deleted');
-      if (deleteBtn) deleteBtn.remove();
-    }
   }
 
   if (d.type === 'chat_history') {
@@ -1796,7 +1426,7 @@ if (d.type === 'login_ok') {
     saveLocalChatState();
     if (currentDM === d.with) {
       messages.innerHTML = '';
-      chats[d.with].forEach(m => show(m));
+      chats[d.with].forEach(m => show(m.fromNick || m.from, m.text, m.avatar, m.time));
     }
   }
 
@@ -1852,11 +1482,11 @@ if (d.type === 'login_ok') {
 
     pendingOffer = { offer: d.offer, from: d.from, fromNick: callPeerNick };
 
-    showCallFlag(makeFlagTitle(), t('incomingCallTap'));
+    showCallFlag(makeFlagTitle(), "Входящий звонок — нажми чтобы открыть");
     callBtn.disabled = true;
 
     // сразу открыть окно (можешь убрать если хочешь)
-    openCallUI({peer:d.from, nick:callPeerNick, status:t('incomingCall'), hint:t('incomingCallHint')});
+    openCallUI({peer:d.from, nick:callPeerNick, status:"📲 Входящий звонок", hint:"Нажми «Принять» или «Отклонить»"});
     setCallButtons("incoming");
   }
 
@@ -1868,7 +1498,7 @@ if (d.type === 'login_ok') {
         .then(() => flushPendingIce())
         .catch(err => {
           console.warn("call_answer setRemoteDescription error:", err);
-          endCall(t('answerError'));
+          endCall("Ошибка ответа звонка");
         });
     }
   }
@@ -1891,10 +1521,10 @@ if (d.type === 'login_ok') {
     });
   }
 
-  if (d.type === 'call_decline') { stopRingtone(); soundDecline(); endCall(t('callDeclined')); }
-  if (d.type === 'call_cancel')  { stopRingtone(); soundDecline(); endCall(t('callCancelled')); }
-  if (d.type === 'call_end')     { stopRingtone(); endCall(t('peerEndedCall')); }
-  if (d.type === 'call_busy')    { stopRingtone(); soundDecline(); endCall(t('userBusy')); }
+  if (d.type === "call_decline") { stopRingtone(); soundDecline(); endCall("Отклонено"); }
+  if (d.type === "call_cancel")  { stopRingtone(); soundDecline(); endCall("Отменено"); }
+  if (d.type === "call_end")     { stopRingtone(); endCall("Собеседник завершил звонок"); }
+  if (d.type === "call_busy")    { stopRingtone(); soundDecline(); endCall("Пользователь занят"); }
 }
 
 /* ---------- CHAT ---------- */
@@ -1911,60 +1541,66 @@ function openDM(l, n, avatar = null) {
   updateChatHeader(l, n, avatar);
   ws.send(JSON.stringify({ type: 'read', from: l }));
   ws.send(JSON.stringify({ type: 'get_messages', with: l }));
-  (chats[l] || []).forEach(m => show(m));
+  (chats[l] || []).forEach(show);
   renderOnline();
+
+  if (friendsPanel.classList.contains('open')) {
+    friendsPanel.classList.remove('open');
+    friendsBtn.classList.remove('active');
+    updateLanguageSwitcherVisibility();
+  }
 }
 
 function show(message) {
-  const senderName = message.fromNick || message.from || '?';
-  const messageText = message.deleted ? t('messageDeleted') : (message.text || '');
-  const isOwn = message.from === login;
+  if (!message) return;
 
-  const m = document.createElement('div');
-  m.className = 'message' + (message.deleted ? ' deleted' : '');
-  if (message.id != null) m.dataset.messageId = String(message.id);
+  const senderLogin = message.from || '';
+  const senderName = message.fromNick || message.nickname || senderLogin || '?';
+  const isOwn = senderLogin === login;
+  const isDeleted = !!message.deleted;
 
-  m.appendChild(createAvatar(message.avatar || { letter: String(senderName || '?').charAt(0).toUpperCase(), color: '#5865f2' }));
+  const row = document.createElement('div');
+  row.className = 'message' + (isDeleted ? ' deleted' : '');
+  if (message.id != null) row.dataset.messageId = String(message.id);
 
-  const c = document.createElement('div');
-  c.className = 'messageContent';
+  row.appendChild(createAvatar(message.avatar || { letter: String(senderName || '?')[0]?.toUpperCase() || '?', color: '#5865f2' }));
 
+  const content = document.createElement('div');
+  content.className = 'messageContent';
   const header = document.createElement('div');
   header.className = 'messageHeader';
 
   const nameEl = document.createElement('b');
   nameEl.textContent = senderName;
-  header.appendChild(nameEl);
-
   const timeEl = document.createElement('span');
   timeEl.className = 'messageTime';
   timeEl.textContent = formatMessageTime(message.time);
+  header.appendChild(nameEl);
   header.appendChild(timeEl);
-
-  if (isOwn && !message.deleted && message.id != null) {
-    const actions = document.createElement('div');
-    actions.className = 'messageActions';
-
-    const deleteBtn = document.createElement('button');
-    deleteBtn.className = 'messageDeleteBtn';
-    deleteBtn.type = 'button';
-    deleteBtn.textContent = t('delete');
-    deleteBtn.onclick = () => {
-      ws.send(JSON.stringify({ type: 'delete_message', id: message.id, with: currentDM }));
-    };
-
-    actions.appendChild(deleteBtn);
-    header.appendChild(actions);
-  }
+  content.appendChild(header);
 
   const textEl = document.createElement('div');
   textEl.className = 'messageText';
-  textEl.textContent = messageText;
+  textEl.textContent = isDeleted ? t('messageDeleted') : (message.text || '');
+  content.appendChild(textEl);
+  row.appendChild(content);
 
-  c.appendChild(header);
-  c.appendChild(textEl);
-  m.appendChild(c);
-  messages.appendChild(m);
+  if (isOwn && !isDeleted && message.id != null) {
+    const actions = document.createElement('div');
+    actions.className = 'messageActions';
+    const delBtn = document.createElement('button');
+    delBtn.className = 'messageDeleteBtn';
+    delBtn.type = 'button';
+    delBtn.textContent = t('delete');
+    delBtn.onclick = () => {
+      if (!ws || ws.readyState !== WebSocket.OPEN) return;
+      ws.send(JSON.stringify({ type: 'delete_message', id: message.id, to: message.to }));
+    };
+    actions.appendChild(delBtn);
+    row.appendChild(actions);
+  }
+
+  messages.appendChild(row);
   messages.scrollTop = messages.scrollHeight;
 }
 
@@ -1989,8 +1625,10 @@ text.addEventListener('keydown', async (e) => {
 
 /* ---------- FRIENDS ---------- */
 function toggleFriendsPanel() {
-  friendsPanel.classList.toggle('open');
-  friendsBtn.classList.toggle('active');
+  const willOpen = !friendsPanel.classList.contains('open');
+  friendsPanel.classList.toggle('open', willOpen);
+  friendsBtn.classList.toggle('active', willOpen);
+  updateLanguageSwitcherVisibility();
 }
 
 friendsBtn.onclick = toggleFriendsPanel;
@@ -2005,20 +1643,34 @@ addFriendBtn.onclick = () => {
 
 function renderRequests() {
   requestsDiv.innerHTML = '';
-  if (!requests.length) { requestsDiv.textContent = t('noRequests'); requestsDiv.className = 'emptyText'; return; }
+  if (!requests.length) {
+    requestsDiv.textContent = t('noRequests');
+    requestsDiv.className = 'emptyText';
+    return;
+  }
+  requestsDiv.className = '';
   requests.forEach(u => {
+    const loginValue = friendLoginOf(u);
+    const nickValue = friendNickOf(u);
     const d = document.createElement('div');
     d.className = 'friendEntry';
     const main = document.createElement('div');
     main.className = 'friendMain';
-    main.appendChild(createAvatar({ letter:u[0].toUpperCase(), color:'#5865f2' }));
+    main.appendChild(createAvatar(friendAvatarOf(u)));
     const meta = document.createElement('div');
     meta.className = 'friendMeta';
-    meta.innerHTML = `<b>${escapeHtml(u)}</b><span>${escapeHtml(t('incomingRequest'))}</span>`;
+    meta.innerHTML = `<b>${escapeHtml(nickValue || loginValue)}</b><span>${escapeHtml(t('incomingRequest'))}</span>`;
     main.appendChild(meta);
     d.appendChild(main);
     const s = document.createElement('span');
-    s.innerHTML = `<button onclick="accept('${u}')">✔</button><button onclick="decline('${u}')">✖</button>`;
+    const acceptBtn = document.createElement('button');
+    acceptBtn.textContent = '✔';
+    acceptBtn.onclick = () => accept(loginValue);
+    const declineBtn = document.createElement('button');
+    declineBtn.textContent = '✖';
+    declineBtn.onclick = () => decline(loginValue);
+    s.appendChild(acceptBtn);
+    s.appendChild(declineBtn);
     d.appendChild(s);
     requestsDiv.appendChild(d);
   });
@@ -2026,17 +1678,27 @@ function renderRequests() {
 
 function renderFriends() {
   friendsDiv.innerHTML = '';
-  if (!friends.length) { friendsDiv.textContent = t('friendsEmpty'); friendsDiv.className = 'emptyText'; return; }
+  if (!friends.length) {
+    friendsDiv.textContent = t('friendsEmpty');
+    friendsDiv.className = 'emptyText';
+    return;
+  }
+  friendsDiv.className = '';
   friends.forEach(u => {
+    const loginValue = friendLoginOf(u);
+    const nickValue = friendNickOf(u);
+    const avatarValue = friendAvatarOf(u);
     const d = document.createElement('div');
     d.className = 'friendEntry';
     const main = document.createElement('div');
     main.className = 'friendMain';
-    main.appendChild(createAvatar({ letter:u[0].toUpperCase(), color:'#5865f2' }));
+    main.style.cursor = 'pointer';
+    main.appendChild(createAvatar(avatarValue));
     const meta = document.createElement('div');
     meta.className = 'friendMeta';
-    meta.innerHTML = `<b>${escapeHtml(u)}</b><span>${escapeHtml(t('friend'))}</span>`;
+    meta.innerHTML = `<b>${escapeHtml(nickValue || loginValue)}</b><span>${escapeHtml(t('friend'))}</span>`;
     main.appendChild(meta);
+    main.onclick = () => openDM(loginValue, nickValue || loginValue, avatarValue);
     d.appendChild(main);
     friendsDiv.appendChild(d);
   });
@@ -2078,16 +1740,12 @@ function renderOnline() {
 
 function accept(u) {
   ws.send(JSON.stringify({ type:'friend_accept', from:login, to:u }));
-  requests = requests.filter(r => r !== u);
-  friends.push(u);
-  saveLocalChatState();
+  requests = requests.filter(r => friendLoginOf(r) !== u);
   renderRequests();
-  renderFriends();
 }
 
 function decline(u) {
-  requests = requests.filter(r => r !== u);
-  saveLocalChatState();
+  requests = requests.filter(r => friendLoginOf(r) !== u);
   renderRequests();
 }
 
@@ -2111,6 +1769,8 @@ window.addEventListener("beforeunload", () => {
   } catch {}
 });
 window.addEventListener("load", () => {
+  applyLanguage(localStorage.getItem('squadovka_lang') || 'en');
+  updateLanguageSwitcherVisibility();
 
   const savedLogin = localStorage.getItem("login");
   const savedPassword = localStorage.getItem("password");
