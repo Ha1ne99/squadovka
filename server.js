@@ -22,8 +22,10 @@ if (!process.env.DATABASE_URL) {
   process.exit(1);
 }
 
+const databaseUrl = process.env.DATABASE_URL.replace(/([?&])sslmode=[^&]*/i, '').replace(/[?&]$/, '');
+
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
+  connectionString: databaseUrl,
   ssl: { rejectUnauthorized: false }
 });
 
@@ -243,14 +245,17 @@ wss.on('connection', ws => {
     try {
       /* REGISTER */
       if (data.type === 'register') {
-        if (!data.login || !data.password) {
+        const login = typeof data.login === 'string' ? data.login.trim() : '';
+        const password = typeof data.password === 'string' ? data.password : '';
+
+        if (!login || !password) {
           send(ws, { type: 'error', message: 'Введите логин и пароль' });
           return;
         }
 
         const exists = await pool.query(
           `SELECT login FROM users WHERE login = $1`,
-          [data.login]
+          [login]
         );
 
         if (exists.rows.length) {
@@ -258,14 +263,14 @@ wss.on('connection', ws => {
           return;
         }
 
-        const hashedPassword = await bcrypt.hash(data.password, 10);
+        const hashedPassword = await bcrypt.hash(password, 10);
 
         await pool.query(
           `
           INSERT INTO users (login, password, nickname, avatarImage)
           VALUES ($1, $2, $3, $4)
           `,
-          [data.login, hashedPassword, data.login, null]
+          [login, hashedPassword, login, null]
         );
 
         send(ws, { type: 'register_ok' });
@@ -274,13 +279,21 @@ wss.on('connection', ws => {
 
       /* LOGIN */
       if (data.type === 'login') {
+        const login = typeof data.login === 'string' ? data.login.trim() : '';
+        const password = typeof data.password === 'string' ? data.password : '';
+
+        if (!login || !password) {
+          send(ws, { type: 'error', message: 'Введите логин и пароль' });
+          return;
+        }
+
         const result = await pool.query(
           `
           SELECT login, password, nickname, avatarImage
           FROM users
           WHERE login = $1
           `,
-          [data.login]
+          [login]
         );
 
         const user = result.rows[0];
@@ -290,7 +303,27 @@ wss.on('connection', ws => {
           return;
         }
 
-        const ok = await bcrypt.compare(data.password, user.password);
+        let ok = false;
+
+        if (typeof user.password === 'string' && user.password.startsWith('$2')) {
+          ok = await bcrypt.compare(password, user.password);
+        } else {
+          ok = password === user.password;
+
+          if (ok) {
+            const upgradedHash = await bcrypt.hash(password, 10);
+            await pool.query(
+              `
+              UPDATE users
+              SET password = $1
+              WHERE login = $2
+              `,
+              [upgradedHash, user.login]
+            );
+            user.password = upgradedHash;
+          }
+        }
+
         if (!ok) {
           send(ws, { type: 'error', message: 'Неверный логин или пароль' });
           return;
