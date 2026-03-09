@@ -9,10 +9,18 @@ const app = express();
 const server = http.createServer(app);
 const wss = new WebSocket.Server({ server });
 
-app.use(express.static(path.join(__dirname, 'public')));
+const publicDir = path.join(__dirname, 'public');
+const rootIndex = path.join(__dirname, 'index.html');
+const publicIndex = path.join(publicDir, 'index.html');
+
+app.use(express.static(publicDir));
+app.use(express.static(__dirname));
 
 app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+  if (require('fs').existsSync(publicIndex)) {
+    return res.sendFile(publicIndex);
+  }
+  return res.sendFile(rootIndex);
 });
 
 /* ================= DATABASE ================= */
@@ -53,14 +61,8 @@ async function initDb() {
       fromUser TEXT NOT NULL,
       toUser TEXT NOT NULL,
       text TEXT NOT NULL,
-      time BIGINT NOT NULL,
-      deleted BOOLEAN NOT NULL DEFAULT FALSE
+      time BIGINT NOT NULL
     )
-  `);
-
-  await pool.query(`
-    ALTER TABLE messages
-    ADD COLUMN IF NOT EXISTS deleted BOOLEAN NOT NULL DEFAULT FALSE
   `);
 
   await pool.query(`
@@ -187,7 +189,7 @@ async function getUnreadMap(login) {
 async function getChatHistory(userA, userB) {
   const result = await pool.query(
     `
-    SELECT id, fromUser, toUser, text, time, deleted
+    SELECT id, fromUser, toUser, text, time
     FROM messages
     WHERE (fromUser = $1 AND toUser = $2)
        OR (fromUser = $2 AND toUser = $1)
@@ -205,8 +207,7 @@ async function getChatHistory(userA, userB) {
       to: row.touser,
       text: row.text,
       time: Number(row.time),
-      avatar: sender?.avatar || buildAvatar(row.fromuser, row.fromuser),
-      deleted: !!row.deleted
+      avatar: sender?.avatar || buildAvatar(row.fromuser, row.fromuser)
     });
   }
 
@@ -533,10 +534,14 @@ wss.on('connection', ws => {
           [data.to, data.from]
         );
 
+        const acceptedMe = await getUserPublic(userLogin);
+        const acceptedFriend = await getUserPublic(data.to);
+
         sendToUser(data.to, {
           type: 'friend_accept',
           from: userLogin,
-          fromNick: me.nickname
+          fromNick: me.nickname,
+          friend: acceptedMe
         });
 
         send(ws, {
@@ -560,11 +565,10 @@ wss.on('connection', ws => {
         const messageText = data.text.trim();
         const messageTime = Date.now();
 
-        const insertResult = await pool.query(
+        await pool.query(
           `
           INSERT INTO messages (fromUser, toUser, text, time)
           VALUES ($1, $2, $3, $4)
-          RETURNING id
           `,
           [userLogin, data.to, messageText, messageTime]
         );
@@ -591,7 +595,6 @@ wss.on('connection', ws => {
         const unreadCount = unreadResult.rows[0]?.count || 0;
 
         const msgData = {
-          id: insertResult.rows[0]?.id,
           type: 'message',
           from: userLogin,
           to: data.to,
@@ -600,53 +603,11 @@ wss.on('connection', ws => {
           fromNick: me.nickname,
           avatar: buildAvatar(userLogin, me.nickname, me.avatarImage),
           unread: unreadCount,
-          deleted: false
+          clientMsgId: typeof data.clientMsgId === 'string' ? data.clientMsgId : null
         };
 
         sendToUser(userLogin, msgData);
         sendToUser(data.to, msgData);
-        return;
-      }
-
-
-      /* DELETE MESSAGE */
-      if (data.type === 'delete_message') {
-        const messageId = Number(data.id);
-        if (!Number.isFinite(messageId)) return;
-
-        const existing = await pool.query(
-          `
-          SELECT id, fromUser, toUser
-          FROM messages
-          WHERE id = $1
-          LIMIT 1
-          `,
-          [messageId]
-        );
-
-        const message = existing.rows[0];
-        if (!message) return;
-        if (message.fromuser !== userLogin) return;
-
-        await pool.query(
-          `
-          UPDATE messages
-          SET text = $1, deleted = TRUE
-          WHERE id = $2
-          `,
-          ['__deleted__', messageId]
-        );
-
-        const payload = {
-          type: 'message_deleted',
-          id: messageId,
-          from: message.fromuser,
-          to: message.touser,
-          text: '__deleted__'
-        };
-
-        sendToUser(message.fromuser, payload);
-        sendToUser(message.touser, payload);
         return;
       }
 
