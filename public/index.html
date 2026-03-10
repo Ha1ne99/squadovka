@@ -409,20 +409,29 @@ input[type="range"]{ width:190px; }
 
 <body>
 
+<!-- Переключатель языка -->
+<div id="langSelector" style="position:fixed; top:18px; right:24px; z-index:9999;">
+  <select id="langSelect" style="background:rgba(21, 24, 31, 0.9); backdrop-filter:blur(10px); color:var(--text); border:1px solid var(--line); border-radius:12px; padding:6px 10px; outline:none; font-size:13px; font-weight: 600; cursor:pointer; box-shadow:0 4px 12px rgba(0,0,0,0.2);">
+    <option value="ru">🇷🇺 Русский</option>
+    <option value="uk">🇺🇦 Українська</option>
+    <option value="en">🇬🇧 English</option>
+  </select>
+</div>
+
 <!-- LOGIN / REGISTER -->
 <div id="login">
   <div class="loginBrand">
     <div class="brandLogo">S</div>
     <div class="brandText">
       <b>Squadovka</b>
-      <span>Твой уютный мессенджер для друзей</span>
+      <span data-i18n="appDescLogin">Твой уютный мессенджер для друзей</span>
     </div>
   </div>
-  <h2 id="loginTitle">Вход</h2>
-  <input id="loginInput" placeholder="Логин">
-  <input id="passwordInput" type="password" placeholder="Пароль">
-  <button id="loginBtn">Войти</button>
-  <div id="switchMode">Нет аккаунта? Зарегистрироваться</div>
+  <h2 id="loginTitle" data-i18n="loginTitle">Вход</h2>
+  <input id="loginInput" data-i18n-placeholder="loginPlaceholder" placeholder="Логин">
+  <input id="passwordInput" type="password" data-i18n-placeholder="passPlaceholder" placeholder="Пароль">
+  <button id="loginBtn" data-i18n="btnLogin">Войти</button>
+  <div id="switchMode" data-i18n="switchReg">Нет аккаунта? Зарегистрироваться</div>
 </div>
 
 <!-- APP -->
@@ -433,12 +442,12 @@ input[type="range"]{ width:190px; }
         <div class="brandLogo" style="width:42px;height:42px;border-radius:14px;font-size:20px;">S</div>
         <div class="sidebarBrandText">
           <b>Squadovka</b>
-          <span>На связи с друзьями</span>
+          <span data-i18n="appDescSidebar">На связи с друзьями</span>
         </div>
       </div>
     </div>
-    <div id="friendsBtn"><span>👥 Друзья</span></div>
-    <div class="sectionLabel">Друзья онлайн</div>
+    <div id="friendsBtn"><span data-i18n="btnFriends">👥 Друзья</span></div>
+    <div class="sectionLabel" data-i18n="onlineFriends">Друзья онлайн</div>
     <div id="online"></div>
 
     <!-- PROFILE -->
@@ -446,9 +455,9 @@ input[type="range"]{ width:190px; }
       <div id="profileAvatar" class="avatar" style="background:#5865f2">?</div>
       <div class="profileMeta">
         <b id="profileNick"></b>
-        <span>Логин: <span id="profileLogin"></span></span>
+        <span><span data-i18n="profileLogin">Логин: </span><span id="profileLogin"></span></span>
       </div>
-      <button id="avatarUploadBtn" class="ghostBtn">Аватар</button>
+      <button id="avatarUploadBtn" class="ghostBtn" data-i18n="btnAvatar">Аватар</button>
       <input type="file" id="avatarUploadInput" accept="image/*">
     </div>
   </div>
@@ -459,11 +468,11 @@ input[type="range"]{ width:190px; }
         <div id="chatAvatar" class="avatar" style="background:#5865f2">S</div>
         <div id="chatTitleWrap">
           <div id="chatTitle">Squadovka</div>
-          <div id="chatStatus">Выбери друга слева, чтобы открыть переписку</div>
+          <div id="chatStatus" data-i18n="chatStatusEmpty">Выбери друга слева, чтобы открыть переписку</div>
         </div>
       </div>
       <div class="headerActions">
-        <button id="headerFriendsBtn" class="ghostBtn">👥 <span>Друзья</span></button>
+        <button id="headerFriendsBtn" class="ghostBtn">👥 <span data-i18n="btnFriendsOnly">Друзья</span></button>
       </div>
     </div>
 
@@ -471,28 +480,28 @@ input[type="range"]{ width:190px; }
     <div id="callFlag">
       <div class="left">
         <span class="dot"></span>
-        <b id="callFlagText">Звонок</b>
-        <span id="callFlagSub">нажми чтобы открыть</span>
+        <b id="callFlagText" data-i18n="callTitle">Звонок</b>
+        <span id="callFlagSub" data-i18n="callFlagClick">нажми чтобы открыть</span>
       </div>
       <div class="right">
-        <button id="callFlagOpen" title="Открыть">Открыть</button>
-        <button id="callFlagHang" title="Сбросить">Сбросить</button>
+        <button id="callFlagOpen" data-i18n-title="openTitle" title="Открыть" data-i18n="callFlagOpen">Открыть</button>
+        <button id="callFlagHang" data-i18n-title="hangTitle" title="Сбросить" data-i18n="callFlagHang">Сбросить</button>
       </div>
     </div>
 
     <div id="emptyChat">
       <div class="emptyCard">
         <div class="emptyIcon">💬</div>
-        <h2>Добро пожаловать в Squadovka</h2>
-        <p>Выбери друга слева или открой панель друзей, чтобы отправить заявку и начать переписку.</p>
+        <h2 data-i18n="emptyChatTitle">Добро пожаловать в Squadovka</h2>
+        <p data-i18n="emptyChatDesc">Выбери друга слева или открой панель друзей, чтобы отправить заявку и начать переписку.</p>
       </div>
     </div>
 
     <div id="messages"></div>
 
     <div id="input">
-      <button id="callBtn" title="Позвонить">📞</button>
-      <input id="text" placeholder="Сообщение...">
+      <button id="callBtn" data-i18n-title="callActionTitle" title="Позвонить">📞</button>
+      <input id="text" data-i18n-placeholder="inputPlaceholder" placeholder="Сообщение...">
       <button id="sendBtn">▶</button>
     </div>
   </div>
@@ -501,19 +510,19 @@ input[type="range"]{ width:190px; }
 <!-- FRIEND PANEL -->
 <div id="friendsPanel" style="transform:translateX(100%);">
   <div class="friendSection">
-    <h3>Добавить друга (по логину)</h3>
-    <input id="friendNick" class="addFriendInput" placeholder="Логин пользователя">
-    <button class="addFriendBtn" id="addFriendBtn">Отправить заявку</button>
+    <h3 data-i18n="addFriendTitle">Добавить друга (по логину)</h3>
+    <input id="friendNick" class="addFriendInput" data-i18n-placeholder="addFriendInput" placeholder="Логин пользователя">
+    <button class="addFriendBtn" id="addFriendBtn" data-i18n="addFriendBtn">Отправить заявку</button>
   </div>
 
   <div class="friendSection">
-    <h3>Заявки</h3>
-    <div id="requests" class="emptyText">Нет входящих заявок</div>
+    <h3 data-i18n="requestsTitle">Заявки</h3>
+    <div id="requests" class="emptyText" data-i18n="noRequests">Нет входящих заявок</div>
   </div>
 
   <div class="friendSection">
-    <h3>Друзья</h3>
-    <div id="friends" class="emptyText">Список друзей пуст</div>
+    <h3 data-i18n="friendsTitle">Друзья</h3>
+    <div id="friends" class="emptyText" data-i18n="noFriends">Список друзей пуст</div>
   </div>
 </div>
 
@@ -524,7 +533,7 @@ input[type="range"]{ width:190px; }
       <div class="callTitle">
         <div class="avatar" id="callAvatar" style="background:#5865f2">?</div>
         <div>
-          <b id="callName">Звонок</b><br>
+          <b id="callName" data-i18n="callTitle">Звонок</b><br>
           <span id="callStatus">—</span>
         </div>
       </div>
@@ -533,33 +542,339 @@ input[type="range"]{ width:190px; }
 
     <div class="callBody">
       <div class="row">
-        <div class="pill" id="micState">🎙️ Микрофон: включён</div>
-        <div class="pill">🔊 Громкость:
+        <div class="pill" id="micState" data-i18n="micOn">🎙️ Микрофон: включён</div>
+        <div class="pill"><span data-i18n="volLabel">🔊 Громкость:</span>
           <input id="vol" type="range" min="0" max="1" step="0.01" value="1">
         </div>
       </div>
 
       <div class="row">
-        <div style="min-width:120px">Уровень голоса:</div>
+        <div style="min-width:120px" data-i18n="voiceLevel">Уровень голоса:</div>
         <div class="level"><div id="levelFill"></div></div>
       </div>
 
-      <div class="small">
+      <div class="small" data-i18n="natHint">
         Если не соединяется у кого-то — это NAT. Для “всегда работает” нужен TURN-сервер.
       </div>
     </div>
 
     <div class="callActions">
-      <button class="btn btnGreen" id="btnAccept">Принять</button>
-      <button class="btn btnRed" id="btnDecline">Отклонить</button>
+      <button class="btn btnGreen" id="btnAccept" data-i18n="btnAccept">Принять</button>
+      <button class="btn btnRed" id="btnDecline" data-i18n="btnDecline">Отклонить</button>
       <button class="btn btnBlue" id="btnMute">Mute</button>
-      <button class="btn btnRed" id="btnHang">Сбросить</button>
-      <button class="btn btnGray" id="btnClose">Закрыть</button>
+      <button class="btn btnRed" id="btnHang" data-i18n="callFlagHang">Сбросить</button>
+      <button class="btn btnGray" id="btnClose" data-i18n="btnClose">Закрыть</button>
     </div>
   </div>
 </div>
 
 <script>
+/* ---------- I18N (ПЕРЕВОДЫ) ---------- */
+const backendErrors = {
+  "Введите логин и пароль": "errEmptyCreds",
+  "Логин занят": "errLoginTaken",
+  "Неверный логин или пароль": "errWrongCreds",
+  "Неверный формат аватара": "errAvatarFormat",
+  "Аватар слишком большой": "errAvatarSize",
+  "Пользователь не найден": "errUserNotFound",
+  "Вы уже друзья": "errAlreadyFriends",
+  "Пользователь не в сети": "errUserOffline",
+  "Ошибка сервера": "errServer"
+};
+
+const i18n = {
+  ru: {
+    appDescLogin: "Твой уютный мессенджер для друзей",
+    loginTitle: "Вход",
+    regTitle: "Регистрация",
+    loginPlaceholder: "Логин",
+    passPlaceholder: "Пароль",
+    btnLogin: "Войти",
+    btnReg: "Создать аккаунт",
+    switchReg: "Нет аккаунта? Зарегистрироваться",
+    switchLogin: "Уже есть аккаунт? Войти",
+    appDescSidebar: "На связи с друзьями",
+    btnFriends: "👥 Друзья",
+    btnFriendsOnly: "Друзья",
+    onlineFriends: "Друзья онлайн",
+    profileLogin: "Логин: ",
+    btnAvatar: "Аватар",
+    chatStatusEmpty: "Выбери друга слева, чтобы открыть переписку",
+    chatStatusDM: "Личный диалог",
+    emptyChatTitle: "Добро пожаловать в Squadovka",
+    emptyChatDesc: "Выбери друга слева или открой панель друзей, чтобы отправить заявку и начать переписку.",
+    inputPlaceholder: "Сообщение...",
+    addFriendTitle: "Добавить друга (по логину)",
+    addFriendInput: "Логин пользователя",
+    addFriendBtn: "Отправить заявку",
+    requestsTitle: "Заявки",
+    noRequests: "Нет входящих заявок",
+    friendsTitle: "Друзья",
+    noFriends: "Список друзей пуст",
+    incomingReq: "Входящая заявка",
+    friendLabel: "Друг",
+    noOneOnline: "Пока никто из друзей не в сети",
+    callTitle: "Звонок",
+    callWith: "Звонок с",
+    micOn: "🎙️ Микрофон: включён",
+    micOff: "🎙️ Микрофон: выключён",
+    volLabel: "🔊 Громкость:",
+    voiceLevel: "Уровень голоса:",
+    natHint: "Если не соединяется у кого-то — это NAT. Для “всегда работает” нужен TURN-сервер.",
+    btnAccept: "Принять",
+    btnDecline: "Отклонить",
+    btnCancel: "Отменить",
+    btnHang: "Сбросить",
+    btnClose: "Закрыть",
+    btnMuteToggle: "Mute",
+    btnUnmuteToggle: "Unmute",
+    callIncoming: "📲 Входящий звонок",
+    callCalling: "📞 Звоним…",
+    callConnected: "✅ Соединено",
+    callWait: "Ожидаем ответ",
+    callConnecting: "🔄 Подключаем…",
+    callDeclined: "Звонок отклонён",
+    callCanceled: "Звонок отменён",
+    callEnded: "Звонок завершён",
+    callYouEnded: "Вы завершили звонок",
+    callPeerEnded: "Собеседник завершил звонок",
+    callBusy: "Пользователь занят",
+    callFlagClick: "Нажми чтобы открыть",
+    callFlagIncoming: "Входящий звонок — нажми чтобы открыть",
+    callFlagOpen: "Открыть",
+    callFlagHang: "Сбросить",
+    errNoMic: "Разрешите доступ к микрофону для звонков",
+    regSuccess: "Аккаунт создан, войдите",
+    userOnline: "онлайн",
+    userFallback: "Пользователь",
+    callActionTitle: "Позвонить",
+    openTitle: "Открыть",
+    hangTitle: "Сбросить",
+    errEmptyCreds: "Введите логин и пароль",
+    errLoginTaken: "Логин занят",
+    errWrongCreds: "Неверный логин или пароль",
+    errAvatarFormat: "Неверный формат аватара",
+    errAvatarSize: "Аватар слишком большой",
+    errUserNotFound: "Пользователь не найден",
+    errAlreadyFriends: "Вы уже друзья",
+    errUserOffline: "Пользователь не в сети",
+    errServer: "Ошибка сервера"
+  },
+  en: {
+    appDescLogin: "Your cozy messenger for friends",
+    loginTitle: "Login",
+    regTitle: "Registration",
+    loginPlaceholder: "Username",
+    passPlaceholder: "Password",
+    btnLogin: "Sign In",
+    btnReg: "Create Account",
+    switchReg: "No account? Register",
+    switchLogin: "Already have an account? Log in",
+    appDescSidebar: "Stay connected",
+    btnFriends: "👥 Friends",
+    btnFriendsOnly: "Friends",
+    onlineFriends: "Friends Online",
+    profileLogin: "Username: ",
+    btnAvatar: "Avatar",
+    chatStatusEmpty: "Select a friend on the left to start chatting",
+    chatStatusDM: "Private chat",
+    emptyChatTitle: "Welcome to Squadovka",
+    emptyChatDesc: "Select a friend on the left or open the friends panel to send a request and start chatting.",
+    inputPlaceholder: "Message...",
+    addFriendTitle: "Add friend (by username)",
+    addFriendInput: "Username",
+    addFriendBtn: "Send Request",
+    requestsTitle: "Requests",
+    noRequests: "No incoming requests",
+    friendsTitle: "Friends",
+    noFriends: "Friend list is empty",
+    incomingReq: "Incoming request",
+    friendLabel: "Friend",
+    noOneOnline: "No friends are currently online",
+    callTitle: "Call",
+    callWith: "Call with",
+    micOn: "🎙️ Mic: On",
+    micOff: "🎙️ Mic: Off",
+    volLabel: "🔊 Volume:",
+    voiceLevel: "Voice level:",
+    natHint: "If it doesn't connect for someone, it's NAT. You need a TURN server for 'always works'.",
+    btnAccept: "Accept",
+    btnDecline: "Decline",
+    btnCancel: "Cancel",
+    btnHang: "Hang up",
+    btnClose: "Close",
+    btnMuteToggle: "Mute",
+    btnUnmuteToggle: "Unmute",
+    callIncoming: "📲 Incoming call",
+    callCalling: "📞 Calling...",
+    callConnected: "✅ Connected",
+    callWait: "Waiting for answer",
+    callConnecting: "🔄 Connecting...",
+    callDeclined: "Call declined",
+    callCanceled: "Call canceled",
+    callEnded: "Call ended",
+    callYouEnded: "You ended the call",
+    callPeerEnded: "Peer ended the call",
+    callBusy: "User is busy",
+    callFlagClick: "Click to open",
+    callFlagIncoming: "Incoming call — click to open",
+    callFlagOpen: "Open",
+    callFlagHang: "Hang up",
+    errNoMic: "Allow microphone access for calls",
+    regSuccess: "Account created, please log in",
+    userOnline: "online",
+    userFallback: "User",
+    callActionTitle: "Call",
+    openTitle: "Open",
+    hangTitle: "Hang up",
+    errEmptyCreds: "Enter username and password",
+    errLoginTaken: "Username is taken",
+    errWrongCreds: "Invalid username or password",
+    errAvatarFormat: "Invalid avatar format",
+    errAvatarSize: "Avatar is too large",
+    errUserNotFound: "User not found",
+    errAlreadyFriends: "You are already friends",
+    errUserOffline: "User is offline",
+    errServer: "Server error"
+  },
+  uk: {
+    appDescLogin: "Твій затишний месенджер для друзів",
+    loginTitle: "Вхід",
+    regTitle: "Реєстрація",
+    loginPlaceholder: "Логін",
+    passPlaceholder: "Пароль",
+    btnLogin: "Увійти",
+    btnReg: "Створити акаунт",
+    switchReg: "Немає акаунта? Зареєструватися",
+    switchLogin: "Вже є акаунт? Увійти",
+    appDescSidebar: "На зв'язку з друзями",
+    btnFriends: "👥 Друзі",
+    btnFriendsOnly: "Друзі",
+    onlineFriends: "Друзі онлайн",
+    profileLogin: "Логін: ",
+    btnAvatar: "Аватар",
+    chatStatusEmpty: "Обери друга зліва, щоб відкрити переписку",
+    chatStatusDM: "Особистий діалог",
+    emptyChatTitle: "Ласкаво просимо до Squadovka",
+    emptyChatDesc: "Обери друга зліва або відкрий панель друзів, щоб відправити заявку та почати переписку.",
+    inputPlaceholder: "Повідомлення...",
+    addFriendTitle: "Додати друга (за логіном)",
+    addFriendInput: "Логін користувача",
+    addFriendBtn: "Відправити заявку",
+    requestsTitle: "Заявки",
+    noRequests: "Немає вхідних заявок",
+    friendsTitle: "Друзі",
+    noFriends: "Список друзів порожній",
+    incomingReq: "Вхідна заявка",
+    friendLabel: "Друг",
+    noOneOnline: "Поки нікого з друзів немає в мережі",
+    callTitle: "Дзвінок",
+    callWith: "Дзвінок з",
+    micOn: "🎙️ Мікрофон: увімкнено",
+    micOff: "🎙️ Мікрофон: вимкнено",
+    volLabel: "🔊 Гучність:",
+    voiceLevel: "Рівень голосу:",
+    natHint: "Якщо не з'єднується у когось — це NAT. Для “завжди працює” потрібен TURN-сервер.",
+    btnAccept: "Прийняти",
+    btnDecline: "Відхилити",
+    btnCancel: "Скасувати",
+    btnHang: "Скинути",
+    btnClose: "Закрити",
+    btnMuteToggle: "Вимк.",
+    btnUnmuteToggle: "Увімк.",
+    callIncoming: "📲 Вхідний дзвінок",
+    callCalling: "📞 Дзвонимо...",
+    callConnected: "✅ З'єднано",
+    callWait: "Очікуємо відповідь",
+    callConnecting: "🔄 Підключаємо...",
+    callDeclined: "Дзвінок відхилено",
+    callCanceled: "Дзвінок скасовано",
+    callEnded: "Дзвінок завершено",
+    callYouEnded: "Ви завершили дзвінок",
+    callPeerEnded: "Співрозмовник завершив дзвінок",
+    callBusy: "Користувач зайнятий",
+    callFlagClick: "Натисни щоб відкрити",
+    callFlagIncoming: "Вхідний дзвінок — натисни щоб відкрити",
+    callFlagOpen: "Відкрити",
+    callFlagHang: "Скинути",
+    errNoMic: "Дозвольте доступ до мікрофона для дзвінків",
+    regSuccess: "Акаунт створено, увійдіть",
+    userOnline: "онлайн",
+    userFallback: "Користувач",
+    callActionTitle: "Зателефонувати",
+    openTitle: "Відкрити",
+    hangTitle: "Скинути",
+    errEmptyCreds: "Введіть логін та пароль",
+    errLoginTaken: "Логін зайнятий",
+    errWrongCreds: "Невірний логін або пароль",
+    errAvatarFormat: "Невірний формат аватара",
+    errAvatarSize: "Аватар занадто великий",
+    errUserNotFound: "Користувача не знайдено",
+    errAlreadyFriends: "Ви вже друзі",
+    errUserOffline: "Користувач не в мережі",
+    errServer: "Помилка сервера"
+  }
+};
+
+let currentLang = localStorage.getItem('squadovka_lang') || 'ru';
+
+function t(key) {
+  return i18n[currentLang][key] || key;
+}
+
+function setLanguage(lang) {
+  if (!i18n[lang]) lang = 'ru';
+  currentLang = lang;
+  localStorage.setItem('squadovka_lang', lang);
+
+  const select = document.getElementById('langSelect');
+  if (select) select.value = lang;
+
+  document.querySelectorAll('[data-i18n]').forEach(el => {
+    const key = el.getAttribute('data-i18n');
+    if (i18n[lang][key]) el.textContent = i18n[lang][key];
+  });
+  
+  document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+    const key = el.getAttribute('data-i18n-placeholder');
+    if (i18n[lang][key]) el.placeholder = i18n[lang][key];
+  });
+  
+  document.querySelectorAll('[data-i18n-title]').forEach(el => {
+    const key = el.getAttribute('data-i18n-title');
+    if (i18n[lang][key]) el.title = i18n[lang][key];
+  });
+
+  updateDynamicI18n();
+}
+
+function updateDynamicI18n() {
+  loginTitle.textContent = isRegister ? t('regTitle') : t('loginTitle');
+  loginBtn.textContent = isRegister ? t('btnReg') : t('btnLogin');
+  switchMode.textContent = isRegister ? t('switchLogin') : t('switchReg');
+
+  updateChatHeader(currentDM, currentDMNick, currentDMAvatar);
+
+  if (callState !== "idle") {
+    showCallFlag(makeFlagTitle(), callState === "ringing" ? t('callFlagIncoming') : t('callFlagClick'));
+    updateMicUI();
+    if (callOverlay.style.display === "flex") {
+      callName.textContent = callPeerNick ? `${t('callWith')} ${callPeerNick}` : t('callTitle');
+      if (callState === "ringing") setCallButtons("incoming");
+      else if (callState === "calling") setCallButtons("outgoing");
+      else if (callState === "in_call") setCallButtons("in_call");
+    }
+  }
+
+  if (login) {
+    renderFriends();
+    renderRequests();
+    renderOnline();
+  }
+}
+
+document.getElementById('langSelect').addEventListener('change', (e) => setLanguage(e.target.value));
+
 /* ---------- DOM ---------- */
 const loginDiv = document.getElementById('login');
 const appDiv = document.getElementById('app');
@@ -625,10 +940,14 @@ let isRegister = false;
 let login, nickname;
 let currentDM = null;
 let currentDMNick = null;
+let currentDMAvatar = null;
 let chats = {}, requests = [], friends = [];
 let unread = {}; // { login: count }
-let onlineUsers = [];
-let pendingIceCandidates = [];
+let onlineUsers =[];
+let pendingIceCandidates =[];
+
+// Применяем язык сразу
+setLanguage(currentLang);
 
 function getChatsStorageKey(userLogin) {
   return `messenger_chats_${userLogin}`;
@@ -665,8 +984,6 @@ function loadLocalChatState(userLogin) {
 /* =========================================================
    ======================= SOUNDS ==========================
    =========================================================
-   Без файлов: звуки генерятся через WebAudio (oscillator).
-   Важно: браузер разрешает звук только после клика/жеста.
 */
 let sctx = null;
 let ringtoneTimer = null;
@@ -684,7 +1001,6 @@ async function unlockAudio() {
   } catch {}
 }
 
-// базовый "бип"
 function playTone(freq = 880, durationMs = 120, gain = 0.06, type = "sine") {
   try {
     const ctx = getSoundCtx();
@@ -708,7 +1024,6 @@ function playTone(freq = 880, durationMs = 120, gain = 0.06, type = "sine") {
 }
 
 function playSequence(steps) {
-  // steps: [{f, d, g, t}, ...]
   let at = 0;
   for (const s of steps) {
     setTimeout(() => playTone(s.f, s.d, s.g ?? 0.06, s.t ?? "sine"), at);
@@ -716,7 +1031,6 @@ function playSequence(steps) {
   }
 }
 
-// сообщения
 function soundMessage() {
   playSequence([
     { f: 880, d: 70, g: 0.05, t: "sine" },
@@ -724,7 +1038,6 @@ function soundMessage() {
   ]);
 }
 
-// принять
 function soundAccept() {
   playSequence([
     { f: 784, d: 90, g: 0.06, t: "sine" },
@@ -732,7 +1045,6 @@ function soundAccept() {
   ]);
 }
 
-// отклонить/отменить/занят
 function soundDecline() {
   playSequence([
     { f: 220, d: 140, g: 0.07, t: "square" },
@@ -740,20 +1052,17 @@ function soundDecline() {
   ]);
 }
 
-// рингтон (в цикле)
 function startRingtone() {
   ringtoneActive = true;
-  stopRingtone(); // на всякий
+  stopRingtone();
   ringtoneTimer = setInterval(() => {
     if (!ringtoneActive) return;
-    // два "дзынь" как звонок
     playSequence([
       { f: 659, d: 140, g: 0.05, t: "sine" },
       { f: 659, d: 140, g: 0.05, t: "sine" },
       { f: 523, d: 220, g: 0.045, t: "sine" },
     ]);
   }, 1500);
-  // сразу первый
   playSequence([
     { f: 659, d: 140, g: 0.05, t: "sine" },
     { f: 659, d: 140, g: 0.05, t: "sine" },
@@ -767,7 +1076,6 @@ function stopRingtone() {
   ringtoneTimer = null;
 }
 
-// чтобы звук точно разблокировался
 document.addEventListener("pointerdown", unlockAudio, { passive: true });
 
 /* ---------- AVATAR ---------- */
@@ -804,14 +1112,14 @@ function formatMessageTime(ts) {
 function updateChatHeader(peerLogin = null, peerNick = null, avatar = null) {
   if (!peerLogin) {
     chatTitle.textContent = 'Squadovka';
-    chatStatus.textContent = 'Выбери друга слева, чтобы открыть переписку';
+    chatStatus.textContent = t('chatStatusEmpty');
     chatAvatar.textContent = 'S';
     chatAvatar.style.backgroundImage = '';
     chatAvatar.style.background = '#5865f2';
     return;
   }
   chatTitle.textContent = peerNick || peerLogin;
-  chatStatus.textContent = 'Личный диалог';
+  chatStatus.textContent = t('chatStatusDM');
   if (avatar?.image) {
     chatAvatar.textContent = '';
     chatAvatar.style.backgroundImage = `url(${avatar.image})`;
@@ -826,11 +1134,7 @@ function updateChatHeader(peerLogin = null, peerNick = null, avatar = null) {
 /* ---------- LOGIN / REGISTER ---------- */
 switchMode.onclick = () => {
   isRegister = !isRegister;
-  loginTitle.textContent = isRegister ? 'Регистрация' : 'Вход';
-  loginBtn.textContent = isRegister ? 'Создать аккаунт' : 'Войти';
-  switchMode.textContent = isRegister
-    ? 'Уже есть аккаунт? Войти'
-    : 'Нет аккаунта? Зарегистрироваться';
+  updateDynamicI18n();
 };
 
 loginBtn.onclick = async () => {
@@ -858,7 +1162,7 @@ loginBtn.onclick = async () => {
    ========================================================= */
 
 const RTC_CONFIG = {
-  iceServers: [
+  iceServers:[
     { urls: "stun:stun.l.google.com:19302" }
   ]
 };
@@ -868,20 +1172,20 @@ let localStream = null;
 let remoteStream = null;
 let remoteAudio = null;
 
-let callPeer = null;        // login собеседника
-let callPeerNick = null;    // ник собеседника
-let callState = "idle";     // idle | calling | ringing | in_call
+let callPeer = null;        
+let callPeerNick = null;    
+let callState = "idle";     
 let isMicMuted = false;
 
 let analyser = null;
 let audioCtx = null;
 let levelRaf = null;
 
-let pendingOffer = null; // {offer, from, fromNick}
+let pendingOffer = null; 
 
 function openCallUI({peer, nick, status, hint = ""}) {
   callOverlay.style.display = "flex";
-  callName.textContent = nick ? `Звонок с ${nick}` : "Звонок";
+  callName.textContent = nick ? `${t('callWith')} ${nick}` : t('callTitle');
   callStatus.textContent = status || "";
   callHint.textContent = hint || "";
 
@@ -904,14 +1208,14 @@ function setCallButtons(mode) {
   if (mode === "outgoing") {
     btnAccept.style.display = "none";
     btnDecline.style.display = "inline-block";
-    btnDecline.textContent = "Отменить";
+    btnDecline.textContent = t('btnCancel');
     btnMute.disabled = true;
     btnHang.disabled = true;
   }
   if (mode === "incoming") {
     btnAccept.style.display = "inline-block";
     btnDecline.style.display = "inline-block";
-    btnDecline.textContent = "Отклонить";
+    btnDecline.textContent = t('btnDecline');
     btnMute.disabled = true;
     btnHang.disabled = true;
   }
@@ -930,8 +1234,8 @@ function setCallButtons(mode) {
 }
 
 function updateMicUI() {
-  micState.textContent = isMicMuted ? "🎙️ Микрофон: выключён" : "🎙️ Микрофон: включён";
-  btnMute.textContent = isMicMuted ? "Unmute" : "Mute";
+  micState.textContent = isMicMuted ? t('micOff') : t('micOn');
+  btnMute.textContent = isMicMuted ? t('btnUnmuteToggle') : t('btnMuteToggle');
 }
 
 function attachRemoteAudio(stream) {
@@ -949,34 +1253,25 @@ vol.oninput = () => {
 };
 
 async function ensureLocalAudio() {
-
   await unlockAudio();
-
   if (localStream) return localStream;
-
   try {
-
     localStream = await navigator.mediaDevices.getUserMedia({
       audio: true
     });
-
   } catch(e) {
-
-    alert("Разрешите доступ к микрофону для звонков");
+    alert(t('errNoMic'));
     throw e;
-
   }
-
   isMicMuted = false;
   updateMicUI();
   startMicLevel(localStream);
-
   return localStream;
 }
 
 function stopLocalAudio() {
   if (localStream) {
-    localStream.getTracks().forEach(t => t.stop());
+    localStream.getTracks().forEach(track => track.stop());
     localStream = null;
   }
   stopMicLevel();
@@ -984,7 +1279,6 @@ function stopLocalAudio() {
 
 async function flushPendingIce() {
   if (!pc || !pc.remoteDescription) return;
-
   while (pendingIceCandidates.length) {
     const candidate = pendingIceCandidates.shift();
     try {
@@ -1017,13 +1311,13 @@ function createPeerConnection() {
     const s = pc.connectionState;
     if (s === "connected") {
       callState = "in_call";
-      openCallUI({peer:callPeer, nick:callPeerNick, status:"✅ Соединено", hint:""});
+      openCallUI({peer:callPeer, nick:callPeerNick, status: t('callConnected'), hint:""});
       setCallButtons("in_call");
-      showCallFlag(makeFlagTitle(), "Нажми чтобы открыть окно звонка");
+      showCallFlag(makeFlagTitle(), t('callFlagClick'));
       stopRingtone();
     }
     if (s === "failed" || s === "disconnected" || s === "closed") {
-      if (callState !== "idle") endCall("Соединение завершено");
+      if (callState !== "idle") endCall(t('callEnded'));
     }
   };
 
@@ -1031,11 +1325,11 @@ function createPeerConnection() {
 }
 
 function makeFlagTitle() {
-  const who = callPeerNick || callPeer || "Пользователь";
-  if (callState === "ringing") return `📲 Входящий: ${who}`;
-  if (callState === "calling") return `📞 Звоним: ${who}`;
-  if (callState === "in_call") return `✅ В звонке: ${who}`;
-  return "Звонок";
+  const who = callPeerNick || callPeer || t('userFallback');
+  if (callState === "ringing") return `${t('callIncoming')}: ${who}`;
+  if (callState === "calling") return `${t('callCalling')}: ${who}`;
+  if (callState === "in_call") return `${t('callConnected')}: ${who}`;
+  return t('callTitle');
 }
 
 async function startOutgoingCall(peer, nick) {
@@ -1048,10 +1342,10 @@ async function startOutgoingCall(peer, nick) {
   callPeerNick = nick || peer;
   callState = "calling";
 
-  openCallUI({peer, nick:callPeerNick, status:"📞 Звоним…", hint:"Ожидаем ответ"});
+  openCallUI({peer, nick:callPeerNick, status: t('callCalling'), hint: t('callWait')});
   setCallButtons("outgoing");
 
-  showCallFlag(makeFlagTitle(), "Нажми чтобы открыть окно звонка");
+  showCallFlag(makeFlagTitle(), t('callFlagClick'));
   callBtn.disabled = true;
 
   await ensureLocalAudio();
@@ -1080,10 +1374,10 @@ async function acceptIncomingCall(offer, from, fromNick) {
   callPeerNick = fromNick || from;
   callState = "calling";
 
-  openCallUI({peer:callPeer, nick:callPeerNick, status:"🔄 Подключаем…", hint:""});
+  openCallUI({peer:callPeer, nick:callPeerNick, status: t('callConnecting'), hint:""});
   setCallButtons("outgoing");
 
-  showCallFlag(makeFlagTitle(), "Нажми чтобы открыть окно звонка");
+  showCallFlag(makeFlagTitle(), t('callFlagClick'));
   callBtn.disabled = true;
 
   await ensureLocalAudio();
@@ -1101,12 +1395,12 @@ async function acceptIncomingCall(offer, from, fromNick) {
   }));
 }
 
-function declineIncomingCall(reason="Отклонено") {
+function declineIncomingCall(reason=t('callDeclined')) {
   if (!callPeer) return;
   stopRingtone();
   soundDecline();
   ws.send(JSON.stringify({ type:"call_decline", to: callPeer, reason }));
-  endCall("Звонок отклонён");
+  endCall(t('callDeclined'));
 }
 
 function cancelOutgoingCall() {
@@ -1114,46 +1408,40 @@ function cancelOutgoingCall() {
   stopRingtone();
   soundDecline();
   ws.send(JSON.stringify({ type:"call_cancel", to: callPeer }));
-  endCall("Звонок отменён");
+  endCall(t('callCanceled'));
 }
 
 function hangup() {
   if (!callPeer) return;
   stopRingtone();
   ws.send(JSON.stringify({ type:"call_end", to: callPeer }));
-  endCall("Вы завершили звонок");
+  endCall(t('callYouEnded'));
 }
 
-/* ВАЖНО: это “полное завершение” */
-function endCall(statusText="Звонок завершён") {
+function endCall(statusText=t('callEnded')) {
   stopRingtone();
 
-  // покажем статус на секунду только если окно открыто
   if (callOverlay.style.display === "flex") {
     openCallUI({peer:callPeer, nick:callPeerNick, status:statusText, hint:""});
     setCallButtons("ended");
   }
 
-  // закрываем peer connection
   if (pc) {
     try { pc.ontrack = null; pc.onicecandidate = null; } catch {}
     try { pc.close(); } catch {}
     pc = null;
   }
 
-  // остановить входящий звук
   if (remoteAudio) {
     try { remoteAudio.pause(); } catch {}
     remoteAudio.srcObject = null;
   }
 
-  // остановить remote stream
   if (remoteStream) {
     try { remoteStream.getTracks().forEach(t => t.stop()); } catch {}
     remoteStream = null;
   }
 
-  // остановить микрофон
   stopLocalAudio();
 
   callState = "idle";
@@ -1162,16 +1450,13 @@ function endCall(statusText="Звонок завершён") {
 
   callBtn.disabled = false;
 
-  // убрать плашку
   hideCallFlag();
 
-  // закрыть окно (если было)
   setTimeout(() => {
     closeCallUI();
   }, 800);
 }
 
-/* Mic level meter */
 function startMicLevel(stream) {
   stopMicLevel();
   try {
@@ -1216,21 +1501,20 @@ function stopMicLevel() {
 
 /* ---------- CALL FLAG (MINIMIZED) ---------- */
 function showCallFlag(text, sub){
-  callFlagText.textContent = text || "Звонок";
-  callFlagSub.textContent = sub || "Нажми чтобы открыть";
+  callFlagText.textContent = text || t('callTitle');
+  callFlagSub.textContent = sub || t('callFlagClick');
   callFlag.classList.add("show");
 }
 function hideCallFlag(){
   callFlag.classList.remove("show");
 }
 function minimizeCallUI(){
-  // “Закрыть” = свернуть, звонок продолжается
   if (callState === "idle") {
     closeCallUI();
     hideCallFlag();
     return;
   }
-  showCallFlag(makeFlagTitle(), "Нажми чтобы открыть окно звонка");
+  showCallFlag(makeFlagTitle(), t('callFlagClick'));
   closeCallUI();
 }
 function restoreCallUI(){
@@ -1240,11 +1524,11 @@ function restoreCallUI(){
   }
   hideCallFlag();
 
-  const who = callPeerNick || callPeer || "Пользователь";
+  const who = callPeerNick || callPeer || t('userFallback');
   let status = "";
-  if (callState === "ringing") status = "📲 Входящий звонок";
-  else if (callState === "calling") status = "📞 Звоним…";
-  else if (callState === "in_call") status = "✅ Соединено";
+  if (callState === "ringing") status = t('callIncoming');
+  else if (callState === "calling") status = t('callCalling');
+  else if (callState === "in_call") status = t('callConnected');
 
   openCallUI({peer:callPeer, nick:who, status, hint:""});
   if (callState === "ringing") setCallButtons("incoming");
@@ -1252,7 +1536,6 @@ function restoreCallUI(){
   else if (callState === "in_call") setCallButtons("in_call");
 }
 
-/* клики по плашке */
 callFlag.onclick = (e) => {
   if (e.target.tagName === "BUTTON") return;
   restoreCallUI();
@@ -1263,11 +1546,10 @@ callFlagOpen.onclick = (e) => {
 };
 callFlagHang.onclick = (e) => {
   e.stopPropagation();
-  if (callState !== "idle") hangup(); // полностью завершить
+  if (callState !== "idle") hangup();
   hideCallFlag();
 };
 
-/* CALL UI buttons */
 btnAccept.onclick = () => {
   if (pendingOffer) {
     const { offer, from, fromNick } = pendingOffer;
@@ -1296,15 +1578,13 @@ btnMute.onclick = () => {
 };
 
 btnHang.onclick = () => {
-  if (callState !== "idle") hangup(); // “Сбросить” = полное завершение
+  if (callState !== "idle") hangup();
 };
 
 btnClose.onclick = () => {
-  // “Закрыть” = свернуть (а не завершить)
   minimizeCallUI();
 };
 
-/* Call button in chat */
 callBtn.onclick = () => {
   if (!currentDM) return;
   startOutgoingCall(currentDM, currentDMNick || currentDM);
@@ -1312,66 +1592,46 @@ callBtn.onclick = () => {
 
 /* ---------- WS ---------- */
 function handle(d) {
-  if (d.type === 'error') alert(d.message);
+  if (d.type === 'error') {
+    const msgKey = backendErrors[d.message];
+    alert(msgKey ? t(msgKey) : d.message);
+  }
 
   if (d.type === 'register_ok') {
-    alert('Аккаунт создан, войдите');
+    alert(t('regSuccess'));
     switchMode.onclick();
   }
 
-if (d.type === 'login_ok') {
+  if (d.type === 'login_ok') {
+    login = d.login;
+    nickname = d.nickname;
 
-  login = d.login;
-  nickname = d.nickname;
+    localStorage.setItem("login", login);
+    localStorage.setItem("password", passwordInput.value);
 
-  localStorage.setItem("login", login);
-  localStorage.setItem("password", passwordInput.value);
+    loadLocalChatState(login);
+    friends = Array.isArray(d.friends) ? d.friends : friends;
+    unread = d.unread || unread || {};
 
-  loadLocalChatState(login);
-  friends = Array.isArray(d.friends) ? d.friends : friends;
-  unread = d.unread || unread || {};
+    loginDiv.style.display = 'none';
+    appDiv.style.display = 'flex';
 
-  loginDiv.style.display = 'none';
-  appDiv.style.display = 'flex';
+    profileNick.textContent = nickname;
+    profileLogin.textContent = login;
+    const myAvatar = d.avatar || { letter: (nickname || login || '?')[0]?.toUpperCase() || '?', color: '#5865f2' };
+    const avatarEl = createAvatar(myAvatar);
+    profileAvatar.replaceWith(avatarEl);
+    avatarEl.id = 'profileAvatar';
+    window.profileAvatar = avatarEl;
 
-  profileNick.textContent = nickname;
-  profileLogin.textContent = login;
-  const myAvatar = d.avatar || { letter: (nickname || login || '?')[0]?.toUpperCase() || '?', color: '#5865f2' };
-  const avatarEl = createAvatar(myAvatar);
-  profileAvatar.replaceWith(avatarEl);
-  avatarEl.id = 'profileAvatar';
-  window.profileAvatar = avatarEl;
-
-  renderFriends();
-  renderRequests();
-  renderOnline();
-}
+    renderFriends();
+    renderRequests();
+    renderOnline();
+  }
 
   if (d.type === 'online_friends') {
-    onlineUsers = Array.isArray(d.users) ? d.users : [];
-    online.innerHTML = '';
-    onlineUsers.forEach(u => {
-      const div = document.createElement('div');
-      div.className = 'user' + (u.login === currentDM ? ' active' : '');
-      div.dataset.login = u.login;
-
-      div.appendChild(createAvatar(u.avatar || u));
-
-      const info = document.createElement('div');
-      info.className = 'userInfo';
-      info.innerHTML = `<div class="userName">${escapeHtml(u.nickname || u.login)}</div><div class="userSub">онлайн</div>`;
-      div.appendChild(info);
-
-      if (unread[u.login]) {
-        const b = document.createElement('div');
-        b.className = 'unread';
-        b.textContent = unread[u.login];
-        div.appendChild(b);
-      }
-
-      div.onclick = () => openDM(u.login, u.nickname, u.avatar);
-      online.appendChild(div);
-    });
+    onlineUsers = Array.isArray(d.users) ? d.users :[];
+    renderOnline();
   }
 
   if (d.type === 'message') {
@@ -1386,12 +1646,8 @@ if (d.type === 'login_ok') {
 
     saveLocalChatState();
 
-    // звук сообщения (входящее)
     if (isIncoming) {
-      // если не текущий диалог — точно пикаем
-      if (peer !== currentDM) soundMessage();
-      // если в текущем диалоге — тоже пикаем (можешь убрать, если не надо)
-      else soundMessage();
+      soundMessage();
     }
 
     if (peer === currentDM) show(d.fromNick || d.from, d.text, d.avatar, d.time);
@@ -1400,7 +1656,7 @@ if (d.type === 'login_ok') {
 
   if (d.type === 'chat_history') {
     if (!d.with) return;
-    chats[d.with] = Array.isArray(d.messages) ? d.messages : [];
+    chats[d.with] = Array.isArray(d.messages) ? d.messages :[];
     saveLocalChatState();
     if (currentDM === d.with) {
       messages.innerHTML = '';
@@ -1409,7 +1665,7 @@ if (d.type === 'login_ok') {
   }
 
   if (d.type === 'friends_list') {
-    friends = Array.isArray(d.friends) ? d.friends : [];
+    friends = Array.isArray(d.friends) ? d.friends :[];
     renderFriends();
   }
 
@@ -1428,7 +1684,10 @@ if (d.type === 'login_ok') {
     }
     onlineUsers = onlineUsers.map(u => u.login === d.login ? { ...u, nickname: d.nickname, avatar: d.avatar } : u);
     renderOnline();
-    if (currentDM === d.login) updateChatHeader(d.login, d.nickname, d.avatar);
+    if (currentDM === d.login) {
+      currentDMAvatar = d.avatar;
+      updateChatHeader(d.login, d.nickname, d.avatar);
+    }
   }
 
   if (d.type === 'friend_request') {
@@ -1441,17 +1700,14 @@ if (d.type === 'login_ok') {
     renderFriends();
   }
 
-  /* =================== CALL SIGNALING =================== */
-
   if (d.type === "call_offer") {
-    // если уже в звонке — сервер пришлет busy, но на всякий
     if (callState !== "idle") {
       ws.send(JSON.stringify({ type:"call_busy", to:d.from }));
       return;
     }
 
     unlockAudio().then(() => {
-      startRingtone(); // звук входящего звонка
+      startRingtone(); 
     });
 
     callState = "ringing";
@@ -1460,23 +1716,21 @@ if (d.type === 'login_ok') {
 
     pendingOffer = { offer: d.offer, from: d.from, fromNick: callPeerNick };
 
-    showCallFlag(makeFlagTitle(), "Входящий звонок — нажми чтобы открыть");
+    showCallFlag(makeFlagTitle(), t('callFlagIncoming'));
     callBtn.disabled = true;
 
-    // сразу открыть окно (можешь убрать если хочешь)
-    openCallUI({peer:d.from, nick:callPeerNick, status:"📲 Входящий звонок", hint:"Нажми «Принять» или «Отклонить»"});
+    openCallUI({peer:d.from, nick:callPeerNick, status: t('callIncoming'), hint:""});
     setCallButtons("incoming");
   }
 
   if (d.type === "call_answer") {
     stopRingtone();
-
     if (pc && d.answer) {
       pc.setRemoteDescription(new RTCSessionDescription(d.answer))
         .then(() => flushPendingIce())
         .catch(err => {
           console.warn("call_answer setRemoteDescription error:", err);
-          endCall("Ошибка ответа звонка");
+          endCall(t('errServer'));
         });
     }
   }
@@ -1484,12 +1738,7 @@ if (d.type === 'login_ok') {
   if (d.type === "call_ice") {
     if (!d.candidate) return;
 
-    if (!pc) {
-      pendingIceCandidates.push(d.candidate);
-      return;
-    }
-
-    if (!pc.remoteDescription) {
+    if (!pc || !pc.remoteDescription) {
       pendingIceCandidates.push(d.candidate);
       return;
     }
@@ -1499,16 +1748,17 @@ if (d.type === 'login_ok') {
     });
   }
 
-  if (d.type === "call_decline") { stopRingtone(); soundDecline(); endCall("Отклонено"); }
-  if (d.type === "call_cancel")  { stopRingtone(); soundDecline(); endCall("Отменено"); }
-  if (d.type === "call_end")     { stopRingtone(); endCall("Собеседник завершил звонок"); }
-  if (d.type === "call_busy")    { stopRingtone(); soundDecline(); endCall("Пользователь занят"); }
+  if (d.type === "call_decline") { stopRingtone(); soundDecline(); endCall(t('callDeclined')); }
+  if (d.type === "call_cancel")  { stopRingtone(); soundDecline(); endCall(t('callCanceled')); }
+  if (d.type === "call_end")     { stopRingtone(); endCall(t('callPeerEnded')); }
+  if (d.type === "call_busy")    { stopRingtone(); soundDecline(); endCall(t('callBusy')); }
 }
 
 /* ---------- CHAT ---------- */
 function openDM(l, n, avatar = null) {
   currentDM = l;
   currentDMNick = n;
+  currentDMAvatar = avatar;
 
   emptyChat.style.display = 'none';
   messages.style.display = 'block';
@@ -1519,17 +1769,17 @@ function openDM(l, n, avatar = null) {
   updateChatHeader(l, n, avatar);
   ws.send(JSON.stringify({ type: 'read', from: l }));
   ws.send(JSON.stringify({ type: 'get_messages', with: l }));
-  (chats[l] || []).forEach(m => show(m.fromNick || m.from, m.text, m.avatar, m.time));
+  (chats[l] ||[]).forEach(m => show(m.fromNick || m.from, m.text, m.avatar, m.time));
   renderOnline();
 }
 
-function show(f, t, avatar, time = null) {
+function show(f, t_val, avatar, time = null) {
   const m = document.createElement('div');
   m.className = 'message';
   m.appendChild(createAvatar(avatar || { letter: String(f || '?').charAt(0).toUpperCase(), color: '#5865f2' }));
   const c = document.createElement('div');
   c.className = 'messageContent';
-  c.innerHTML = `<div class="messageHeader"><b>${escapeHtml(f)}</b><span class="messageTime">${escapeHtml(formatMessageTime(time))}</span></div><div class="messageText">${escapeHtml(t)}</div>`;
+  c.innerHTML = `<div class="messageHeader"><b>${escapeHtml(f)}</b><span class="messageTime">${escapeHtml(formatMessageTime(time))}</span></div><div class="messageText">${escapeHtml(t_val)}</div>`;
   m.appendChild(c);
   messages.appendChild(m);
   messages.scrollTop = messages.scrollHeight;
@@ -1572,7 +1822,7 @@ addFriendBtn.onclick = () => {
 
 function renderRequests() {
   requestsDiv.innerHTML = '';
-  if (!requests.length) { requestsDiv.textContent = 'Нет входящих заявок'; requestsDiv.className = 'emptyText'; return; }
+  if (!requests.length) { requestsDiv.textContent = t('noRequests'); requestsDiv.className = 'emptyText'; return; }
   requests.forEach(u => {
     const d = document.createElement('div');
     d.className = 'friendEntry';
@@ -1581,7 +1831,7 @@ function renderRequests() {
     main.appendChild(createAvatar({ letter:u[0].toUpperCase(), color:'#5865f2' }));
     const meta = document.createElement('div');
     meta.className = 'friendMeta';
-    meta.innerHTML = `<b>${escapeHtml(u)}</b><span>Входящая заявка</span>`;
+    meta.innerHTML = `<b>${escapeHtml(u)}</b><span>${t('incomingReq')}</span>`;
     main.appendChild(meta);
     d.appendChild(main);
     const s = document.createElement('span');
@@ -1593,7 +1843,7 @@ function renderRequests() {
 
 function renderFriends() {
   friendsDiv.innerHTML = '';
-  if (!friends.length) { friendsDiv.textContent = 'Список друзей пуст'; friendsDiv.className = 'emptyText'; return; }
+  if (!friends.length) { friendsDiv.textContent = t('noFriends'); friendsDiv.className = 'emptyText'; return; }
   friends.forEach(u => {
     const d = document.createElement('div');
     d.className = 'friendEntry';
@@ -1602,20 +1852,19 @@ function renderFriends() {
     main.appendChild(createAvatar({ letter:u[0].toUpperCase(), color:'#5865f2' }));
     const meta = document.createElement('div');
     meta.className = 'friendMeta';
-    meta.innerHTML = `<b>${escapeHtml(u)}</b><span>Друг</span>`;
+    meta.innerHTML = `<b>${escapeHtml(u)}</b><span>${t('friendLabel')}</span>`;
     main.appendChild(meta);
     d.appendChild(main);
     friendsDiv.appendChild(d);
   });
 }
 
-/* ---------- ONLINE RENDER WITH UNREAD ---------- */
 function renderOnline() {
   online.innerHTML = '';
   if (!onlineUsers.length) {
     const e = document.createElement('div');
     e.className = 'emptyText';
-    e.textContent = 'Пока никто из друзей не в сети';
+    e.textContent = t('noOneOnline');
     online.appendChild(e);
     return;
   }
@@ -1628,7 +1877,7 @@ function renderOnline() {
 
     const info = document.createElement('div');
     info.className = 'userInfo';
-    info.innerHTML = `<div class="userName">${escapeHtml(u.nickname || u.login)}</div><div class="userSub">онлайн</div>`;
+    info.innerHTML = `<div class="userName">${escapeHtml(u.nickname || u.login)}</div><div class="userSub">${t('userOnline')}</div>`;
     div.appendChild(info);
 
     if (unread[u.login] > 0) {
@@ -1669,7 +1918,6 @@ avatarUploadInput.onchange = () => {
   reader.readAsDataURL(file);
 };
 
-/* safety: если вкладку закрыли во время звонка — завершаем */
 window.addEventListener("beforeunload", () => {
   try {
     if (callState !== "idle" && callPeer) {
@@ -1701,4 +1949,729 @@ window.addEventListener("load", () => {
 </script>
 
 </body>
-</html>
+</html>const express = require('express');
+const http = require('http');
+const WebSocket = require('ws');
+const path = require('path');
+const { Pool } = require('pg');
+const bcrypt = require('bcryptjs');
+
+const app = express();
+const server = http.createServer(app);
+const wss = new WebSocket.Server({ server });
+
+const publicDir = path.join(__dirname, 'public');
+const rootIndex = path.join(__dirname, 'index.html');
+const publicIndex = path.join(publicDir, 'index.html');
+
+app.use(express.static(publicDir));
+app.use(express.static(__dirname));
+
+app.get('/', (req, res) => {
+  if (require('fs').existsSync(publicIndex)) {
+    return res.sendFile(publicIndex);
+  }
+  return res.sendFile(rootIndex);
+});
+
+/* ================= DATABASE ================= */
+
+if (!process.env.DATABASE_URL) {
+  console.error('DATABASE_URL not found in environment variables');
+  process.exit(1);
+}
+
+let databaseUrl = process.env.DATABASE_URL;
+
+try {
+  const url = new URL(databaseUrl);
+  url.searchParams.delete('sslmode');
+  databaseUrl = url.toString();
+} catch (e) {
+  console.error('Invalid DATABASE_URL:', e);
+}
+
+const pool = new Pool({
+  connectionString: databaseUrl,
+  ssl: { rejectUnauthorized: false }
+});
+
+async function initDb() {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS users (
+      login TEXT PRIMARY KEY,
+      password TEXT NOT NULL,
+      nickname TEXT NOT NULL,
+      avatarImage TEXT
+    )
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS messages (
+      id BIGSERIAL PRIMARY KEY,
+      fromUser TEXT NOT NULL,
+      toUser TEXT NOT NULL,
+      text TEXT NOT NULL,
+      time BIGINT NOT NULL
+    )
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS friends (
+      user1 TEXT NOT NULL,
+      user2 TEXT NOT NULL,
+      UNIQUE(user1, user2)
+    )
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS friend_requests (
+      fromUser TEXT NOT NULL,
+      toUser TEXT NOT NULL,
+      UNIQUE(fromUser, toUser)
+    )
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS unread (
+      fromUser TEXT NOT NULL,
+      toUser TEXT NOT NULL,
+      count INTEGER NOT NULL DEFAULT 0,
+      UNIQUE(fromUser, toUser)
+    )
+  `);
+}
+
+/* ================= CLIENTS ================= */
+
+const clients = new Map();
+const inCall = new Map();
+
+/* ================= HELPERS ================= */
+
+function send(ws, data) {
+  if (ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify(data));
+  }
+}
+
+function sendToUser(login, data) {
+  for (const[ws, info] of clients) {
+    if (info.login === login) {
+      send(ws, data);
+    }
+  }
+}
+
+function avatarColor(str) {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = str.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  return `hsl(${Math.abs(hash) % 360},70%,55%)`;
+}
+
+function buildAvatar(login, nickname, avatarImage = null) {
+  return {
+    letter: (nickname?.[0] || login?.[0] || '?').toUpperCase(),
+    color: avatarColor(login || nickname || '?'),
+    image: avatarImage || null
+  };
+}
+
+async function getUserPublic(login) {
+  const result = await pool.query(
+    `
+    SELECT login, nickname, avatarImage
+    FROM users
+    WHERE login = $1
+    `,
+    [login]
+  );
+
+  const user = result.rows[0];
+  if (!user) return null;
+
+  return {
+    login: user.login,
+    nickname: user.nickname,
+    avatar: buildAvatar(user.login, user.nickname, user.avatarimage)
+  };
+}
+
+async function getFriends(login) {
+  const result = await pool.query(
+    `
+    SELECT user1 AS friend FROM friends WHERE user2 = $1
+    UNION
+    SELECT user2 AS friend FROM friends WHERE user1 = $1
+    `,
+    [login]
+  );
+
+  return result.rows.map(r => r.friend);
+}
+
+async function getFriendUsers(login) {
+  const friends = await getFriends(login);
+  if (!friends.length) return[];
+
+  const users = await Promise.all(friends.map(friendLogin => getUserPublic(friendLogin)));
+  return users.filter(Boolean);
+}
+
+async function getUnreadMap(login) {
+  const result = await pool.query(
+    `
+    SELECT fromUser, count
+    FROM unread
+    WHERE toUser = $1
+    `,
+    [login]
+  );
+
+  const unread = {};
+  for (const row of result.rows) {
+    unread[row.fromuser] = row.count;
+  }
+  return unread;
+}
+
+async function getChatHistory(userA, userB) {
+  const result = await pool.query(
+    `
+    SELECT id, fromUser, toUser, text, time
+    FROM messages
+    WHERE (fromUser = $1 AND toUser = $2)
+       OR (fromUser = $2 AND toUser = $1)
+    ORDER BY time ASC, id ASC
+    `,
+    [userA, userB]
+  );
+
+  const messages =[];
+  for (const row of result.rows) {
+    const sender = await getUserPublic(row.fromuser);
+    messages.push({
+      id: row.id,
+      from: row.fromuser,
+      to: row.touser,
+      text: row.text,
+      time: Number(row.time),
+      avatar: sender?.avatar || buildAvatar(row.fromuser, row.fromuser)
+    });
+  }
+
+  return messages;
+}
+
+async function broadcastOnlineFriends() {
+  for (const [ws, info] of clients) {
+    const friendLogins = await getFriends(info.login);
+    const online = [];
+
+    for (const[, other] of clients) {
+      if (friendLogins.includes(other.login)) {
+        online.push({
+          login: other.login,
+          nickname: other.nickname,
+          avatar: buildAvatar(other.login, other.nickname, other.avatarImage)
+        });
+      }
+    }
+
+    send(ws, { type: 'online_friends', users: online });
+  }
+}
+
+function isBusy(login) {
+  return inCall.has(login);
+}
+
+function clearCall(login) {
+  const peer = inCall.get(login);
+  inCall.delete(login);
+  if (peer && inCall.get(peer) === login) {
+    inCall.delete(peer);
+  }
+}
+
+/* ================= WEBSOCKET ================= */
+
+wss.on('connection', ws => {
+  let userLogin = null;
+
+  ws.on('message', async msg => {
+    let data;
+    try {
+      data = JSON.parse(msg);
+    } catch {
+      return;
+    }
+
+    try {
+      /* REGISTER */
+      if (data.type === 'register') {
+        const login = typeof data.login === 'string' ? data.login.trim() : '';
+        const password = typeof data.password === 'string' ? data.password : '';
+
+        if (!login || !password) {
+          send(ws, { type: 'error', message: 'Введите логин и пароль' });
+          return;
+        }
+
+        const exists = await pool.query(
+          `SELECT login FROM users WHERE login = $1`,
+          [login]
+        );
+
+        if (exists.rows.length) {
+          send(ws, { type: 'error', message: 'Логин занят' });
+          return;
+        }
+
+        const hashedPassword = await bcrypt.hash(password, 10);
+
+        await pool.query(
+          `
+          INSERT INTO users (login, password, nickname, avatarImage)
+          VALUES ($1, $2, $3, $4)
+          `,[login, hashedPassword, login, null]
+        );
+
+        send(ws, { type: 'register_ok' });
+        return;
+      }
+
+      /* LOGIN */
+      if (data.type === 'login') {
+        const login = typeof data.login === 'string' ? data.login.trim() : '';
+        const password = typeof data.password === 'string' ? data.password : '';
+
+        if (!login || !password) {
+          send(ws, { type: 'error', message: 'Введите логин и пароль' });
+          return;
+        }
+
+        const result = await pool.query(
+          `
+          SELECT login, password, nickname, avatarImage
+          FROM users
+          WHERE login = $1
+          `,
+          [login]
+        );
+
+        const user = result.rows[0];
+
+        if (!user) {
+          send(ws, { type: 'error', message: 'Неверный логин или пароль' });
+          return;
+        }
+
+        let ok = false;
+
+        if (typeof user.password === 'string' && user.password.startsWith('$2')) {
+          ok = await bcrypt.compare(password, user.password);
+        } else {
+          ok = password === user.password;
+
+          if (ok) {
+            const upgradedHash = await bcrypt.hash(password, 10);
+            await pool.query(
+              `
+              UPDATE users
+              SET password = $1
+              WHERE login = $2
+              `,
+              [upgradedHash, user.login]
+            );
+            user.password = upgradedHash;
+          }
+        }
+
+        if (!ok) {
+          send(ws, { type: 'error', message: 'Неверный логин или пароль' });
+          return;
+        }
+
+        userLogin = user.login;
+
+        clients.set(ws, {
+          login: user.login,
+          nickname: user.nickname,
+          avatarImage: user.avatarimage
+        });
+
+        send(ws, {
+          type: 'login_ok',
+          login: user.login,
+          nickname: user.nickname,
+          avatar: buildAvatar(user.login, user.nickname, user.avatarimage),
+          friends: await getFriendUsers(user.login),
+          unread: await getUnreadMap(user.login)
+        });
+
+        const requests = await pool.query(
+          `
+          SELECT fromUser
+          FROM friend_requests
+          WHERE toUser = $1
+          `,[user.login]
+        );
+
+        for (const r of requests.rows) {
+          send(ws, {
+            type: 'friend_request',
+            from: r.fromuser
+          });
+        }
+
+        await broadcastOnlineFriends();
+        return;
+      }
+
+      if (!userLogin) return;
+
+      const me = clients.get(ws);
+
+      /* UPDATE AVATAR */
+      if (data.type === 'update_avatar') {
+        const image = typeof data.image === 'string' ? data.image : '';
+
+        if (!image.startsWith('data:image/')) {
+          send(ws, { type: 'error', message: 'Неверный формат аватара' });
+          return;
+        }
+
+        if (image.length > 1400000) {
+          send(ws, { type: 'error', message: 'Аватар слишком большой' });
+          return;
+        }
+
+        await pool.query(
+          `
+          UPDATE users
+          SET avatarImage = $1
+          WHERE login = $2
+          `,
+          [image, userLogin]
+        );
+
+        const updatedResult = await pool.query(
+          `
+          SELECT login, nickname, avatarImage
+          FROM users
+          WHERE login = $1
+          `,
+          [userLogin]
+        );
+
+        const updatedUser = updatedResult.rows[0];
+
+        if (updatedUser) {
+          clients.set(ws, {
+            login: updatedUser.login,
+            nickname: updatedUser.nickname,
+            avatarImage: updatedUser.avatarimage
+          });
+
+          const payload = {
+            type: 'avatar_updated',
+            login: updatedUser.login,
+            nickname: updatedUser.nickname,
+            avatar: buildAvatar(
+              updatedUser.login,
+              updatedUser.nickname,
+              updatedUser.avatarimage
+            )
+          };
+
+          for (const [clientWs] of clients) {
+            send(clientWs, payload);
+          }
+
+          send(ws, {
+            type: 'friends_list',
+            friends: await getFriendUsers(userLogin)
+          });
+
+          await broadcastOnlineFriends();
+        }
+
+        return;
+      }
+
+      /* LOAD CHAT HISTORY */
+      if (data.type === 'get_messages') {
+        if (!data.with) return;
+
+        send(ws, {
+          type: 'chat_history',
+          with: data.with,
+          messages: await getChatHistory(userLogin, data.with)
+        });
+        return;
+      }
+
+      /* FRIEND REQUEST */
+      if (data.type === 'friend_request') {
+        if (!data.to || data.to === userLogin) return;
+
+        const target = await pool.query(
+          `SELECT login FROM users WHERE login = $1`,
+          [data.to]
+        );
+
+        if (!target.rows.length) {
+          send(ws, { type: 'error', message: 'Пользователь не найден' });
+          return;
+        }
+
+        const alreadyFriends = await pool.query(
+          `
+          SELECT 1
+          FROM friends
+          WHERE (user1 = $1 AND user2 = $2)
+             OR (user1 = $2 AND user2 = $1)
+          LIMIT 1
+          `,[userLogin, data.to]
+        );
+
+        if (alreadyFriends.rows.length) {
+          send(ws, { type: 'error', message: 'Вы уже друзья' });
+          return;
+        }
+
+        await pool.query(
+          `
+          INSERT INTO friend_requests (fromUser, toUser)
+          VALUES ($1, $2)
+          ON CONFLICT (fromUser, toUser) DO NOTHING
+          `,
+          [userLogin, data.to]
+        );
+
+        sendToUser(data.to, {
+          type: 'friend_request',
+          from: userLogin,
+          fromNick: me.nickname
+        });
+
+        return;
+      }
+
+      /* FRIEND ACCEPT */
+      if (data.type === 'friend_accept') {
+        if (!data.from || !data.to) return;
+
+        await pool.query(
+          `
+          INSERT INTO friends (user1, user2)
+          VALUES ($1, $2)
+          ON CONFLICT (user1, user2) DO NOTHING
+          `,[data.from, data.to]
+        );
+
+        await pool.query(
+          `
+          DELETE FROM friend_requests
+          WHERE fromUser = $1 AND toUser = $2
+          `,[data.to, data.from]
+        );
+
+        const acceptedMe = await getUserPublic(userLogin);
+        const acceptedFriend = await getUserPublic(data.to);
+
+        sendToUser(data.to, {
+          type: 'friend_accept',
+          from: userLogin,
+          fromNick: me.nickname,
+          friend: acceptedMe
+        });
+
+        send(ws, {
+          type: 'friends_list',
+          friends: await getFriendUsers(userLogin)
+        });
+
+        sendToUser(data.to, {
+          type: 'friends_list',
+          friends: await getFriendUsers(data.to)
+        });
+
+        await broadcastOnlineFriends();
+        return;
+      }
+
+      /* MESSAGE */
+      if (data.type === 'message') {
+        if (!data.to || typeof data.text !== 'string' || !data.text.trim()) return;
+
+        const messageText = data.text.trim();
+        const messageTime = Date.now();
+
+        await pool.query(
+          `
+          INSERT INTO messages (fromUser, toUser, text, time)
+          VALUES ($1, $2, $3, $4)
+          `,
+          [userLogin, data.to, messageText, messageTime]
+        );
+
+        await pool.query(
+          `
+          INSERT INTO unread (fromUser, toUser, count)
+          VALUES ($1, $2, 1)
+          ON CONFLICT (fromUser, toUser)
+          DO UPDATE SET count = unread.count + 1
+          `,[userLogin, data.to]
+        );
+
+        const unreadResult = await pool.query(
+          `
+          SELECT count
+          FROM unread
+          WHERE fromUser = $1 AND toUser = $2
+          `,
+          [userLogin, data.to]
+        );
+
+        const unreadCount = unreadResult.rows[0]?.count || 0;
+
+        const msgData = {
+          type: 'message',
+          from: userLogin,
+          to: data.to,
+          text: messageText,
+          time: messageTime,
+          fromNick: me.nickname,
+          avatar: buildAvatar(userLogin, me.nickname, me.avatarImage),
+          unread: unreadCount,
+          clientMsgId: typeof data.clientMsgId === 'string' ? data.clientMsgId : null
+        };
+
+        sendToUser(userLogin, msgData);
+        sendToUser(data.to, msgData);
+        return;
+      }
+
+      /* READ */
+      if (data.type === 'read') {
+        if (!data.from) return;
+
+        await pool.query(
+          `
+          DELETE FROM unread
+          WHERE fromUser = $1 AND toUser = $2
+          `,[data.from, userLogin]
+        );
+
+        send(ws, {
+          type: 'unread_update',
+          unread: await getUnreadMap(userLogin)
+        });
+        return;
+      }
+
+      /* CALLS */
+      const callTypes = new Set([
+        'call_offer',
+        'call_answer',
+        'call_ice',
+        'call_cancel',
+        'call_decline',
+        'call_end',
+        'call_busy'
+      ]);
+
+      if (callTypes.has(data.type)) {
+        const to = data.to;
+        if (!to || to === userLogin) return;
+
+        const targetOnline = [...clients.values()].some(c => c.login === to);
+
+        if (data.type === 'call_offer') {
+          if (!targetOnline) {
+            send(ws, { type: 'error', message: 'Пользователь не в сети' });
+            return;
+          }
+
+          if (isBusy(userLogin) || isBusy(to)) {
+            sendToUser(userLogin, { type: 'call_busy' });
+            return;
+          }
+
+          inCall.set(userLogin, to);
+          inCall.set(to, userLogin);
+        }
+
+        if (
+          (data.type === 'call_answer' || data.type === 'call_ice') &&
+          inCall.get(userLogin) !== to
+        ) {
+          return;
+        }
+
+        if (
+          data.type === 'call_cancel' ||
+          data.type === 'call_decline' ||
+          data.type === 'call_end' ||
+          data.type === 'call_busy'
+        ) {
+          clearCall(userLogin);
+          clearCall(to);
+        }
+
+        sendToUser(to, {
+          ...data,
+          from: userLogin,
+          fromNick: me.nickname
+        });
+
+        return;
+      }
+    } catch (err) {
+      console.error('WS message error:', err);
+      send(ws, { type: 'error', message: 'Ошибка сервера' });
+    }
+  });
+
+  ws.on('close', async () => {
+    const info = clients.get(ws);
+    clients.delete(ws);
+
+    if (info?.login) {
+      const peer = inCall.get(info.login);
+
+      if (peer) {
+        sendToUser(peer, {
+          type: 'call_end',
+          from: info.login
+        });
+      }
+
+      clearCall(info.login);
+    }
+
+    try {
+      await broadcastOnlineFriends();
+    } catch (err) {
+      console.error('broadcastOnlineFriends on close error:', err);
+    }
+  });
+});
+
+/* START */
+const PORT = process.env.PORT || 3000;
+
+initDb()
+  .then(() => {
+    server.listen(PORT, () => {
+      console.log('Server started on port ' + PORT);
+    });
+  })
+  .catch(err => {
+    console.error('Database init error:', err);
+    process.exit(1);
+  });
