@@ -466,6 +466,24 @@ wss.on('connection', ws => {
         return;
       }
 
+
+      if (data.type === 'remove_friend') {
+        const otherLogin = typeof data.with === 'string' ? data.with.trim() : '';
+        if (!otherLogin || otherLogin === userLogin) return;
+
+        await pool.query(`
+          DELETE FROM friends
+          WHERE (user1 = $1 AND user2 = $2) OR (user1 = $2 AND user2 = $1)
+        `, [userLogin, otherLogin]);
+
+        send(ws, { type: 'friends_list', friends: await getFriendUsers(userLogin) });
+        sendToUser(otherLogin, { type: 'friends_list', friends: await getFriendUsers(otherLogin) });
+        send(ws, { type: 'friend_removed', with: otherLogin });
+        sendToUser(otherLogin, { type: 'friend_removed', with: userLogin });
+        await broadcastOnlineFriends();
+        return;
+      }
+
       if (data.type === 'message') {
         if (!data.to || typeof data.text !== 'string' || !data.text.trim()) return;
 

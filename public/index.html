@@ -443,6 +443,7 @@ input[type="range"]{ width:190px; }
 .profileActions { display:flex; justify-content:flex-end; gap:10px; margin-top:16px; }
 .profileActionBtn { padding:11px 16px; border-radius:12px; border:1px solid var(--line); background:#1a2030; color:#fff; cursor:pointer; }
 .profileActionBtn.primary { background:linear-gradient(135deg,var(--accent),var(--accent2)); border:none; }
+.hidden { display:none !important; }
 .friendMeta .statusText { text-transform:none; }
 #avatarUploadInput { display:none; }
 #avatarUploadBtn { padding:9px 10px; min-width:auto; height:auto; font-size:13px; }
@@ -640,6 +641,7 @@ input[type="range"]{ width:190px; }
 
       <div class="profileSection">
         <h4 id="profileSettingsTitle">Настройка профиля</h4>
+        <div id="profileReadonlyNote" class="profileFieldLabel hidden">Просмотр профиля пользователя</div>
         <label class="profileFieldLabel" id="profileNameLabel" for="profileNicknameInput">Отображаемое имя</label>
         <input id="profileNicknameInput" class="profileInput" maxlength="32" placeholder="Введите имя">
       </div>
@@ -760,6 +762,8 @@ let isRegister = false;
 let login, nickname;
 let myStatus = 'online';
 let selectedProfileStatus = 'online';
+let viewedProfile = null;
+let profileModalMode = 'self';
 let myAvatar = null;
 let currentDM = null;
 let currentDMNick = null;
@@ -791,7 +795,7 @@ const i18n = {
     messageNotFound:'Сообщение не найдено', edit:'Редактировать', save:'Сохранить', cancel:'Отмена', edited:'изменено', editOwnOnly:'Можно редактировать только свои сообщения',
     serverError:'Ошибка сервера', accountCreated:'Аккаунт создан, войдите', enterLoginPassword:'Введите логин и пароль', loginTaken:'Логин занят', badLogin:'Неверный логин или пароль',
     badAvatar:'Неверный формат аватара', bigAvatar:'Аватар слишком большой', userNotFound:'Пользователь не найден', alreadyFriends:'Вы уже друзья',
-    allowMic:'Разрешите доступ к микрофону для звонков', userOffline:'Пользователь не в сети', delete:'Удалить', typing:'печатает', profileSettings:'Настройка профиля', displayName:'Отображаемое имя', enterDisplayName:'Введите имя', status_online:'В сети', status_idle:'Не активен', status_dnd:'Не беспокоить', status_invisible:'Невидимка', status_offline:'Не в сети'
+    allowMic:'Разрешите доступ к микрофону для звонков', userOffline:'Пользователь не в сети', delete:'Удалить', typing:'печатает', profileSettings:'Настройка профиля', displayName:'Отображаемое имя', enterDisplayName:'Введите имя', status_online:'В сети', status_idle:'Не активен', status_dnd:'Не беспокоить', status_invisible:'Невидимка', status_offline:'Не в сети', viewProfile:'Профиль', removeFriend:'Удалить', profileViewTitle:'Профиль пользователя', removeFriendConfirm:'Удалить этого пользователя из друзей?', removedFromFriends:'Пользователь удалён из друзей'
   },
   uk: {
     loginBrandSubtitle:'Твій затишний месенджер для друзів', login:'Вхід', register:'Реєстрація', loginBtn:'Увійти', registerBtn:'Створити акаунт',
@@ -827,7 +831,7 @@ const i18n = {
     messageNotFound:'Message not found', edit:'Edit', save:'Save', cancel:'Cancel', edited:'edited', editOwnOnly:'You can edit only your own messages',
     serverError:'Server error', accountCreated:'Account created, sign in', enterLoginPassword:'Enter login and password', loginTaken:'Login is already taken', badLogin:'Invalid login or password',
     badAvatar:'Invalid avatar format', bigAvatar:'Avatar is too large', userNotFound:'User not found', alreadyFriends:'You are already friends',
-    allowMic:'Allow microphone access for calls', userOffline:'User is offline', delete:'Delete', typing:'is typing', profileSettings:'Profile settings', displayName:'Display name', enterDisplayName:'Enter display name', status_online:'Online', status_idle:'Idle', status_dnd:'Do not disturb', status_invisible:'Invisible', status_offline:'Offline'
+    allowMic:'Allow microphone access for calls', userOffline:'User is offline', delete:'Delete', typing:'is typing', profileSettings:'Profile settings', displayName:'Display name', enterDisplayName:'Enter display name', status_online:'Online', status_idle:'Idle', status_dnd:'Do not disturb', status_invisible:'Invisible', status_offline:'Offline', viewProfile:'Profile', removeFriend:'Remove', profileViewTitle:'User profile', removeFriendConfirm:'Remove this user from friends?', removedFromFriends:'User removed from friends'
   }
 };
 
@@ -849,20 +853,53 @@ function updateStatusChoices() {
 function syncProfileMiniCard() {
   if (profileStatusPill) profileStatusPill.textContent = '';
 }
+function setProfileModalMode(mode) {
+  profileModalMode = mode === 'other' ? 'other' : 'self';
+  const isSelfMode = profileModalMode === 'self';
+  profileAvatarBtn.classList.toggle('hidden', !isSelfMode);
+  profileSaveBtn.classList.toggle('hidden', !isSelfMode);
+  profileStatusBar.classList.toggle('hidden', !isSelfMode);
+  profileReadonlyNote.classList.toggle('hidden', isSelfMode);
+  profileNicknameInput.readOnly = !isSelfMode;
+  profileNicknameInput.disabled = !isSelfMode;
+  profileSettingsTitle.textContent = isSelfMode ? t('profileSettings') : t('profileViewTitle');
+  profileNameLabel.textContent = t('displayName');
+}
+
 function openProfileModal() {
+  viewedProfile = null;
   selectedProfileStatus = myStatus || 'online';
+  setProfileModalMode('self');
   profileModalNickPreview.textContent = nickname || login || 'User';
   profileModalLoginPreview.textContent = login || '';
   profileNicknameInput.value = nickname || '';
   profileNicknameInput.placeholder = t('enterDisplayName');
   const currentAvatarNode = document.getElementById('profileAvatar');
   const modalAvatarNode = currentAvatarNode ? currentAvatarNode.cloneNode(true) : createAvatar(myAvatar || { letter:(nickname||login||'?')[0]?.toUpperCase() || '?', color:'#5865f2' }, myStatus, true);
-  if (profileModalAvatar) profileModalAvatar.replaceWith(modalAvatarNode);
+  const oldProfileModalAvatar = document.getElementById('profileModalAvatar');
+  if (oldProfileModalAvatar) oldProfileModalAvatar.replaceWith(modalAvatarNode);
   modalAvatarNode.id = 'profileModalAvatar';
   updateStatusChoices();
   profileModalOverlay.style.display = 'flex';
 }
-function closeProfileModal() { profileModalOverlay.style.display = 'none'; }
+
+function openUserProfileModal(userLogin) {
+  const user = typeof userLogin === 'string' ? findFriendData(userLogin) : userLogin;
+  if (!user || !user.login) return;
+  viewedProfile = { ...user };
+  setProfileModalMode('other');
+  profileModalNickPreview.textContent = user.nickname || user.login || 'User';
+  profileModalLoginPreview.textContent = user.login || '';
+  profileNicknameInput.value = user.nickname || user.login || '';
+  profileNicknameInput.placeholder = t('displayName');
+  const modalAvatarNode = createAvatar(user.avatar || { letter:(user.login||'?')[0]?.toUpperCase() || '?', color:'#5865f2' }, user.status || 'offline', true);
+  const oldModalAvatar = document.getElementById('profileModalAvatar');
+  if (oldModalAvatar) oldModalAvatar.replaceWith(modalAvatarNode);
+  modalAvatarNode.id = 'profileModalAvatar';
+  profileModalOverlay.style.display = 'flex';
+}
+
+function closeProfileModal() { viewedProfile = null; profileModalOverlay.style.display = 'none'; }
 function applyProfileUpdateLocal(user) {
   if (!user || !user.login) return;
   friends = friends.map(f => {
@@ -908,7 +945,8 @@ function applyLanguage() {
   document.getElementById('requestsTitle').textContent = t('requests');
   document.getElementById('friendsTitle').textContent = t('friendsTitle');
   document.getElementById('callNatHint').textContent = t('natHint');
-  profileSettingsTitle.textContent = t('profileSettings');
+  profileSettingsTitle.textContent = profileModalMode === 'other' ? t('profileViewTitle') : t('profileSettings');
+  profileReadonlyNote.textContent = t('profileViewTitle');
   profileNameLabel.textContent = t('displayName');
   profileNicknameInput.placeholder = t('enterDisplayName');
   profileCancelBtn.textContent = t('cancel');
@@ -918,6 +956,7 @@ function applyLanguage() {
   document.getElementById('statusIdleLabel').textContent = t('status_idle');
   document.getElementById('statusDndLabel').textContent = t('status_dnd');
   document.getElementById('statusInvisibleLabel').textContent = t('status_invisible');
+  setProfileModalMode(profileModalMode);
   syncProfileMiniCard();
   if (currentDM) {
     const peer = findFriendData(currentDM) || onlineUsers.find(u => u.login === currentDM);
@@ -1184,6 +1223,10 @@ function handle(d) {
   }
   if (d.type === 'profile_updated') {
     applyProfileUpdateLocal(d.user);
+    if (viewedProfile && d.user?.login === viewedProfile.login && profileModalMode === 'other') {
+      viewedProfile = { ...viewedProfile, ...d.user };
+      openUserProfileModal(viewedProfile);
+    }
     return;
   }
   if (d.type === 'my_profile_updated') {
@@ -1202,6 +1245,17 @@ function handle(d) {
   }
   if (d.type === 'friend_request') { if (!requests.includes(d.from)) requests.push(d.from); renderRequests(); return; }
   if (d.type === 'friend_accept') { friends = Array.isArray(friends) ? friends : []; if (d.friend && !friends.some(f => f.login === d.friend.login)) friends.push(d.friend); renderFriends(); return; }
+  if (d.type === 'friend_removed') {
+    const removedLogin = d.with;
+    friends = dedupeUsers(friends).filter(f => (typeof f === 'string' ? f : f.login) !== removedLogin);
+    onlineUsers = dedupeUsers(onlineUsers).filter(u => u.login !== removedLogin);
+    if (currentDM === removedLogin) updateChatHeader(currentDM, currentDMNick, currentDMAvatar);
+    if (viewedProfile && viewedProfile.login === removedLogin) closeProfileModal();
+    renderFriends();
+    renderOnline();
+    alert(t('removedFromFriends'));
+    return;
+  }
   if (d.type === 'call_offer') {
     if (callState !== 'idle') { ws.send(JSON.stringify({ type:'call_busy', to:d.from })); return; }
     unlockAudio().then(startRingtone); callState = 'ringing'; callPeer = d.from; callPeerNick = d.fromNick || d.from; pendingOffer = { offer:d.offer, from:d.from, fromNick:callPeerNick };
@@ -1316,9 +1370,33 @@ function renderFriends() {
   friendsDiv.className = '';
   uniqueFriends.forEach(user => {
     const d = document.createElement('div'); d.className = 'friendEntry';
-    const main = document.createElement('div'); main.className = 'friendMain'; main.appendChild(createAvatar(user.avatar || { letter:user.login[0].toUpperCase(), color:'#5865f2' }, user.status || 'offline', true));
-    const meta = document.createElement('div'); meta.className = 'friendMeta'; meta.innerHTML = `<b>${escapeHtml(user.nickname || user.login)}</b><span class="statusText">${escapeHtml(statusText(user.status || 'offline'))}</span>`; main.appendChild(meta); d.appendChild(main);
-    d.onclick = () => openDM(user.login, user.nickname || user.login, user.avatar || null); friendsDiv.appendChild(d);
+    const main = document.createElement('div'); main.className = 'friendMain';
+    main.appendChild(createAvatar(user.avatar || { letter:user.login[0].toUpperCase(), color:'#5865f2' }, user.status || 'offline', true));
+    const meta = document.createElement('div'); meta.className = 'friendMeta';
+    meta.innerHTML = `<b>${escapeHtml(user.nickname || user.login)}</b><span class="statusText">${escapeHtml(statusText(user.status || 'offline'))}</span>`;
+    main.appendChild(meta);
+    main.onclick = () => openDM(user.login, user.nickname || user.login, user.avatar || null);
+    d.appendChild(main);
+
+    const actions = document.createElement('span');
+    const profileBtn = document.createElement('button');
+    profileBtn.title = t('viewProfile');
+    profileBtn.textContent = '👤';
+    profileBtn.onclick = (e) => { e.stopPropagation(); openUserProfileModal(user); };
+
+    const removeBtn = document.createElement('button');
+    removeBtn.title = t('removeFriend');
+    removeBtn.textContent = '🗑';
+    removeBtn.onclick = (e) => {
+      e.stopPropagation();
+      if (!confirm(t('removeFriendConfirm'))) return;
+      ws.send(JSON.stringify({ type:'remove_friend', with:user.login }));
+    };
+
+    actions.appendChild(profileBtn);
+    actions.appendChild(removeBtn);
+    d.appendChild(actions);
+    friendsDiv.appendChild(d);
   });
 }
 
@@ -1330,13 +1408,15 @@ function renderOnline() {
     const div = document.createElement('div'); div.className = 'user' + (u.login === currentDM ? ' active' : ''); div.dataset.login = u.login; div.appendChild(createAvatar(u.avatar || u, u.status || 'online', true));
     const info = document.createElement('div'); info.className = 'userInfo'; info.innerHTML = `<div class="userName">${escapeHtml(u.nickname || u.login)}</div><div class="userSub">${escapeHtml(statusText(u.status || 'online'))}</div>`; div.appendChild(info);
     if (unread[u.login] > 0) { const b = document.createElement('div'); b.className = 'unread'; b.textContent = unread[u.login]; div.appendChild(b); }
-    div.onclick = () => openDM(u.login, u.nickname, u.avatar); online.appendChild(div);
+    div.onclick = () => openDM(u.login, u.nickname, u.avatar);
+    div.ondblclick = () => openUserProfileModal(u);
+    online.appendChild(div);
   });
 }
 
 function accept(u) { ws.send(JSON.stringify({ type:'friend_accept', from:login, to:u })); requests = requests.filter(r => r !== u); renderRequests(); }
 function decline(u) { requests = requests.filter(r => r !== u); renderRequests(); }
-window.accept = accept; window.decline = decline;
+window.accept = accept; window.decline = decline; window.openUserProfileModal = openUserProfileModal;
 profileCard.onclick = (e) => {
   if (e.target === profileSettingsBtn) return;
   openProfileModal();
