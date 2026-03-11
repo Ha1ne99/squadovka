@@ -358,6 +358,10 @@ button:hover { transform: translateY(-1px); }
 }
 .friendMain { display:flex; align-items:center; gap:10px; min-width:0; }
 .friendMeta { min-width:0; }
+#groupsSidebar { display:flex; flex-direction:column; gap:6px; overflow:auto; }
+.groupEntryActions { display:flex; flex-wrap:wrap; gap:6px; }
+.groupEntryActions button { background:#1b2130; color:#fff; border:1px solid var(--line); border-radius:10px; padding:7px 9px; cursor:pointer; }
+.groupBadge { color:var(--muted); font-size:12px; }
 .friendMeta b, .friendMeta span { display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .friendMeta span { font-size:12px; color:var(--muted); }
 .friendEntry span { display:flex; gap:8px; }
@@ -470,38 +474,6 @@ input[type="range"]{ width:190px; }
 .editBox { display:flex; gap:8px; margin-top:8px; flex-wrap:wrap; }
 .editInput { flex:1; min-width:180px; padding:9px 10px; background:#0f131a; border:1px solid var(--line); border-radius:12px; color:white; }
 
-
-.groupCreateRow { display:flex; gap:8px; margin-top:10px; }
-.groupCreateRow input { flex:1; }
-.groupMembersPick {
-  max-height:160px; overflow:auto; margin-top:10px; display:flex; flex-direction:column; gap:8px;
-  background:#0f131a; border:1px solid var(--line); border-radius:14px; padding:10px;
-}
-.groupPickItem { display:flex; align-items:center; gap:8px; font-size:13px; }
-.groupEntry { display:flex; align-items:center; justify-content:space-between; gap:10px; background:#0f131a; padding:10px; border-radius:14px; margin-bottom:8px; }
-.groupEntryMain { display:flex; align-items:center; gap:10px; min-width:0; cursor:pointer; flex:1; }
-.groupBadge { min-width:42px; height:42px; border-radius:14px; display:flex; align-items:center; justify-content:center; font-weight:800; background:linear-gradient(135deg, rgba(107,124,255,.35), rgba(65,194,114,.18)); border:1px solid var(--line); }
-.groupMeta { min-width:0; }
-.groupMeta b, .groupMeta span { display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.groupMeta span { font-size:12px; color:var(--muted); }
-#groupSettingsOverlay {
-  position:fixed; inset:0; background:rgba(0,0,0,.55); display:none; align-items:center; justify-content:center; z-index:80;
-}
-#groupSettingsModal {
-  width:min(94vw, 560px); background:linear-gradient(180deg,#23283a,#171b27); border:1px solid var(--line);
-  border-radius:22px; box-shadow:0 24px 80px rgba(0,0,0,.45); padding:18px;
-}
-.groupSettingsHead { display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:14px; }
-.groupSettingsHead h3 { margin:0; }
-.groupSettingsGrid { display:flex; flex-direction:column; gap:14px; }
-.groupSettingsMembers { max-height:220px; overflow:auto; display:flex; flex-direction:column; gap:8px; }
-.groupMemberRow { display:flex; align-items:center; justify-content:space-between; gap:10px; background:#0f131a; border:1px solid var(--line); padding:10px; border-radius:14px; }
-.groupMemberMain { display:flex; align-items:center; gap:10px; min-width:0; }
-.groupMemberActions { display:flex; gap:8px; }
-.groupSmallBtn { background:#171b23; border:1px solid var(--line); color:white; border-radius:10px; padding:7px 9px; cursor:pointer; }
-.groupSettingsActions { display:flex; justify-content:flex-end; gap:10px; margin-top:16px; }
-.chatSubtitleStrong { color:#dfe5f6; font-weight:700; }
-
 @media (max-width: 900px) {
   body { display:block; }
   #login { margin:18px auto; }
@@ -560,6 +532,8 @@ input[type="range"]{ width:190px; }
     <div id="friendsBtn"><span id="friendsBtnLabel">👥 Друзья</span></div>
     <div class="sectionLabel" id="onlineSectionLabel">Друзья онлайн</div>
     <div id="online"></div>
+      <div class="sectionLabel">Группы</div>
+      <div id="groupsSidebar"></div>
 
     <!-- PROFILE -->
     <div class="profileCard" id="profileCard">
@@ -642,20 +616,20 @@ input[type="range"]{ width:190px; }
   </div>
 
   <div class="friendSection">
+    <h3>Создать группу</h3>
+    <input id="groupNameInput" class="addFriendInput" placeholder="Название группы">
+    <input id="groupMembersInput" class="addFriendInput" placeholder="Логины друзей через запятую" style="margin-top:10px;">
+    <button class="addFriendBtn" id="createGroupBtn">Создать группу</button>
+  </div>
+
+  <div class="friendSection">
     <h3 id="friendsTitle">Друзья</h3>
     <div id="friends" class="emptyText">Список друзей пуст</div>
   </div>
 
   <div class="friendSection">
-    <h3 id="createGroupTitle">Создать группу</h3>
-    <input id="groupNameInput" class="addFriendInput" placeholder="Название группы">
-    <div id="groupMembersPicker" class="groupMembersPick"></div>
-    <button class="addFriendBtn" id="createGroupBtn">Создать группу</button>
-  </div>
-
-  <div class="friendSection">
-    <h3 id="groupsTitle">Группы</h3>
-    <div id="groupsList" class="emptyText">Список групп пуст</div>
+    <h3>Мои группы</h3>
+    <div id="groupsPanelList" class="emptyText">Групп пока нет</div>
   </div>
 </div>
 
@@ -694,38 +668,6 @@ input[type="range"]{ width:190px; }
         <button id="profileCancelBtn" class="profileActionBtn">Отмена</button>
         <button id="profileSaveBtn" class="profileActionBtn primary">Сохранить</button>
       </div>
-    </div>
-  </div>
-</div>
-
-<div id="groupSettingsOverlay">
-  <div id="groupSettingsModal">
-    <div class="groupSettingsHead">
-      <h3 id="groupSettingsTitle">Настройка группы</h3>
-      <button id="groupSettingsClose" class="groupSmallBtn">✕</button>
-    </div>
-    <div class="groupSettingsGrid">
-      <div class="profileSection">
-        <label class="profileFieldLabel" for="groupSettingsName">Название группы</label>
-        <input id="groupSettingsName" class="profileInput" maxlength="48" placeholder="Название группы">
-      </div>
-      <div class="profileSection">
-        <label class="profileFieldLabel" for="groupSettingsDescription">Описание</label>
-        <input id="groupSettingsDescription" class="profileInput" maxlength="160" placeholder="Описание группы">
-      </div>
-      <div class="profileSection">
-        <h4 id="groupAddMembersTitle">Добавить участников</h4>
-        <div id="groupAddMembersPicker" class="groupMembersPick"></div>
-        <button id="groupAddMembersBtn" class="addFriendBtn">Добавить</button>
-      </div>
-      <div class="profileSection">
-        <h4 id="groupMembersTitle">Участники</h4>
-        <div id="groupSettingsMembers" class="groupSettingsMembers"></div>
-      </div>
-    </div>
-    <div class="groupSettingsActions">
-      <button id="groupLeaveBtn" class="profileActionBtn">Выйти из группы</button>
-      <button id="groupSettingsSave" class="profileActionBtn primary">Сохранить</button>
     </div>
   </div>
 </div>
@@ -812,19 +754,11 @@ const friendNick = document.getElementById('friendNick');
 const addFriendBtn = document.getElementById('addFriendBtn');
 const requestsDiv = document.getElementById('requests');
 const friendsDiv = document.getElementById('friends');
+const groupsSidebar = document.getElementById('groupsSidebar');
 const groupNameInput = document.getElementById('groupNameInput');
-const groupMembersPicker = document.getElementById('groupMembersPicker');
+const groupMembersInput = document.getElementById('groupMembersInput');
 const createGroupBtn = document.getElementById('createGroupBtn');
-const groupsList = document.getElementById('groupsList');
-const groupSettingsOverlay = document.getElementById('groupSettingsOverlay');
-const groupSettingsClose = document.getElementById('groupSettingsClose');
-const groupSettingsName = document.getElementById('groupSettingsName');
-const groupSettingsDescription = document.getElementById('groupSettingsDescription');
-const groupSettingsMembers = document.getElementById('groupSettingsMembers');
-const groupAddMembersPicker = document.getElementById('groupAddMembersPicker');
-const groupAddMembersBtn = document.getElementById('groupAddMembersBtn');
-const groupLeaveBtn = document.getElementById('groupLeaveBtn');
-const groupSettingsSave = document.getElementById('groupSettingsSave');
+const groupsPanelList = document.getElementById('groupsPanelList');
 const avatarUploadInput = document.getElementById('avatarUploadInput');
 const callBtn = document.getElementById('callBtn');
 const callOverlay = document.getElementById('callOverlay');
@@ -857,9 +791,10 @@ let myAvatar = null;
 let currentDM = null;
 let currentDMNick = null;
 let currentDMAvatar = null;
-let chats = {}, requests = [], friends = [], groups = [];
 let currentChatType = 'dm';
-let selectedGroup = null;
+let currentGroupId = null;
+let groups = [];
+let chats = {}, requests = [], friends = [];
 let unread = {};
 let onlineUsers = [];
 let pendingIceCandidates = [];
@@ -886,7 +821,7 @@ const i18n = {
     messageNotFound:'Сообщение не найдено', edit:'Редактировать', save:'Сохранить', cancel:'Отмена', edited:'изменено', editOwnOnly:'Можно редактировать только свои сообщения',
     serverError:'Ошибка сервера', accountCreated:'Аккаунт создан, войдите', enterLoginPassword:'Введите логин и пароль', loginTaken:'Логин занят', badLogin:'Неверный логин или пароль',
     badAvatar:'Неверный формат аватара', bigAvatar:'Аватар слишком большой', userNotFound:'Пользователь не найден', alreadyFriends:'Вы уже друзья',
-    allowMic:'Разрешите доступ к микрофону для звонков', userOffline:'Пользователь не в сети', delete:'Удалить', typing:'печатает', profileSettings:'Настройка профиля', displayName:'Отображаемое имя', enterDisplayName:'Введите имя', status_online:'В сети', status_idle:'Не активен', status_dnd:'Не беспокоить', status_invisible:'Невидимка', status_offline:'Не в сети', viewProfile:'Профиль', removeFriend:'Удалить', profileViewTitle:'Профиль пользователя', removeFriendConfirm:'Удалить этого пользователя из друзей?', removedFromFriends:'Пользователь удалён из друзей', createGroup:'Создать группу', groupName:'Название группы', groupsTitle:'Группы', noGroups:'Список групп пуст', groupMembers:'Участники', groupDescription:'Описание', groupSettings:'Настройка группы', saveGroup:'Сохранить', addMembers:'Добавить участников', addSelected:'Добавить', leaveGroup:'Выйти из группы', removeFromGroup:'Удалить из группы', groupCreated:'Группа создана', groupUpdated:'Группа обновлена', chooseMembers:'Выбери друзей для группы', enterGroupName:'Введите название группы', groupChat:'Групповой чат', membersCount:'участников', openGroup:'Открыть группу'
+    allowMic:'Разрешите доступ к микрофону для звонков', userOffline:'Пользователь не в сети', delete:'Удалить', typing:'печатает', profileSettings:'Настройка профиля', displayName:'Отображаемое имя', enterDisplayName:'Введите имя', status_online:'В сети', status_idle:'Не активен', status_dnd:'Не беспокоить', status_invisible:'Невидимка', status_offline:'Не в сети', viewProfile:'Профиль', removeFriend:'Удалить', profileViewTitle:'Профиль пользователя', removeFriendConfirm:'Удалить этого пользователя из друзей?', removedFromFriends:'Пользователь удалён из друзей'
   },
   uk: {
     loginBrandSubtitle:'Твій затишний месенджер для друзів', login:'Вхід', register:'Реєстрація', loginBtn:'Увійти', registerBtn:'Створити акаунт',
@@ -904,7 +839,7 @@ const i18n = {
     messageNotFound:'Повідомлення не знайдено', edit:'Редагувати', save:'Зберегти', cancel:'Скасування', edited:'змінено', editOwnOnly:'Можна редагувати лише свої повідомлення',
     serverError:'Помилка сервера', accountCreated:'Акаунт створено, увійди', enterLoginPassword:'Введи логін і пароль', loginTaken:'Логін зайнятий', badLogin:'Невірний логін або пароль',
     badAvatar:'Невірний формат аватара', bigAvatar:'Аватар занадто великий', userNotFound:'Користувача не знайдено', alreadyFriends:'Ви вже друзі',
-    allowMic:'Дозволь доступ до мікрофона для дзвінків', userOffline:'Користувач не в мережі', delete:'Видалити', typing:'друкує', profileSettings:'Налаштування профілю', displayName:'Відображуване ім’я', enterDisplayName:'Введи ім’я', status_online:'В мережі', status_idle:'Не активний', status_dnd:'Не турбувати', status_invisible:'Невидимка', status_offline:'Не в мережі', createGroup:'Створити групу', groupName:'Назва групи', groupsTitle:'Групи', noGroups:'Список груп порожній', groupMembers:'Учасники', groupDescription:'Опис', groupSettings:'Налаштування групи', saveGroup:'Зберегти', addMembers:'Додати учасників', addSelected:'Додати', leaveGroup:'Вийти з групи', removeFromGroup:'Видалити з групи', groupCreated:'Групу створено', groupUpdated:'Групу оновлено', chooseMembers:'Обери друзів для групи', enterGroupName:'Введи назву групи', groupChat:'Груповий чат', membersCount:'учасників', openGroup:'Відкрити групу'
+    allowMic:'Дозволь доступ до мікрофона для дзвінків', userOffline:'Користувач не в мережі', delete:'Видалити', typing:'друкує', profileSettings:'Налаштування профілю', displayName:'Відображуване ім’я', enterDisplayName:'Введи ім’я', status_online:'В мережі', status_idle:'Не активний', status_dnd:'Не турбувати', status_invisible:'Невидимка', status_offline:'Не в мережі'
   },
   en: {
     loginBrandSubtitle:'Your cozy messenger for friends', login:'Login', register:'Register', loginBtn:'Sign in', registerBtn:'Create account',
@@ -922,7 +857,7 @@ const i18n = {
     messageNotFound:'Message not found', edit:'Edit', save:'Save', cancel:'Cancel', edited:'edited', editOwnOnly:'You can edit only your own messages',
     serverError:'Server error', accountCreated:'Account created, sign in', enterLoginPassword:'Enter login and password', loginTaken:'Login is already taken', badLogin:'Invalid login or password',
     badAvatar:'Invalid avatar format', bigAvatar:'Avatar is too large', userNotFound:'User not found', alreadyFriends:'You are already friends',
-    allowMic:'Allow microphone access for calls', userOffline:'User is offline', delete:'Delete', typing:'is typing', profileSettings:'Profile settings', displayName:'Display name', enterDisplayName:'Enter display name', status_online:'Online', status_idle:'Idle', status_dnd:'Do not disturb', status_invisible:'Invisible', status_offline:'Offline', viewProfile:'Profile', removeFriend:'Remove', profileViewTitle:'User profile', removeFriendConfirm:'Remove this user from friends?', removedFromFriends:'User removed from friends', createGroup:'Create group', groupName:'Group name', groupsTitle:'Groups', noGroups:'Groups list is empty', groupMembers:'Members', groupDescription:'Description', groupSettings:'Group settings', saveGroup:'Save', addMembers:'Add members', addSelected:'Add', leaveGroup:'Leave group', removeFromGroup:'Remove from group', groupCreated:'Group created', groupUpdated:'Group updated', chooseMembers:'Choose friends for the group', enterGroupName:'Enter group name', groupChat:'Group chat', membersCount:'members', openGroup:'Open group'
+    allowMic:'Allow microphone access for calls', userOffline:'User is offline', delete:'Delete', typing:'is typing', profileSettings:'Profile settings', displayName:'Display name', enterDisplayName:'Enter display name', status_online:'Online', status_idle:'Idle', status_dnd:'Do not disturb', status_invisible:'Invisible', status_offline:'Offline', viewProfile:'Profile', removeFriend:'Remove', profileViewTitle:'User profile', removeFriendConfirm:'Remove this user from friends?', removedFromFriends:'User removed from friends'
   }
 };
 
@@ -935,11 +870,6 @@ function statusText(status, isSelf = false) {
 function normalizeClientStatus(status) {
   return ['online','idle','dnd','invisible','offline'].includes(status) ? status : 'online';
 }
-function groupKey(id) { return `group:${Number(id)}`; }
-function isGroupKey(value) { return typeof value === 'string' && value.startsWith('group:'); }
-function groupIdFromKey(value) { return Number(String(value || '').split(':')[1]); }
-function findGroup(idOrKey) { const id = isGroupKey(idOrKey) ? groupIdFromKey(idOrKey) : Number(idOrKey); return (groups || []).find(g => Number(g.id) === Number(id)) || null; }
-function getCurrentChatGroup() { return isGroupKey(currentDM) ? findGroup(currentDM) : null; }
 function findFriendData(userLogin) {
   return (friends || []).find(f => (typeof f === 'string' ? f : f.login) === userLogin) || (onlineUsers || []).find(f => f.login === userLogin) || null;
 }
@@ -1040,18 +970,6 @@ function applyLanguage() {
   addFriendBtn.textContent = t('sendRequest');
   document.getElementById('requestsTitle').textContent = t('requests');
   document.getElementById('friendsTitle').textContent = t('friendsTitle');
-  document.getElementById('createGroupTitle').textContent = t('createGroup');
-  document.getElementById('groupsTitle').textContent = t('groupsTitle');
-  groupNameInput.placeholder = t('groupName');
-  createGroupBtn.textContent = t('createGroup');
-  document.getElementById('groupSettingsTitle').textContent = t('groupSettings');
-  document.getElementById('groupAddMembersTitle').textContent = t('addMembers');
-  document.getElementById('groupMembersTitle').textContent = t('groupMembers');
-  groupSettingsName.placeholder = t('groupName');
-  groupSettingsDescription.placeholder = t('groupDescription');
-  groupAddMembersBtn.textContent = t('addSelected');
-  groupLeaveBtn.textContent = t('leaveGroup');
-  groupSettingsSave.textContent = t('saveGroup');
   document.getElementById('callNatHint').textContent = t('natHint');
   profileSettingsTitle.textContent = profileModalMode === 'other' ? t('profileViewTitle') : t('profileSettings');
   profileReadonlyNote.textContent = t('profileViewTitle');
@@ -1133,6 +1051,13 @@ function createAvatar(user, status = 'online', showPresence = true) {
 function escapeHtml(s) { return String(s ?? '').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'", '&#39;'); }
 function formatMessageTime(ts) { if (!ts) return ''; const d = new Date(Number(ts)); if (Number.isNaN(d.getTime())) return ''; return d.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}); }
 
+
+function getGroupChatKey(groupId) { return `group_${groupId}`; }
+function getCurrentChatKey() { return currentChatType === 'group' ? getGroupChatKey(currentGroupId) : currentDM; }
+function findGroupData(groupId) { return (groups || []).find(g => Number(g.id) === Number(groupId)) || null; }
+function upsertGroupMessage(groupId, msg) { upsertMessage(getGroupChatKey(groupId), msg); }
+function updateGroupMessageLocally(groupId, id, patch) { updateMessageLocally(getGroupChatKey(groupId), id, patch); }
+function removeGroupMessageLocally(groupId, id) { const key = getGroupChatKey(groupId); chats[key] = (chats[key] || []).filter(m => Number(m.id) !== Number(id)); }
 function renderTypingIndicator() {
   if (!currentDM || !typingUsers[currentDM]) { typingIndicator.innerHTML = ''; return; }
   const name = escapeHtml(typingUsers[currentDM]);
@@ -1149,42 +1074,33 @@ function sendTyping(active) {
 }
 
 function updateChatHeader(peerLogin = null, peerNick = null, avatar = null) {
+  if (currentChatType === 'group' && currentGroupId) {
+    const group = findGroupData(currentGroupId);
+    const groupName = group?.name || peerNick || `Group ${currentGroupId}`;
+    chatTitle.textContent = groupName;
+    const membersCount = Array.isArray(group?.members) ? group.members.length : 0;
+    chatStatus.textContent = membersCount ? `${membersCount} участ.` : 'Групповой чат';
+    chatAvatar.textContent = (groupName || 'G')[0]?.toUpperCase() || 'G';
+    chatAvatar.style.backgroundImage = '';
+    chatAvatar.style.background = '#5865f2';
+    return;
+  }
   currentDMAvatar = avatar || currentDMAvatar;
   if (!peerLogin) {
-    chatTitle.textContent = 'Squadovka'; chatStatus.textContent = t('chooseFriend'); chatAvatar.textContent = 'S'; chatAvatar.style.backgroundImage = ''; chatAvatar.style.background = '#5865f2'; callBtn.disabled = true; return;
-  }
-  if (isGroupKey(peerLogin)) {
-    const group = findGroup(peerLogin);
-    chatTitle.textContent = group?.name || peerNick || 'Group';
-    chatStatus.textContent = `${group?.memberCount || group?.members?.length || 0} ${t('membersCount')}`;
-    chatAvatar.textContent = (group?.name || 'G')[0]?.toUpperCase() || 'G'; chatAvatar.style.backgroundImage = ''; chatAvatar.style.background = '#5865f2';
-    callBtn.disabled = true;
-    return;
+    chatTitle.textContent = 'Squadovka'; chatStatus.textContent = t('chooseFriend'); chatAvatar.textContent = 'S'; chatAvatar.style.backgroundImage = ''; chatAvatar.style.background = '#5865f2'; return;
   }
   const peer = findFriendData(peerLogin) || {};
   chatTitle.textContent = peerNick || peer.nickname || peerLogin;
   chatStatus.textContent = statusText(peer.status || 'offline');
   if (avatar?.image) { chatAvatar.textContent = ''; chatAvatar.style.backgroundImage = `url(${avatar.image})`; chatAvatar.style.backgroundColor = '#2a2f3a'; }
   else { chatAvatar.textContent = avatar?.letter || (peerNick || peerLogin || '?')[0]?.toUpperCase() || '?'; chatAvatar.style.backgroundImage = ''; chatAvatar.style.background = avatar?.color || '#5865f2'; }
-  callBtn.disabled = false;
-}
-
-function getCurrentChatMessages() {
-  if (!currentDM) return [];
-  return chats[currentDM] || [];
 }
 
 function rerenderCurrentChat() {
-  if (!currentDM) {
-    messages.innerHTML = '';
-    return;
-  }
-  const wasNearBottom = (messages.scrollHeight - messages.scrollTop - messages.clientHeight) < 80;
+  const key = getCurrentChatKey();
+  if (!key) return;
   messages.innerHTML = '';
-  getCurrentChatMessages().forEach(m => renderMessage(m, false));
-  if (wasNearBottom || editingMessageId !== null) {
-    messages.scrollTop = messages.scrollHeight;
-  }
+  (chats[key] || []).forEach(m => renderMessage(m));
 }
 
 switchMode.onclick = () => {
@@ -1276,7 +1192,7 @@ btnDecline.onclick = () => { if (callState === 'ringing') { declineIncomingCall(
 btnMute.onclick = () => { if (!localStream) return; isMicMuted = !isMicMuted; localStream.getAudioTracks().forEach(t => t.enabled = !isMicMuted); updateMicUI(); };
 btnHang.onclick = () => { if (callState !== 'idle') hangup(); };
 btnClose.onclick = minimizeCallUI;
-callBtn.onclick = () => { if (!currentDM) return; startOutgoingCall(currentDM, currentDMNick || currentDM); };
+callBtn.onclick = () => { if (currentChatType !== 'dm' || !currentDM) return; startOutgoingCall(currentDM, currentDMNick || currentDM); };
 
 function upsertMessage(peer, message) {
   chats[peer] ??= [];
@@ -1294,7 +1210,7 @@ function handle(d) {
   if (d.type === 'error') { alert(d.message || t('serverError')); return; }
   if (d.type === 'register_ok') { alert(t('accountCreated')); switchMode.onclick(); return; }
   if (d.type === 'login_ok') {
-    login = d.login; nickname = d.nickname; myStatus = normalizeClientStatus(d.status || 'online'); localStorage.setItem('login', login); localStorage.setItem('password', passwordInput.value); loadLocalChatState(login); friends = Array.isArray(d.friends) ? d.friends : friends; groups = Array.isArray(d.groups) ? d.groups : groups; unread = d.unread || unread || {}; renderGroupFriendPicker();
+    login = d.login; nickname = d.nickname; myStatus = normalizeClientStatus(d.status || 'online'); localStorage.setItem('login', login); localStorage.setItem('password', passwordInput.value); loadLocalChatState(login); friends = Array.isArray(d.friends) ? d.friends : friends; groups = Array.isArray(d.groups) ? d.groups : groups; unread = d.unread || unread || {};
     loginDiv.style.display = 'none'; appDiv.style.display = 'flex'; profileNick.textContent = nickname; profileLogin.textContent = login;
     myAvatar = d.avatar || { letter:(nickname || login || '?')[0]?.toUpperCase() || '?', color:'#5865f2' }; const avatarEl = createAvatar(myAvatar, myStatus, true); const old = document.getElementById('profileAvatar'); old.replaceWith(avatarEl); avatarEl.id = 'profileAvatar';
     profileModalLoginPreview.textContent = login;
@@ -1306,7 +1222,6 @@ function handle(d) {
     syncPresenceFromOnline();
     renderFriends();
     renderOnline();
-    renderGroups();
     return;
   }
   if (d.type === 'message') {
@@ -1351,11 +1266,10 @@ function handle(d) {
     friends = Array.isArray(d.friends) ? d.friends : [];
     syncPresenceFromOnline();
     renderFriends();
-    renderGroupFriendPicker();
     if (currentDM) rerenderCurrentChat();
     return;
   }
-  if (d.type === 'unread_update') { unread = d.unread || unread || {}; saveLocalChatState(); renderOnline(); renderGroups(); return; }
+  if (d.type === 'unread_update') { unread = d.unread || unread || {}; saveLocalChatState(); renderOnline(); return; }
   if (d.type === 'avatar_updated') {
     if (d.login === login) {
       myAvatar = d.avatar || myAvatar;
@@ -1406,95 +1320,15 @@ function handle(d) {
     alert(t('removedFromFriends'));
     return;
   }
-  if (d.type === 'groups_list') {
-    groups = Array.isArray(d.groups) ? d.groups : [];
-    renderGroups();
-    renderGroupFriendPicker();
-    const currentGroup = getCurrentChatGroup();
-    if (isGroupKey(currentDM) && !currentGroup) {
-      currentDM = null;
-      currentChatType = 'dm';
-      messages.innerHTML = '';
-      emptyChat.style.display = 'flex';
-      messages.style.display = 'none';
-      updateChatHeader();
-    } else if (currentGroup) {
-      updateChatHeader(currentDM);
-    }
-    return;
-  }
-  if (d.type === 'group_created') {
-    if (d.group) {
-      const existing = groups.findIndex(g => Number(g.id) === Number(d.group.id));
-      if (existing >= 0) groups[existing] = d.group; else groups.unshift(d.group);
-      renderGroups();
-      renderGroupFriendPicker();
-      openGroup(d.group.id);
-      alert(t('groupCreated'));
-    }
-    return;
-  }
-  if (d.type === 'group_updated') {
-    if (d.group) {
-      const gidx = groups.findIndex(g => Number(g.id) === Number(d.group.id));
-      if (gidx >= 0) groups[gidx] = d.group; else groups.unshift(d.group);
-      renderGroups();
-      renderGroupFriendPicker();
-      if (selectedGroup && Number(selectedGroup.id) === Number(d.group.id)) { selectedGroup = d.group; renderGroupSettings(); }
-      if (isGroupKey(currentDM) && groupIdFromKey(currentDM) === Number(d.group.id)) updateChatHeader(currentDM);
-    }
-    return;
-  }
-  if (d.type === 'group_left') {
-    const gid = Number(d.groupId);
-    groups = groups.filter(g => Number(g.id) !== gid);
-    delete chats[groupKey(gid)];
-    delete unread[groupKey(gid)];
-    renderGroups();
-    renderGroupFriendPicker();
-    if (isGroupKey(currentDM) && groupIdFromKey(currentDM) === gid) {
-      currentDM = null;
-      currentChatType = 'dm';
-      messages.innerHTML = '';
-      emptyChat.style.display = 'flex';
-      messages.style.display = 'none';
-      updateChatHeader();
-    }
-    closeGroupSettings();
-    return;
-  }
-  if (d.type === 'group_message') {
-    const key = groupKey(d.groupId);
-    setTypingState(key, '', false);
-    upsertMessage(key, d);
-    unread[key] = key !== currentDM ? (d.unread || unread[key] || 0) : 0;
-    saveLocalChatState();
-    if (d.from !== login) soundMessage();
-    if (key === currentDM) rerenderCurrentChat();
-    renderGroups();
-    return;
-  }
-  if (d.type === 'group_history') {
-    const key = groupKey(d.groupId);
-    chats[key] = Array.isArray(d.messages) ? d.messages : [];
-    saveLocalChatState();
-    if (currentDM === key) rerenderCurrentChat();
-    return;
-  }
-  if (d.type === 'group_message_deleted') {
-    const key = groupKey(d.groupId);
-    chats[key] = (chats[key] || []).filter(m => Number(m.id) !== Number(d.id));
-    saveLocalChatState();
-    if (key === currentDM) rerenderCurrentChat();
-    return;
-  }
-  if (d.type === 'group_message_edited') {
-    const key = groupKey(d.groupId);
-    updateMessageLocally(key, d.id, { text:d.text, edited:d.edited, editedAt:d.editedAt });
-    saveLocalChatState();
-    if (key === currentDM) rerenderCurrentChat();
-    return;
-  }
+
+  if (d.type === 'groups_list') { groups = Array.isArray(d.groups) ? d.groups : []; renderGroups(); if (currentChatType === 'group' && currentGroupId && !findGroupData(currentGroupId)) { currentGroupId = null; currentChatType = 'dm'; emptyChat.style.display = 'flex'; messages.style.display = 'none'; updateChatHeader(); } return; }
+  if (d.type === 'group_created') { if (d.group && !groups.some(g => Number(g.id) === Number(d.group.id))) groups.unshift(d.group); renderGroups(); return; }
+  if (d.type === 'group_updated') { if (d.group) { groups = (groups || []).filter(g => Number(g.id) !== Number(d.group.id)); groups.unshift(d.group); renderGroups(); if (currentChatType === 'group' && Number(currentGroupId) === Number(d.group.id)) { updateChatHeader(); rerenderCurrentChat(); } } return; }
+  if (d.type === 'group_left') { groups = (groups || []).filter(g => Number(g.id) !== Number(d.groupId)); delete chats[getGroupChatKey(d.groupId)]; saveLocalChatState(); if (currentChatType === 'group' && Number(currentGroupId) === Number(d.groupId)) { currentGroupId = null; currentChatType = 'dm'; emptyChat.style.display = 'flex'; messages.style.display = 'none'; updateChatHeader(); } renderGroups(); return; }
+  if (d.type === 'group_message') { upsertGroupMessage(d.groupId, d); saveLocalChatState(); if (currentChatType === 'group' && Number(currentGroupId) === Number(d.groupId)) rerenderCurrentChat(); return; }
+  if (d.type === 'group_message_edited') { updateGroupMessageLocally(d.groupId, d.id, { text:d.text, edited:d.edited, editedAt:d.editedAt }); saveLocalChatState(); if (currentChatType === 'group' && Number(currentGroupId) === Number(d.groupId)) rerenderCurrentChat(); return; }
+  if (d.type === 'group_message_deleted') { removeGroupMessageLocally(d.groupId, d.id); saveLocalChatState(); if (currentChatType === 'group' && Number(currentGroupId) === Number(d.groupId)) rerenderCurrentChat(); return; }
+  if (d.type === 'group_history') { chats[getGroupChatKey(d.groupId)] = Array.isArray(d.messages) ? d.messages : []; saveLocalChatState(); if (currentChatType === 'group' && Number(currentGroupId) === Number(d.groupId)) rerenderCurrentChat(); return; }
   if (d.type === 'call_offer') {
     if (callState !== 'idle') { ws.send(JSON.stringify({ type:'call_busy', to:d.from })); return; }
     unlockAudio().then(startRingtone); callState = 'ringing'; callPeer = d.from; callPeerNick = d.fromNick || d.from; pendingOffer = { offer:d.offer, from:d.from, fromNick:callPeerNick };
@@ -1510,189 +1344,63 @@ function handle(d) {
 
 function openDM(l, n, avatar = null) {
   currentChatType = 'dm';
+  currentGroupId = null;
   currentDM = l; currentDMNick = n; currentDMAvatar = avatar; editingMessageId = null; emptyChat.style.display = 'none'; messages.style.display = 'block'; unread[l] = 0; saveLocalChatState();
   const peer = findFriendData(l) || { nickname:n, avatar, status:'offline' };
-  updateChatHeader(l, peer.nickname || n, peer.avatar || avatar); renderTypingIndicator(); ws.send(JSON.stringify({ type:'read', from:l })); ws.send(JSON.stringify({ type:'get_messages', with:l })); rerenderCurrentChat(); renderOnline(); renderGroups();
+  updateChatHeader(l, peer.nickname || n, peer.avatar || avatar); renderTypingIndicator(); ws.send(JSON.stringify({ type:'read', from:l })); ws.send(JSON.stringify({ type:'get_messages', with:l })); rerenderCurrentChat(); renderOnline(); renderGroups(); callBtn.disabled = false;
 }
 
 function openGroup(groupId) {
-  const group = findGroup(groupId);
-  if (!group) return;
   currentChatType = 'group';
-  currentDM = groupKey(group.id);
-  currentDMNick = group.name;
-  currentDMAvatar = null;
+  currentGroupId = Number(groupId);
+  currentDM = null;
   editingMessageId = null;
   emptyChat.style.display = 'none';
   messages.style.display = 'block';
-  unread[currentDM] = 0;
-  saveLocalChatState();
-  updateChatHeader(currentDM);
-  renderTypingIndicator();
-  ws.send(JSON.stringify({ type:'group_read', groupId:Number(group.id) }));
-  ws.send(JSON.stringify({ type:'get_group_messages', groupId:Number(group.id) }));
+  updateChatHeader();
   rerenderCurrentChat();
   renderOnline();
   renderGroups();
+  callBtn.disabled = true;
+  ws.send(JSON.stringify({ type:'get_group_messages', groupId:currentGroupId }));
 }
+
 
 function beginEditMessage(messageId) { editingMessageId = Number(messageId); rerenderCurrentChat(); }
 function cancelEditMessage() { editingMessageId = null; rerenderCurrentChat(); }
 function saveEditMessage(messageId) {
   const input = document.querySelector(`.editInput[data-message-id="${messageId}"]`); if (!input) return;
-  const value = input.value.trim(); if (!value) return;
-  if (isGroupKey(currentDM)) ws.send(JSON.stringify({ type:'edit_group_message', id:Number(messageId), groupId:groupIdFromKey(currentDM), text:value }));
-  else ws.send(JSON.stringify({ type:'edit_message', id:Number(messageId), text:value }));
-  editingMessageId = null;
+  const value = input.value.trim(); if (!value) return; if (currentChatType === 'group' && currentGroupId) ws.send(JSON.stringify({ type:'edit_group_message', id:Number(messageId), text:value })); else ws.send(JSON.stringify({ type:'edit_message', id:Number(messageId), text:value })); editingMessageId = null;
 }
 function deleteMessage(messageId) {
-  ws.send(JSON.stringify({ type:'delete_message', id:Number(messageId) }));
+  if (currentChatType === 'group' && currentGroupId) ws.send(JSON.stringify({ type:'delete_group_message', id:Number(messageId) })); else ws.send(JSON.stringify({ type:'delete_message', id:Number(messageId) }));
   if (editingMessageId === Number(messageId)) editingMessageId = null;
 }
-function deleteGroupMessage(messageId, groupId) {
-  ws.send(JSON.stringify({ type:'delete_group_message', id:Number(messageId), groupId:Number(groupId) }));
-  if (editingMessageId === Number(messageId)) editingMessageId = null;
-}
-window.beginEditMessage = beginEditMessage; window.cancelEditMessage = cancelEditMessage; window.saveEditMessage = saveEditMessage; window.deleteMessage = deleteMessage; window.deleteGroupMessage = deleteGroupMessage;
+window.beginEditMessage = beginEditMessage; window.cancelEditMessage = cancelEditMessage; window.saveEditMessage = saveEditMessage; window.deleteMessage = deleteMessage;
 
-function renderMessage(message, autoScroll = true) {
-  const m = document.createElement('div');
-  m.className = 'message';
-  m.dataset.id = String(message.id);
-
+function renderMessage(message) {
+  const m = document.createElement('div'); m.className = 'message'; m.dataset.id = message.id;
   m.appendChild(createAvatar(message.avatar || { letter:String(message.from || '?').charAt(0).toUpperCase(), color:'#5865f2' }, 'offline', false));
-
-  const c = document.createElement('div');
-  c.className = 'messageContent';
-
-  const header = document.createElement('div');
-  header.className = 'messageHeader';
-
-  const author = document.createElement('b');
-  author.textContent = message.fromNick || message.from || '?';
-
-  const time = document.createElement('span');
-  time.className = 'messageTime';
-  time.textContent = formatMessageTime(message.time);
-
-  header.appendChild(author);
-  header.appendChild(time);
-
-  if (message.edited) {
-    const edited = document.createElement('span');
-    edited.className = 'messageEdited';
-    edited.textContent = `(${t('edited')})`;
-    header.appendChild(edited);
-  }
-
-  c.appendChild(header);
-
+  const c = document.createElement('div'); c.className = 'messageContent';
+  const editedLabel = message.edited ? `<span class="messageEdited">(${escapeHtml(t('edited'))})</span>` : '';
+  let inner = `<div class="messageHeader"><b>${escapeHtml(message.fromNick || message.from)}</b><span class="messageTime">${escapeHtml(formatMessageTime(message.time))}</span>${editedLabel}</div>`;
   if (editingMessageId === Number(message.id) && message.from === login) {
-    const editBox = document.createElement('div');
-    editBox.className = 'editBox';
-
-    const input = document.createElement('input');
-    input.className = 'editInput';
-    input.dataset.messageId = String(message.id);
-    input.value = String(message.text || '');
-
-    const saveBtn = document.createElement('button');
-    saveBtn.className = 'messageActionBtn';
-    saveBtn.type = 'button';
-    saveBtn.textContent = t('save');
-    saveBtn.onclick = (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      saveEditMessage(message.id);
-    };
-
-    const cancelBtn = document.createElement('button');
-    cancelBtn.className = 'messageActionBtn';
-    cancelBtn.type = 'button';
-    cancelBtn.textContent = t('cancel');
-    cancelBtn.onclick = (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      cancelEditMessage();
-    };
-
-    input.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        e.stopPropagation();
-        saveEditMessage(message.id);
-      }
-      if (e.key === 'Escape') {
-        e.preventDefault();
-        e.stopPropagation();
-        cancelEditMessage();
-      }
-    });
-
-    editBox.appendChild(input);
-    editBox.appendChild(saveBtn);
-    editBox.appendChild(cancelBtn);
-    c.appendChild(editBox);
-
-    setTimeout(() => {
-      try {
-        input.focus();
-        input.setSelectionRange(input.value.length, input.value.length);
-      } catch {}
-    }, 0);
+    inner += `<div class="editBox"><input class="editInput" data-message-id="${message.id}" value="${escapeHtml(message.text)}"><button class="messageActionBtn" onclick="saveEditMessage(${message.id})">${escapeHtml(t('save'))}</button><button class="messageActionBtn" onclick="cancelEditMessage()">${escapeHtml(t('cancel'))}</button></div>`;
   } else {
-    const textEl = document.createElement('div');
-    textEl.className = 'messageText';
-    textEl.textContent = String(message.text || '');
-    c.appendChild(textEl);
-
-    if (message.from === login) {
-      const actions = document.createElement('div');
-      actions.className = 'messageActions';
-
-      const editBtn = document.createElement('button');
-      editBtn.className = 'messageActionBtn';
-      editBtn.type = 'button';
-      editBtn.textContent = t('edit');
-      editBtn.onclick = (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        beginEditMessage(message.id);
-      };
-
-      const deleteBtn = document.createElement('button');
-      deleteBtn.className = 'messageActionBtn';
-      deleteBtn.type = 'button';
-      deleteBtn.textContent = t('delete');
-      deleteBtn.onclick = (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        if (message.groupId) deleteGroupMessage(message.id, message.groupId);
-        else deleteMessage(message.id);
-      };
-
-      actions.appendChild(editBtn);
-      actions.appendChild(deleteBtn);
-      c.appendChild(actions);
-    }
+    inner += `<div class="messageText">${escapeHtml(message.text)}</div>`;
+    if (message.from === login) inner += `<div class="messageActions"><button class="messageActionBtn" onclick="beginEditMessage(${message.id})">${escapeHtml(t('edit'))}</button><button class="messageActionBtn" onclick="deleteMessage(${message.id})">${escapeHtml(t('delete'))}</button></div>`;
   }
-
-  m.appendChild(c);
-  messages.appendChild(m);
-  if (autoScroll) messages.scrollTop = messages.scrollHeight;
+  c.innerHTML = inner; m.appendChild(c); messages.appendChild(m); messages.scrollTop = messages.scrollHeight;
 }
 
 sendBtn.onclick = async () => {
-  await unlockAudio(); const message = text.value.trim(); if (!message || !currentDM) return;
-  if (isGroupKey(currentDM)) ws.send(JSON.stringify({ type:'group_message', groupId:groupIdFromKey(currentDM), text:message }));
-  else ws.send(JSON.stringify({ type:'message', from:login, to:currentDM, text:message }));
-  text.value = ''; if (!isGroupKey(currentDM)) sendTyping(false);
+  await unlockAudio(); const message = text.value.trim(); if (!message) return; if (currentChatType === 'group' && currentGroupId) { ws.send(JSON.stringify({ type:'group_message', groupId:currentGroupId, text:message })); text.value = ''; return; } if (!currentDM) return; ws.send(JSON.stringify({ type:'message', from:login, to:currentDM, text:message })); text.value = ''; sendTyping(false);
 };
 text.addEventListener('keydown', async e => {
   if (e.key === 'Enter') {
     const active = document.activeElement;
     if (active && active.classList.contains('editInput')) return;
-    e.preventDefault(); const message = text.value.trim(); if (!message || !currentDM) return; await unlockAudio(); if (isGroupKey(currentDM)) ws.send(JSON.stringify({ type:'group_message', groupId:groupIdFromKey(currentDM), text:message })); else ws.send(JSON.stringify({ type:'message', from:login, to:currentDM, text:message })); text.value = ''; if (!isGroupKey(currentDM)) sendTyping(false);
+    e.preventDefault(); const message = text.value.trim(); if (!message) return; await unlockAudio(); if (currentChatType === 'group' && currentGroupId) { ws.send(JSON.stringify({ type:'group_message', groupId:currentGroupId, text:message })); text.value = ''; return; } if (!currentDM) return; ws.send(JSON.stringify({ type:'message', from:login, to:currentDM, text:message })); text.value = ''; sendTyping(false);
   }
 });
 text.addEventListener('input', () => {
@@ -1706,17 +1414,18 @@ text.addEventListener('input', () => {
     sendTyping(false);
   }
 });
+messages.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.classList.contains('editInput')) { e.preventDefault(); saveEditMessage(e.target.dataset.messageId); } });
 
 function toggleFriendsPanel() { friendsPanel.classList.toggle('open'); friendsBtn.classList.toggle('active'); }
 friendsBtn.onclick = toggleFriendsPanel; headerFriendsBtn.onclick = toggleFriendsPanel;
 addFriendBtn.onclick = () => { const to = friendNick.value.trim(); if (!to) return; ws.send(JSON.stringify({ type:'friend_request', from:login, to })); friendNick.value = ''; };
 createGroupBtn.onclick = () => {
   const name = groupNameInput.value.trim();
-  if (!name) return alert(t('enterGroupName'));
-  const members = Array.from(groupMembersPicker.querySelectorAll('input[type=checkbox]:checked')).map(i => i.value);
+  const members = groupMembersInput.value.split(',').map(v => v.trim()).filter(Boolean);
+  if (!name) return alert('Введите название группы');
   ws.send(JSON.stringify({ type:'create_group', name, members }));
   groupNameInput.value = '';
-  groupMembersPicker.querySelectorAll('input[type=checkbox]').forEach(i => i.checked = false);
+  groupMembersInput.value = '';
 };
 
 function renderRequests() {
@@ -1728,94 +1437,6 @@ function renderRequests() {
     const main = document.createElement('div'); main.className = 'friendMain'; main.appendChild(createAvatar({ letter:u[0].toUpperCase(), color:'#5865f2' }, 'offline', false));
     const meta = document.createElement('div'); meta.className = 'friendMeta'; meta.innerHTML = `<b>${escapeHtml(u)}</b><span>${escapeHtml(t('incomingRequest'))}</span>`; main.appendChild(meta); d.appendChild(main);
     const s = document.createElement('span'); s.innerHTML = `<button onclick="accept('${escapeHtml(u)}')">✔</button><button onclick="decline('${escapeHtml(u)}')">✖</button>`; d.appendChild(s); requestsDiv.appendChild(d);
-  });
-}
-
-
-function renderGroupFriendPicker() {
-  if (!groupMembersPicker) return;
-  const uniqueFriends = dedupeUsers(friends);
-  groupMembersPicker.innerHTML = '';
-  if (!uniqueFriends.length) { groupMembersPicker.innerHTML = `<div class="emptyText">${escapeHtml(t('chooseMembers'))}</div>`; return; }
-  uniqueFriends.forEach(user => {
-    const row = document.createElement('label'); row.className = 'groupPickItem';
-    row.innerHTML = `<input type="checkbox" value="${escapeHtml(user.login)}"> <span>${escapeHtml(user.nickname || user.login)}</span>`;
-    groupMembersPicker.appendChild(row);
-  });
-}
-
-function renderGroupAddPicker() {
-  if (!groupAddMembersPicker || !selectedGroup) return;
-  const memberSet = new Set((selectedGroup.members || []).map(m => m.login));
-  const candidates = dedupeUsers(friends).filter(f => !memberSet.has(f.login));
-  groupAddMembersPicker.innerHTML = '';
-  if (!candidates.length) { groupAddMembersPicker.innerHTML = `<div class="emptyText">${escapeHtml(t('noFriends'))}</div>`; return; }
-  candidates.forEach(user => {
-    const row = document.createElement('label'); row.className = 'groupPickItem';
-    row.innerHTML = `<input type="checkbox" value="${escapeHtml(user.login)}"> <span>${escapeHtml(user.nickname || user.login)}</span>`;
-    groupAddMembersPicker.appendChild(row);
-  });
-}
-
-function openGroupSettings(groupId) {
-  const group = findGroup(groupId);
-  if (!group) return;
-  selectedGroup = JSON.parse(JSON.stringify(group));
-  renderGroupSettings();
-  groupSettingsOverlay.style.display = 'flex';
-}
-function closeGroupSettings() { selectedGroup = null; groupSettingsOverlay.style.display = 'none'; }
-function renderGroupSettings() {
-  if (!selectedGroup) return;
-  const isOwner = selectedGroup.owner === login;
-  groupSettingsName.value = selectedGroup.name || '';
-  groupSettingsDescription.value = selectedGroup.description || '';
-  groupSettingsName.disabled = !isOwner;
-  groupSettingsDescription.disabled = !isOwner;
-  groupSettingsSave.style.display = isOwner ? '' : 'none';
-  groupAddMembersBtn.style.display = isOwner ? '' : 'none';
-  groupAddMembersPicker.parentElement.style.display = isOwner ? '' : 'none';
-  renderGroupAddPicker();
-  groupSettingsMembers.innerHTML = '';
-  (selectedGroup.members || []).forEach(member => {
-    const row = document.createElement('div'); row.className = 'groupMemberRow';
-    row.innerHTML = `<div class="groupMemberMain"></div><div class="groupMemberActions"></div>`;
-    const main = row.querySelector('.groupMemberMain');
-    main.appendChild(createAvatar(member.avatar || { letter:(member.login||'?')[0]?.toUpperCase() || '?', color:'#5865f2' }, member.status || 'offline', true));
-    const meta = document.createElement('div'); meta.className = 'groupMeta';
-    meta.innerHTML = `<b>${escapeHtml(member.nickname || member.login)}</b><span>${escapeHtml(member.role === 'owner' ? 'Owner' : t('groupMembers'))}</span>`;
-    main.appendChild(meta);
-    const actions = row.querySelector('.groupMemberActions');
-    if (isOwner && member.login !== login) {
-      const btn = document.createElement('button'); btn.className = 'groupSmallBtn'; btn.textContent = t('removeFromGroup');
-      btn.onclick = () => ws.send(JSON.stringify({ type:'remove_group_member', groupId:Number(selectedGroup.id), user:member.login }));
-      actions.appendChild(btn);
-    }
-    groupSettingsMembers.appendChild(row);
-  });
-}
-
-function renderGroups() {
-  groupsList.innerHTML = '';
-  if (!groups.length) { groupsList.textContent = t('noGroups'); groupsList.className = 'emptyText'; return; }
-  groupsList.className = '';
-  groups.forEach(group => {
-    const d = document.createElement('div'); d.className = 'groupEntry';
-    const main = document.createElement('div'); main.className = 'groupEntryMain';
-    const badge = document.createElement('div'); badge.className = 'groupBadge'; badge.textContent = (group.name || '?').charAt(0).toUpperCase();
-    const meta = document.createElement('div'); meta.className = 'groupMeta';
-    meta.innerHTML = `<b>${escapeHtml(group.name || 'Group')}</b><span>${escapeHtml(String(group.memberCount || (group.members || []).length || 0))} ${escapeHtml(t('membersCount'))}</span>`;
-    main.appendChild(badge); main.appendChild(meta);
-    main.onclick = () => openGroup(group.id);
-    d.appendChild(main);
-    const actions = document.createElement('span');
-    const settingsBtn = document.createElement('button'); settingsBtn.textContent = '⚙'; settingsBtn.title = t('groupSettings'); settingsBtn.onclick = e => { e.stopPropagation(); openGroupSettings(group.id); };
-    if (unread[groupKey(group.id)] > 0) {
-      const unreadEl = document.createElement('button'); unreadEl.textContent = unread[groupKey(group.id)]; unreadEl.disabled = true; actions.appendChild(unreadEl);
-    }
-    actions.appendChild(settingsBtn);
-    d.appendChild(actions);
-    groupsList.appendChild(d);
   });
 }
 
@@ -1866,20 +1487,16 @@ function syncPresenceFromOnline() {
   });
 
   if (currentDM) {
-    if (isGroupKey(currentDM)) {
-      updateChatHeader(currentDM);
-    } else {
-      const peer = findFriendData(currentDM) || onlineMap.get(currentDM) || {
-        login: currentDM,
-        nickname: currentDMNick || currentDM,
-        avatar: currentDMAvatar || null,
-        status: 'offline'
-      };
+    const peer = findFriendData(currentDM) || onlineMap.get(currentDM) || {
+      login: currentDM,
+      nickname: currentDMNick || currentDM,
+      avatar: currentDMAvatar || null,
+      status: 'offline'
+    };
 
-      currentDMNick = peer.nickname || currentDMNick || currentDM;
-      currentDMAvatar = peer.avatar || currentDMAvatar || null;
-      updateChatHeader(currentDM, currentDMNick, currentDMAvatar);
-    }
+    currentDMNick = peer.nickname || currentDMNick || currentDM;
+    currentDMAvatar = peer.avatar || currentDMAvatar || null;
+    updateChatHeader(currentDM, currentDMNick, currentDMAvatar);
   }
 }
 
@@ -1920,12 +1537,99 @@ function renderFriends() {
   });
 }
 
+
+function renderGroups() {
+  if (groupsSidebar) groupsSidebar.innerHTML = '';
+  if (groupsPanelList) groupsPanelList.innerHTML = '';
+  const list = Array.isArray(groups) ? groups : [];
+  if (!list.length) {
+    if (groupsSidebar) groupsSidebar.innerHTML = '<div class="emptyText">Нет групп</div>';
+    if (groupsPanelList) groupsPanelList.textContent = 'Групп пока нет';
+    return;
+  }
+
+  list.forEach(group => {
+    if (groupsSidebar) {
+      const div = document.createElement('div');
+      div.className = 'user' + (currentChatType === 'group' && Number(currentGroupId) === Number(group.id) ? ' active' : '');
+      div.appendChild(createAvatar({ letter:(group.name || 'G')[0]?.toUpperCase() || 'G', color:'#5865f2' }, 'online', false));
+      const info = document.createElement('div');
+      info.className = 'userInfo';
+      info.innerHTML = `<div class="userName">${escapeHtml(group.name || ('Group ' + group.id))}</div><div class="userSub">${escapeHtml(String((group.members || []).length))} участ.</div>`;
+      div.appendChild(info);
+      div.onclick = () => openGroup(group.id);
+      groupsSidebar.appendChild(div);
+    }
+
+    if (groupsPanelList) {
+      const row = document.createElement('div');
+      row.className = 'friendEntry';
+      const main = document.createElement('div');
+      main.className = 'friendMain';
+      main.appendChild(createAvatar({ letter:(group.name || 'G')[0]?.toUpperCase() || 'G', color:'#5865f2' }, 'online', false));
+      const meta = document.createElement('div');
+      meta.className = 'friendMeta';
+      meta.innerHTML = `<b>${escapeHtml(group.name || ('Group ' + group.id))}</b><span>${escapeHtml(String((group.members || []).length))} участ.</span>`;
+      main.appendChild(meta);
+      main.onclick = () => openGroup(group.id);
+      row.appendChild(main);
+      const actions = document.createElement('div');
+      actions.className = 'groupEntryActions';
+
+      const openBtn = document.createElement('button');
+      openBtn.textContent = 'Открыть';
+      openBtn.onclick = () => openGroup(group.id);
+      actions.appendChild(openBtn);
+
+      const groupData = findGroupData(group.id) || group;
+      const isOwner = groupData.ownerLogin === login;
+      if (isOwner) {
+        const renameBtn = document.createElement('button');
+        renameBtn.textContent = 'Настроить';
+        renameBtn.onclick = () => {
+          const newName = prompt('Название группы', groupData.name || '');
+          if (newName && newName.trim()) ws.send(JSON.stringify({ type:'update_group', groupId:group.id, name:newName.trim() }));
+        };
+        actions.appendChild(renameBtn);
+
+        const addBtn = document.createElement('button');
+        addBtn.textContent = 'Добавить';
+        addBtn.onclick = () => {
+          const val = prompt('Логины через запятую');
+          const members = (val || '').split(',').map(v => v.trim()).filter(Boolean);
+          if (members.length) ws.send(JSON.stringify({ type:'add_group_members', groupId:group.id, members }));
+        };
+        actions.appendChild(addBtn);
+
+        const removeBtn = document.createElement('button');
+        removeBtn.textContent = 'Удалить участника';
+        removeBtn.onclick = () => {
+          const current = findGroupData(group.id) || group;
+          const names = (current.members || []).filter(m => m.login !== login).map(m => m.login).join(', ');
+          const target = prompt(`Кого удалить? Доступно: ${names}`);
+          if (target && target.trim()) ws.send(JSON.stringify({ type:'remove_group_member', groupId:group.id, userLogin:target.trim() }));
+        };
+        actions.appendChild(removeBtn);
+      }
+
+      const leaveBtn = document.createElement('button');
+      leaveBtn.textContent = isOwner ? 'Удалить группу' : 'Выйти';
+      leaveBtn.onclick = () => {
+        if (confirm(isOwner ? 'Удалить группу целиком?' : 'Выйти из группы?')) ws.send(JSON.stringify({ type:'leave_group', groupId:group.id }));
+      };
+      actions.appendChild(leaveBtn);
+      row.appendChild(actions);
+      groupsPanelList.appendChild(row);
+    }
+  });
+}
+
 function renderOnline() {
   online.innerHTML = '';
   const uniqueOnlineUsers = dedupeUsers(onlineUsers).filter(u => normalizeClientStatus(u.status || 'online') !== 'offline');
   if (!uniqueOnlineUsers.length) { const e = document.createElement('div'); e.className = 'emptyText'; e.textContent = t('nobodyOnline'); online.appendChild(e); return; }
   uniqueOnlineUsers.forEach(u => {
-    const div = document.createElement('div'); div.className = 'user' + (!isGroupKey(currentDM) && u.login === currentDM ? ' active' : ''); div.dataset.login = u.login; div.appendChild(createAvatar(u.avatar || u, u.status || 'online', true));
+    const div = document.createElement('div'); div.className = 'user' + (u.login === currentDM ? ' active' : ''); div.dataset.login = u.login; div.appendChild(createAvatar(u.avatar || u, u.status || 'online', true));
     const info = document.createElement('div'); info.className = 'userInfo'; info.innerHTML = `<div class="userName">${escapeHtml(u.nickname || u.login)}</div><div class="userSub">${escapeHtml(statusText(u.status || 'online'))}</div>`; div.appendChild(info);
     if (unread[u.login] > 0) { const b = document.createElement('div'); b.className = 'unread'; b.textContent = unread[u.login]; div.appendChild(b); }
     div.onclick = () => openDM(u.login, u.nickname, u.avatar);
@@ -1965,24 +1669,6 @@ profileSaveBtn.onclick = () => {
 avatarUploadInput.onchange = () => {
   const file = avatarUploadInput.files?.[0]; if (!file || !ws) return; const reader = new FileReader(); reader.onload = () => ws.send(JSON.stringify({ type:'update_avatar', image:reader.result })); reader.readAsDataURL(file);
 };
-
-groupSettingsClose.onclick = closeGroupSettings;
-groupSettingsOverlay.addEventListener('click', e => { if (e.target === groupSettingsOverlay) closeGroupSettings(); });
-groupSettingsSave.onclick = () => {
-  if (!selectedGroup) return;
-  ws.send(JSON.stringify({ type:'update_group', groupId:Number(selectedGroup.id), name:groupSettingsName.value.trim(), description:groupSettingsDescription.value.trim() }));
-};
-groupAddMembersBtn.onclick = () => {
-  if (!selectedGroup) return;
-  const members = Array.from(groupAddMembersPicker.querySelectorAll('input[type=checkbox]:checked')).map(i => i.value);
-  if (!members.length) return;
-  ws.send(JSON.stringify({ type:'add_group_members', groupId:Number(selectedGroup.id), members }));
-};
-groupLeaveBtn.onclick = () => {
-  if (!selectedGroup) return;
-  ws.send(JSON.stringify({ type:'leave_group', groupId:Number(selectedGroup.id) }));
-};
-
 window.addEventListener('beforeunload', () => { try { if (callState !== 'idle' && callPeer) ws.send(JSON.stringify({ type:'call_end', to:callPeer })); } catch {} });
 window.addEventListener('load', () => {
   applyLanguage();

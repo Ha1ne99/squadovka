@@ -95,6 +95,40 @@ async function initDb() {
       UNIQUE(fromUser, toUser)
     )
   `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS chat_groups (
+      id BIGSERIAL PRIMARY KEY,
+      name TEXT NOT NULL,
+      ownerLogin TEXT NOT NULL,
+      createdAt BIGINT NOT NULL
+    )
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS group_members (
+      groupId BIGINT NOT NULL,
+      userLogin TEXT NOT NULL,
+      role TEXT NOT NULL DEFAULT 'member',
+      joinedAt BIGINT NOT NULL DEFAULT 0,
+      UNIQUE(groupId, userLogin)
+    )
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS group_messages (
+      id BIGSERIAL PRIMARY KEY,
+      groupId BIGINT NOT NULL,
+      fromUser TEXT NOT NULL,
+      text TEXT NOT NULL,
+      time BIGINT NOT NULL,
+      edited BOOLEAN NOT NULL DEFAULT FALSE,
+      editedAt BIGINT
+    )
+  `);
+
+  await pool.query(`ALTER TABLE group_messages ADD COLUMN IF NOT EXISTS edited BOOLEAN NOT NULL DEFAULT FALSE`);
+  await pool.query(`ALTER TABLE group_messages ADD COLUMN IF NOT EXISTS editedAt BIGINT`);
 }
 
 const clients = new Map();
@@ -207,6 +241,111 @@ async function getChatHistory(userA, userB) {
     });
   }
   return messages;
+}
+
+
+async function isGroupMember(groupId, login) {
+  const result = await pool.query(`
+    SELECT 1 FROM group_members WHERE groupId = $1 AND userLogin = $2 LIMIT 1
+  `, [groupId, login]);
+  return Boolean(result.rows.length);
+}
+
+async function getGroupMembers(groupId, viewerLogin = null) {
+  const result = await pool.query(`
+    SELECT gm.userLogin, gm.role, u.nickname, u.avatarImage, u.status
+    FROM group_members gm
+    JOIN users u ON u.login = gm.userLogin
+    WHERE gm.groupId = $1
+    ORDER BY CASE WHEN gm.role = 'owner' THEN 0 ELSE 1 END, u.nickname ASC, u.login ASC
+  `, [groupId]);
+
+  return result.rows.map(row => ({
+    login: row.userlogin,
+    nickname: row.nickname,
+    role: row.role,
+    status: getEffectiveStatus(row.userlogin, row.status, viewerLogin),
+    avatar: buildAvatar(row.userlogin, row.nickname, row.avatarimage)
+  }));
+}
+
+async function getGroupPublic(groupId, viewerLogin = null) {
+  const result = await pool.query(`
+    SELECT id, name, ownerLogin, createdAt
+    FROM chat_groups
+    WHERE id = $1
+    LIMIT 1
+  `, [groupId]);
+  const group = result.rows[0];
+  if (!group) return null;
+
+  const members = await getGroupMembers(Number(group.id), viewerLogin);
+  return {
+    id: Number(group.id),
+    name: group.name,
+    ownerLogin: group.ownerlogin,
+    createdAt: Number(group.createdat),
+    members
+  };
+}
+
+async function getGroupsForUser(login) {
+  const result = await pool.query(`
+    SELECT g.id
+    FROM chat_groups g
+    JOIN group_members gm ON gm.groupId = g.id
+    WHERE gm.userLogin = $1
+    ORDER BY g.createdAt DESC, g.id DESC
+  `, [login]);
+
+  const groups = [];
+  for (const row of result.rows) {
+    const group = await getGroupPublic(Number(row.id), login);
+    if (group) groups.push(group);
+  }
+  return groups;
+}
+
+async function getGroupHistory(groupId, viewerLogin = null) {
+  const result = await pool.query(`
+    SELECT id, groupId, fromUser, text, time, edited, editedAt
+    FROM group_messages
+    WHERE groupId = $1
+    ORDER BY time ASC, id ASC
+  `, [groupId]);
+
+  const senders = new Map();
+  const messages = [];
+  for (const row of result.rows) {
+    let sender = senders.get(row.fromuser);
+    if (!sender) {
+      sender = await getUserPublic(row.fromuser, viewerLogin);
+      senders.set(row.fromuser, sender);
+    }
+    messages.push({
+      id: Number(row.id),
+      groupId: Number(row.groupid),
+      from: row.fromuser,
+      text: row.text,
+      time: Number(row.time),
+      edited: Boolean(row.edited),
+      editedAt: row.editedat ? Number(row.editedat) : null,
+      fromNick: sender?.nickname || row.fromuser,
+      avatar: sender?.avatar || buildAvatar(row.fromuser, row.fromuser)
+    });
+  }
+  return messages;
+}
+
+async function sendGroupList(login) {
+  sendToUser(login, { type: 'groups_list', groups: await getGroupsForUser(login) });
+}
+
+async function sendGroupToMembers(groupId, data) {
+  const result = await pool.query(`SELECT userLogin FROM group_members WHERE groupId = $1`, [groupId]);
+  for (const row of result.rows) {
+    sendToUser(row.userlogin, data);
+  }
 }
 
 async function broadcastOnlineFriends() {
@@ -326,7 +465,8 @@ wss.on('connection', ws => {
           status: normalizeStatus(user.status),
           avatar: buildAvatar(user.login, user.nickname, user.avatarimage),
           friends: await getFriendUsers(user.login),
-          unread: await getUnreadMap(user.login)
+          unread: await getUnreadMap(user.login),
+          groups: await getGroupsForUser(user.login)
         });
 
         const requests = await pool.query(`SELECT fromUser FROM friend_requests WHERE toUser = $1`, [user.login]);
@@ -420,6 +560,212 @@ wss.on('connection', ws => {
         send(ws, { type: 'chat_history', with: data.with, messages: await getChatHistory(userLogin, data.with) });
         return;
       }
+
+      if (data.type === 'create_group') {
+        const name = typeof data.name === 'string' ? data.name.trim().slice(0, 48) : '';
+        const memberLogins = Array.isArray(data.members) ? data.members.filter(v => typeof v === 'string').map(v => v.trim()).filter(Boolean) : [];
+        if (!name) {
+          send(ws, { type: 'error', message: 'Введите название группы' });
+          return;
+        }
+
+        const uniqueMembers = Array.from(new Set([userLogin, ...memberLogins.filter(v => v !== userLogin)]));
+        const existingUsers = await pool.query(`SELECT login FROM users WHERE login = ANY($1::text[])`, [uniqueMembers]);
+        const existingSet = new Set(existingUsers.rows.map(r => r.login));
+        const finalMembers = uniqueMembers.filter(loginItem => existingSet.has(loginItem));
+
+        const createdAt = Date.now();
+        const created = await pool.query(`
+          INSERT INTO chat_groups (name, ownerLogin, createdAt)
+          VALUES ($1, $2, $3)
+          RETURNING id
+        `, [name, userLogin, createdAt]);
+
+        const groupId = Number(created.rows[0].id);
+
+        for (const member of finalMembers) {
+          await pool.query(`
+            INSERT INTO group_members (groupId, userLogin, role, joinedAt)
+            VALUES ($1, $2, $3, $4)
+            ON CONFLICT (groupId, userLogin) DO NOTHING
+          `, [groupId, member, member === userLogin ? 'owner' : 'member', createdAt]);
+        }
+
+        const group = await getGroupPublic(groupId, userLogin);
+        await sendGroupToMembers(groupId, { type: 'group_created', group });
+        for (const member of finalMembers) await sendGroupList(member);
+        return;
+      }
+
+      if (data.type === 'get_group_messages') {
+        const groupId = Number(data.groupId);
+        if (!Number.isFinite(groupId) || !(await isGroupMember(groupId, userLogin))) return;
+        send(ws, { type: 'group_history', groupId, messages: await getGroupHistory(groupId, userLogin) });
+        return;
+      }
+
+      if (data.type === 'group_message') {
+        const groupId = Number(data.groupId);
+        if (!Number.isFinite(groupId) || !(await isGroupMember(groupId, userLogin))) return;
+        const messageText = typeof data.text === 'string' ? data.text.trim() : '';
+        if (!messageText) return;
+
+        const messageTime = Date.now();
+        const insertResult = await pool.query(`
+          INSERT INTO group_messages (groupId, fromUser, text, time, edited, editedAt)
+          VALUES ($1, $2, $3, $4, FALSE, NULL)
+          RETURNING id
+        `, [groupId, userLogin, messageText, messageTime]);
+
+        const msgData = {
+          type: 'group_message',
+          id: Number(insertResult.rows[0].id),
+          groupId,
+          from: userLogin,
+          text: messageText,
+          time: messageTime,
+          edited: false,
+          editedAt: null,
+          fromNick: me.nickname,
+          avatar: buildAvatar(userLogin, me.nickname, me.avatarImage)
+        };
+        await sendGroupToMembers(groupId, msgData);
+        return;
+      }
+
+      if (data.type === 'edit_group_message') {
+        const messageId = Number(data.id);
+        const newText = typeof data.text === 'string' ? data.text.trim() : '';
+        if (!messageId || !newText) return;
+
+        const messageResult = await pool.query(`
+          SELECT id, groupId, fromUser FROM group_messages WHERE id = $1 LIMIT 1
+        `, [messageId]);
+        const message = messageResult.rows[0];
+        if (!message || message.fromuser !== userLogin) return;
+        if (!(await isGroupMember(Number(message.groupid), userLogin))) return;
+
+        const editedAt = Date.now();
+        await pool.query(`UPDATE group_messages SET text = $1, edited = TRUE, editedAt = $2 WHERE id = $3`, [newText, editedAt, messageId]);
+
+        await sendGroupToMembers(Number(message.groupid), {
+          type: 'group_message_edited',
+          id: messageId,
+          groupId: Number(message.groupid),
+          text: newText,
+          edited: true,
+          editedAt,
+          from: userLogin
+        });
+        return;
+      }
+
+      if (data.type === 'delete_group_message') {
+        const messageId = Number(data.id);
+        if (!Number.isFinite(messageId)) return;
+
+        const existing = await pool.query(`
+          SELECT id, groupId, fromUser FROM group_messages WHERE id = $1 LIMIT 1
+        `, [messageId]);
+        const message = existing.rows[0];
+        if (!message || message.fromuser !== userLogin) return;
+
+        await pool.query(`DELETE FROM group_messages WHERE id = $1`, [messageId]);
+        await sendGroupToMembers(Number(message.groupid), {
+          type: 'group_message_deleted',
+          id: messageId,
+          groupId: Number(message.groupid),
+          from: userLogin
+        });
+        return;
+      }
+
+      if (data.type === 'update_group') {
+        const groupId = Number(data.groupId);
+        const name = typeof data.name === 'string' ? data.name.trim().slice(0, 48) : '';
+        if (!Number.isFinite(groupId) || !name) return;
+
+        const groupResult = await pool.query(`SELECT ownerLogin FROM chat_groups WHERE id = $1 LIMIT 1`, [groupId]);
+        const group = groupResult.rows[0];
+        if (!group || group.ownerlogin !== userLogin) return;
+
+        await pool.query(`UPDATE chat_groups SET name = $1 WHERE id = $2`, [name, groupId]);
+        const updated = await getGroupPublic(groupId, userLogin);
+        await sendGroupToMembers(groupId, { type: 'group_updated', group: updated });
+        const members = updated?.members || [];
+        for (const member of members) await sendGroupList(member.login);
+        return;
+      }
+
+      if (data.type === 'add_group_members') {
+        const groupId = Number(data.groupId);
+        const members = Array.isArray(data.members) ? data.members.filter(v => typeof v === 'string').map(v => v.trim()).filter(Boolean) : [];
+        if (!Number.isFinite(groupId) || !members.length) return;
+
+        const groupResult = await pool.query(`SELECT ownerLogin FROM chat_groups WHERE id = $1 LIMIT 1`, [groupId]);
+        const group = groupResult.rows[0];
+        if (!group || group.ownerlogin !== userLogin) return;
+
+        const existingUsers = await pool.query(`SELECT login FROM users WHERE login = ANY($1::text[])`, [members]);
+        for (const row of existingUsers.rows) {
+          await pool.query(`
+            INSERT INTO group_members (groupId, userLogin, role, joinedAt)
+            VALUES ($1, $2, 'member', $3)
+            ON CONFLICT (groupId, userLogin) DO NOTHING
+          `, [groupId, row.login, Date.now()]);
+        }
+
+        const updated = await getGroupPublic(groupId, userLogin);
+        await sendGroupToMembers(groupId, { type: 'group_updated', group: updated });
+        for (const member of updated?.members || []) await sendGroupList(member.login);
+        return;
+      }
+
+      if (data.type === 'remove_group_member') {
+        const groupId = Number(data.groupId);
+        const targetLogin = typeof data.userLogin === 'string' ? data.userLogin.trim() : '';
+        if (!Number.isFinite(groupId) || !targetLogin) return;
+
+        const groupResult = await pool.query(`SELECT ownerLogin FROM chat_groups WHERE id = $1 LIMIT 1`, [groupId]);
+        const group = groupResult.rows[0];
+        if (!group || group.ownerlogin !== userLogin || targetLogin === userLogin) return;
+
+        await pool.query(`DELETE FROM group_members WHERE groupId = $1 AND userLogin = $2`, [groupId, targetLogin]);
+
+        const updated = await getGroupPublic(groupId, userLogin);
+        if (updated) {
+          await sendGroupToMembers(groupId, { type: 'group_updated', group: updated });
+          for (const member of updated.members) await sendGroupList(member.login);
+        }
+        sendToUser(targetLogin, { type: 'group_left', groupId });
+        await sendGroupList(targetLogin);
+        return;
+      }
+
+      if (data.type === 'leave_group') {
+        const groupId = Number(data.groupId);
+        if (!Number.isFinite(groupId) || !(await isGroupMember(groupId, userLogin))) return;
+
+        const groupResult = await pool.query(`SELECT ownerLogin FROM chat_groups WHERE id = $1 LIMIT 1`, [groupId]);
+        const group = groupResult.rows[0];
+        if (!group) return;
+
+        if (group.ownerlogin === userLogin) {
+          await pool.query(`DELETE FROM group_messages WHERE groupId = $1`, [groupId]);
+          await pool.query(`DELETE FROM group_members WHERE groupId = $1`, [groupId]);
+          await pool.query(`DELETE FROM chat_groups WHERE id = $1`, [groupId]);
+          sendToUser(userLogin, { type: 'group_left', groupId });
+          await sendGroupList(userLogin);
+          return;
+        }
+
+        await pool.query(`DELETE FROM group_members WHERE groupId = $1 AND userLogin = $2`, [groupId, userLogin]);
+        await sendGroupToMembers(groupId, { type: 'group_updated', group: await getGroupPublic(groupId, userLogin) });
+        sendToUser(userLogin, { type: 'group_left', groupId });
+        await sendGroupList(userLogin);
+        return;
+      }
+
 
       if (data.type === 'friend_request') {
         if (!data.to || data.to === userLogin) return;
