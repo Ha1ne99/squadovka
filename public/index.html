@@ -384,8 +384,8 @@ input[type="range"]{ width:190px; }
 #avatarUploadInput { display:none; }
 #avatarUploadBtn { padding:9px 10px; min-width:auto; height:auto; font-size:13px; }
 
-.langSwitcher { display:flex; gap:6px; margin-top:10px; flex-wrap:wrap; }
-.loginLangSwitcher { justify-content:center; margin:2px 0 4px; }
+.langSwitcher { display:flex; gap:6px; flex-wrap:wrap; }
+.headerLangSwitcher { margin-left:4px; }
 .langBtn {
   border:1px solid var(--line);
   background:#171b23;
@@ -397,7 +397,6 @@ input[type="range"]{ width:190px; }
   font-weight:700;
 }
 .langBtn.active { background:rgba(107,124,255,.18); border-color:rgba(107,124,255,.45); }
-#sidebar .langSwitcher { margin-top:0; margin-left:auto; }
 .messageContent { position:relative; }
 .messageActions { display:flex; gap:6px; margin-top:8px; flex-wrap:wrap; }
 .messageActionBtn {
@@ -444,11 +443,6 @@ input[type="range"]{ width:190px; }
   </div>
   <h2 id="loginTitle">Вход</h2>
   <input id="loginInput" placeholder="Логин">
-  <div id="loginLangSwitcher" class="langSwitcher loginLangSwitcher">
-    <button class="langBtn" data-lang="ru">RU</button>
-    <button class="langBtn" data-lang="uk">UA</button>
-    <button class="langBtn" data-lang="en">EN</button>
-  </div>
   <input id="passwordInput" type="password" placeholder="Пароль">
   <button id="loginBtn">Войти</button>
   <div id="switchMode">Нет аккаунта? Зарегистрироваться</div>
@@ -458,11 +452,6 @@ input[type="range"]{ width:190px; }
 <div id="app" style="display:none;">
   <div id="sidebar">
     <div class="sidebarBrand">
-      <div id="langSwitcher" class="langSwitcher">
-        <button class="langBtn" data-lang="ru">RU</button>
-        <button class="langBtn" data-lang="uk">UA</button>
-        <button class="langBtn" data-lang="en">EN</button>
-      </div>
       <div class="left">
         <div class="brandLogo" style="width:42px;height:42px;border-radius:14px;font-size:20px;">S</div>
         <div class="sidebarBrandText">
@@ -497,6 +486,11 @@ input[type="range"]{ width:190px; }
         </div>
       </div>
       <div class="headerActions">
+        <div id="headerLangSwitcher" class="langSwitcher headerLangSwitcher">
+          <button class="langBtn" data-lang="ru">RU</button>
+          <button class="langBtn" data-lang="uk">UA</button>
+          <button class="langBtn" data-lang="en">EN</button>
+        </div>
         <button id="headerFriendsBtn" class="ghostBtn">👥 <span id="headerFriendsBtnLabel">Друзья</span></button>
       </div>
     </div>
