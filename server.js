@@ -2,6 +2,7 @@ const express = require('express');
 const http = require('http');
 const WebSocket = require('ws');
 const path = require('path');
+const fs = require('fs');
 const { Pool } = require('pg');
 const bcrypt = require('bcryptjs');
 
@@ -10,10 +11,14 @@ const server = http.createServer(app);
 const wss = new WebSocket.Server({ server });
 
 const publicDir = path.join(__dirname, 'public');
+const uploadsDir = path.join(__dirname, 'uploads');
 const rootIndex = path.join(__dirname, 'index.html');
 const publicIndex = path.join(publicDir, 'index.html');
 
+if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
+
 app.use(express.static(publicDir));
+app.use('/uploads', express.static(uploadsDir));
 app.use(express.static(__dirname));
 
 app.get('/', (req, res) => {
@@ -61,15 +66,24 @@ async function initDb() {
       id BIGSERIAL PRIMARY KEY,
       fromUser TEXT NOT NULL,
       toUser TEXT NOT NULL,
-      text TEXT NOT NULL,
+      text TEXT NOT NULL DEFAULT '',
       time BIGINT NOT NULL,
       edited BOOLEAN NOT NULL DEFAULT FALSE,
-      editedAt BIGINT
+      editedAt BIGINT,
+      fileName TEXT,
+      fileUrl TEXT,
+      fileType TEXT,
+      fileSize BIGINT
     )
   `);
 
+  await pool.query(`ALTER TABLE messages ALTER COLUMN text SET DEFAULT ''`);
   await pool.query(`ALTER TABLE messages ADD COLUMN IF NOT EXISTS edited BOOLEAN NOT NULL DEFAULT FALSE`);
   await pool.query(`ALTER TABLE messages ADD COLUMN IF NOT EXISTS editedAt BIGINT`);
+  await pool.query(`ALTER TABLE messages ADD COLUMN IF NOT EXISTS fileName TEXT`);
+  await pool.query(`ALTER TABLE messages ADD COLUMN IF NOT EXISTS fileUrl TEXT`);
+  await pool.query(`ALTER TABLE messages ADD COLUMN IF NOT EXISTS fileType TEXT`);
+  await pool.query(`ALTER TABLE messages ADD COLUMN IF NOT EXISTS fileSize BIGINT`);
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS friends (
@@ -179,7 +193,7 @@ async function getUnreadMap(login) {
 
 async function getChatHistory(userA, userB) {
   const result = await pool.query(`
-    SELECT id, fromUser, toUser, text, time, edited, editedAt
+    SELECT id, fromUser, toUser, text, time, edited, editedAt, fileName, fileUrl, fileType, fileSize
     FROM messages
     WHERE (fromUser = $1 AND toUser = $2)
        OR (fromUser = $2 AND toUser = $1)
@@ -203,6 +217,10 @@ async function getChatHistory(userA, userB) {
       time: Number(row.time),
       edited: Boolean(row.edited),
       editedAt: row.editedat ? Number(row.editedat) : null,
+      fileName: row.filename || null,
+      fileUrl: row.fileurl || null,
+      fileType: row.filetype || null,
+      fileSize: row.filesize ? Number(row.filesize) : null,
       avatar: sender?.avatar || buildAvatar(row.fromuser, row.fromuser)
     });
   }
@@ -212,16 +230,12 @@ async function getChatHistory(userA, userB) {
 async function broadcastOnlineFriends() {
   for (const [ws, info] of clients) {
     const friendLogins = await getFriends(info.login);
-    const onlineMap = new Map();
-
+    const online = [];
     for (const [, other] of clients) {
-      if (!friendLogins.includes(other.login)) continue;
-
-      const effectiveStatus = getEffectiveStatus(other.login, other.status, info.login);
-      if (effectiveStatus === 'offline') continue;
-
-      if (!onlineMap.has(other.login)) {
-        onlineMap.set(other.login, {
+      if (friendLogins.includes(other.login)) {
+        const effectiveStatus = getEffectiveStatus(other.login, other.status, info.login);
+        if (effectiveStatus === 'offline') continue;
+        online.push({
           login: other.login,
           nickname: other.nickname,
           status: effectiveStatus,
@@ -229,8 +243,7 @@ async function broadcastOnlineFriends() {
         });
       }
     }
-
-    send(ws, { type: 'online_friends', users: Array.from(onlineMap.values()) });
+    send(ws, { type: 'online_friends', users: online });
   }
 }
 
@@ -242,6 +255,37 @@ function clearCall(login) {
   const peer = inCall.get(login);
   inCall.delete(login);
   if (peer && inCall.get(peer) === login) inCall.delete(peer);
+}
+
+function safeFileName(name = 'file') {
+  const cleaned = String(name).replace(/[\\/:*?"<>|]+/g, '_').replace(/\s+/g, ' ').trim();
+  return cleaned.slice(0, 120) || 'file';
+}
+
+function parseDataUrl(dataUrl) {
+  if (typeof dataUrl !== 'string') return null;
+  const match = dataUrl.match(/^data:([^;]+);base64,(.+)$/);
+  if (!match) return null;
+  return { mimeType: match[1], base64: match[2] };
+}
+
+function extensionFromMime(mimeType = '') {
+  const map = {
+    'image/png': '.png',
+    'image/jpeg': '.jpg',
+    'image/jpg': '.jpg',
+    'image/gif': '.gif',
+    'image/webp': '.webp',
+    'application/pdf': '.pdf',
+    'text/plain': '.txt',
+    'application/zip': '.zip',
+    'application/x-zip-compressed': '.zip',
+    'application/msword': '.doc',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document': '.docx',
+    'application/vnd.ms-excel': '.xls',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': '.xlsx'
+  };
+  return map[mimeType.toLowerCase()] || '';
 }
 
 wss.on('connection', ws => {
@@ -466,34 +510,48 @@ wss.on('connection', ws => {
         return;
       }
 
-
-      if (data.type === 'remove_friend') {
-        const otherLogin = typeof data.with === 'string' ? data.with.trim() : '';
-        if (!otherLogin || otherLogin === userLogin) return;
-
-        await pool.query(`
-          DELETE FROM friends
-          WHERE (user1 = $1 AND user2 = $2) OR (user1 = $2 AND user2 = $1)
-        `, [userLogin, otherLogin]);
-
-        send(ws, { type: 'friends_list', friends: await getFriendUsers(userLogin) });
-        sendToUser(otherLogin, { type: 'friends_list', friends: await getFriendUsers(otherLogin) });
-        send(ws, { type: 'friend_removed', with: otherLogin });
-        sendToUser(otherLogin, { type: 'friend_removed', with: userLogin });
-        await broadcastOnlineFriends();
-        return;
-      }
-
       if (data.type === 'message') {
-        if (!data.to || typeof data.text !== 'string' || !data.text.trim()) return;
+        if (!data.to) return;
 
-        const messageText = data.text.trim();
+        const messageText = typeof data.text === 'string' ? data.text.trim() : '';
+        let fileName = null;
+        let fileUrl = null;
+        let fileType = null;
+        let fileSize = null;
+
+        if (typeof data.fileDataUrl === 'string' && data.fileDataUrl) {
+          const parsed = parseDataUrl(data.fileDataUrl);
+          if (!parsed) {
+            send(ws, { type: 'error', message: 'Не удалось прочитать файл' });
+            return;
+          }
+
+          const buffer = Buffer.from(parsed.base64, 'base64');
+          const maxFileSize = 10 * 1024 * 1024;
+          if (buffer.length > maxFileSize) {
+            send(ws, { type: 'error', message: 'Файл слишком большой. Максимум 10 МБ' });
+            return;
+          }
+
+          fileType = parsed.mimeType || 'application/octet-stream';
+          fileSize = buffer.length;
+          const originalName = safeFileName(data.fileName || 'file');
+          const ext = path.extname(originalName) || extensionFromMime(fileType);
+          const baseName = path.basename(originalName, path.extname(originalName));
+          fileName = `${baseName}${ext}`.slice(0, 140);
+          const storedName = `${Date.now()}_${Math.random().toString(36).slice(2, 10)}${ext}`;
+          fs.writeFileSync(path.join(uploadsDir, storedName), buffer);
+          fileUrl = `/uploads/${storedName}`;
+        }
+
+        if (!messageText && !fileUrl) return;
+
         const messageTime = Date.now();
         const insertResult = await pool.query(`
-          INSERT INTO messages (fromUser, toUser, text, time, edited, editedAt)
-          VALUES ($1, $2, $3, $4, FALSE, NULL)
+          INSERT INTO messages (fromUser, toUser, text, time, edited, editedAt, fileName, fileUrl, fileType, fileSize)
+          VALUES ($1, $2, $3, $4, FALSE, NULL, $5, $6, $7, $8)
           RETURNING id
-        `, [userLogin, data.to, messageText, messageTime]);
+        `, [userLogin, data.to, messageText, messageTime, fileName, fileUrl, fileType, fileSize]);
 
         await pool.query(`
           INSERT INTO unread (fromUser, toUser, count)
@@ -514,6 +572,10 @@ wss.on('connection', ws => {
           time: messageTime,
           edited: false,
           editedAt: null,
+          fileName,
+          fileUrl,
+          fileType,
+          fileSize,
           fromNick: me.nickname,
           avatar: buildAvatar(userLogin, me.nickname, me.avatarImage),
           unread: unreadCount,
