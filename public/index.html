@@ -1169,10 +1169,22 @@ function updateChatHeader(peerLogin = null, peerNick = null, avatar = null) {
   callBtn.disabled = false;
 }
 
+function getCurrentChatMessages() {
+  if (!currentDM) return [];
+  return chats[currentDM] || [];
+}
+
 function rerenderCurrentChat() {
-  if (!currentDM || isGroupKey(currentDM)) return;
+  if (!currentDM) {
+    messages.innerHTML = '';
+    return;
+  }
+  const wasNearBottom = (messages.scrollHeight - messages.scrollTop - messages.clientHeight) < 80;
   messages.innerHTML = '';
-  (chats[currentDM] || []).forEach(m => renderMessage(m));
+  getCurrentChatMessages().forEach(m => renderMessage(m, false));
+  if (wasNearBottom || editingMessageId !== null) {
+    messages.scrollTop = messages.scrollHeight;
+  }
 }
 
 switchMode.onclick = () => {
@@ -1543,22 +1555,131 @@ function deleteGroupMessage(messageId, groupId) {
 }
 window.beginEditMessage = beginEditMessage; window.cancelEditMessage = cancelEditMessage; window.saveEditMessage = saveEditMessage; window.deleteMessage = deleteMessage; window.deleteGroupMessage = deleteGroupMessage;
 
-function renderMessage(message) {
-  const m = document.createElement('div'); m.className = 'message'; m.dataset.id = message.id;
+function renderMessage(message, autoScroll = true) {
+  const m = document.createElement('div');
+  m.className = 'message';
+  m.dataset.id = String(message.id);
+
   m.appendChild(createAvatar(message.avatar || { letter:String(message.from || '?').charAt(0).toUpperCase(), color:'#5865f2' }, 'offline', false));
-  const c = document.createElement('div'); c.className = 'messageContent';
-  const editedLabel = message.edited ? `<span class="messageEdited">(${escapeHtml(t('edited'))})</span>` : '';
-  let inner = `<div class="messageHeader"><b>${escapeHtml(message.fromNick || message.from)}</b><span class="messageTime">${escapeHtml(formatMessageTime(message.time))}</span>${editedLabel}</div>`;
+
+  const c = document.createElement('div');
+  c.className = 'messageContent';
+
+  const header = document.createElement('div');
+  header.className = 'messageHeader';
+
+  const author = document.createElement('b');
+  author.textContent = message.fromNick || message.from || '?';
+
+  const time = document.createElement('span');
+  time.className = 'messageTime';
+  time.textContent = formatMessageTime(message.time);
+
+  header.appendChild(author);
+  header.appendChild(time);
+
+  if (message.edited) {
+    const edited = document.createElement('span');
+    edited.className = 'messageEdited';
+    edited.textContent = `(${t('edited')})`;
+    header.appendChild(edited);
+  }
+
+  c.appendChild(header);
+
   if (editingMessageId === Number(message.id) && message.from === login) {
-    inner += `<div class="editBox"><input class="editInput" data-message-id="${message.id}" value="${escapeHtml(message.text)}"><button class="messageActionBtn" onclick="saveEditMessage(${message.id})">${escapeHtml(t('save'))}</button><button class="messageActionBtn" onclick="cancelEditMessage()">${escapeHtml(t('cancel'))}</button></div>`;
+    const editBox = document.createElement('div');
+    editBox.className = 'editBox';
+
+    const input = document.createElement('input');
+    input.className = 'editInput';
+    input.dataset.messageId = String(message.id);
+    input.value = String(message.text || '');
+
+    const saveBtn = document.createElement('button');
+    saveBtn.className = 'messageActionBtn';
+    saveBtn.type = 'button';
+    saveBtn.textContent = t('save');
+    saveBtn.onclick = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      saveEditMessage(message.id);
+    };
+
+    const cancelBtn = document.createElement('button');
+    cancelBtn.className = 'messageActionBtn';
+    cancelBtn.type = 'button';
+    cancelBtn.textContent = t('cancel');
+    cancelBtn.onclick = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      cancelEditMessage();
+    };
+
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        e.stopPropagation();
+        saveEditMessage(message.id);
+      }
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopPropagation();
+        cancelEditMessage();
+      }
+    });
+
+    editBox.appendChild(input);
+    editBox.appendChild(saveBtn);
+    editBox.appendChild(cancelBtn);
+    c.appendChild(editBox);
+
+    setTimeout(() => {
+      try {
+        input.focus();
+        input.setSelectionRange(input.value.length, input.value.length);
+      } catch {}
+    }, 0);
   } else {
-    inner += `<div class="messageText">${escapeHtml(message.text)}</div>`;
+    const textEl = document.createElement('div');
+    textEl.className = 'messageText';
+    textEl.textContent = String(message.text || '');
+    c.appendChild(textEl);
+
     if (message.from === login) {
-      const deleteFn = message.groupId ? `deleteGroupMessage(${message.id}, ${message.groupId})` : `deleteMessage(${message.id})`;
-      inner += `<div class="messageActions"><button class="messageActionBtn" onclick="beginEditMessage(${message.id})">${escapeHtml(t('edit'))}</button><button class="messageActionBtn" onclick="${deleteFn}">${escapeHtml(t('delete'))}</button></div>`;
+      const actions = document.createElement('div');
+      actions.className = 'messageActions';
+
+      const editBtn = document.createElement('button');
+      editBtn.className = 'messageActionBtn';
+      editBtn.type = 'button';
+      editBtn.textContent = t('edit');
+      editBtn.onclick = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        beginEditMessage(message.id);
+      };
+
+      const deleteBtn = document.createElement('button');
+      deleteBtn.className = 'messageActionBtn';
+      deleteBtn.type = 'button';
+      deleteBtn.textContent = t('delete');
+      deleteBtn.onclick = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (message.groupId) deleteGroupMessage(message.id, message.groupId);
+        else deleteMessage(message.id);
+      };
+
+      actions.appendChild(editBtn);
+      actions.appendChild(deleteBtn);
+      c.appendChild(actions);
     }
   }
-  c.innerHTML = inner; m.appendChild(c); messages.appendChild(m); messages.scrollTop = messages.scrollHeight;
+
+  m.appendChild(c);
+  messages.appendChild(m);
+  if (autoScroll) messages.scrollTop = messages.scrollHeight;
 }
 
 sendBtn.onclick = async () => {
@@ -1585,7 +1706,6 @@ text.addEventListener('input', () => {
     sendTyping(false);
   }
 });
-messages.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.classList.contains('editInput')) { e.preventDefault(); saveEditMessage(e.target.dataset.messageId); } });
 
 function toggleFriendsPanel() { friendsPanel.classList.toggle('open'); friendsBtn.classList.toggle('active'); }
 friendsBtn.onclick = toggleFriendsPanel; headerFriendsBtn.onclick = toggleFriendsPanel;
