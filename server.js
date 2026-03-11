@@ -443,6 +443,45 @@ wss.on('connection', ws => {
         return;
       }
 
+      if (data.type === 'delete_message') {
+        const id = Number(data.id);
+        if (!Number.isFinite(id)) return;
+
+        const existing = await pool.query(`
+          SELECT id, fromUser, toUser
+          FROM messages
+          WHERE id = $1
+          LIMIT 1
+        `, [id]);
+
+        const message = existing.rows[0];
+        if (!message || message.fromuser !== userLogin) return;
+
+        await pool.query(`DELETE FROM messages WHERE id = $1`, [id]);
+
+        const payload = {
+          type: 'message_deleted',
+          id,
+          from: message.fromuser,
+          to: message.touser
+        };
+
+        sendToUser(message.fromuser, payload);
+        sendToUser(message.touser, payload);
+        return;
+      }
+
+      if (data.type === 'typing') {
+        if (!data.to || data.to === userLogin) return;
+        sendToUser(data.to, {
+          type: 'typing',
+          from: userLogin,
+          fromNick: me.nickname,
+          active: Boolean(data.active)
+        });
+        return;
+      }
+
       if (data.type === 'edit_message') {
         const messageId = Number(data.id);
         const newText = typeof data.text === 'string' ? data.text.trim() : '';

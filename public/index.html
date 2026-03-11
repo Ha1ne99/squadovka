@@ -281,6 +281,18 @@ button:hover { transform: translateY(-1px); }
 .messageHeader b { font-size:14px; }
 .messageTime { color:var(--muted); font-size:11px; }
 .messageText { line-height:1.4; word-break:break-word; white-space:pre-wrap; }
+#typingIndicator {
+  min-height: 24px;
+  display:flex;
+  align-items:center;
+  padding: 0 18px 6px;
+  color: var(--muted);
+  font-size: 13px;
+}
+.typingDot { animation: blink 1.2s infinite; }
+.typingDot:nth-child(2) { animation-delay: .2s; }
+.typingDot:nth-child(3) { animation-delay: .4s; }
+@keyframes blink { 0%, 80%, 100% { opacity:.25; } 40% { opacity:1; } }
 #input {
   display:flex;
   border-top:1px solid var(--line);
@@ -424,6 +436,7 @@ input[type="range"]{ width:190px; }
   .headerActions .ghostBtn span { display:none; }
   #messages { padding:12px; }
   .messageContent { max-width: 100%; }
+  #typingIndicator { padding: 0 12px 6px; }
   #input { padding:12px; }
   #callModal { width:min(92vw, 420px); }
 }
@@ -518,6 +531,8 @@ input[type="range"]{ width:190px; }
 
     <div id="messages"></div>
 
+    <div id="typingIndicator"></div>
+
     <div id="input">
       <button id="callBtn" title="Позвонить">📞</button>
       <input id="text" placeholder="Сообщение...">
@@ -605,6 +620,7 @@ const chatStatus = document.getElementById('chatStatus');
 const headerFriendsBtn = document.getElementById('headerFriendsBtn');
 const emptyChat = document.getElementById('emptyChat');
 const messages = document.getElementById('messages');
+const typingIndicator = document.getElementById('typingIndicator');
 const text = document.getElementById('text');
 const sendBtn = document.getElementById('sendBtn');
 const friendsBtn = document.getElementById('friendsBtn');
@@ -647,6 +663,9 @@ let onlineUsers = [];
 let pendingIceCandidates = [];
 let currentLanguage = localStorage.getItem('messenger_language') || 'ru';
 let editingMessageId = null;
+let typingUsers = {};
+let typingSendTimer = null;
+let typingStopTimer = null;
 
 const i18n = {
   ru: {
@@ -665,7 +684,7 @@ const i18n = {
     messageNotFound:'Сообщение не найдено', edit:'Редактировать', save:'Сохранить', cancel:'Отмена', edited:'изменено', editOwnOnly:'Можно редактировать только свои сообщения',
     serverError:'Ошибка сервера', accountCreated:'Аккаунт создан, войдите', enterLoginPassword:'Введите логин и пароль', loginTaken:'Логин занят', badLogin:'Неверный логин или пароль',
     badAvatar:'Неверный формат аватара', bigAvatar:'Аватар слишком большой', userNotFound:'Пользователь не найден', alreadyFriends:'Вы уже друзья',
-    allowMic:'Разрешите доступ к микрофону для звонков', userOffline:'Пользователь не в сети'
+    allowMic:'Разрешите доступ к микрофону для звонков', userOffline:'Пользователь не в сети', delete:'Удалить', typing:'печатает'
   },
   uk: {
     loginBrandSubtitle:'Твій затишний месенджер для друзів', login:'Вхід', register:'Реєстрація', loginBtn:'Увійти', registerBtn:'Створити акаунт',
@@ -683,7 +702,7 @@ const i18n = {
     messageNotFound:'Повідомлення не знайдено', edit:'Редагувати', save:'Зберегти', cancel:'Скасування', edited:'змінено', editOwnOnly:'Можна редагувати лише свої повідомлення',
     serverError:'Помилка сервера', accountCreated:'Акаунт створено, увійди', enterLoginPassword:'Введи логін і пароль', loginTaken:'Логін зайнятий', badLogin:'Невірний логін або пароль',
     badAvatar:'Невірний формат аватара', bigAvatar:'Аватар занадто великий', userNotFound:'Користувача не знайдено', alreadyFriends:'Ви вже друзі',
-    allowMic:'Дозволь доступ до мікрофона для дзвінків', userOffline:'Користувач не в мережі'
+    allowMic:'Дозволь доступ до мікрофона для дзвінків', userOffline:'Користувач не в мережі', delete:'Видалити', typing:'друкує'
   },
   en: {
     loginBrandSubtitle:'Your cozy messenger for friends', login:'Login', register:'Register', loginBtn:'Sign in', registerBtn:'Create account',
@@ -701,7 +720,7 @@ const i18n = {
     messageNotFound:'Message not found', edit:'Edit', save:'Save', cancel:'Cancel', edited:'edited', editOwnOnly:'You can edit only your own messages',
     serverError:'Server error', accountCreated:'Account created, sign in', enterLoginPassword:'Enter login and password', loginTaken:'Login is already taken', badLogin:'Invalid login or password',
     badAvatar:'Invalid avatar format', bigAvatar:'Avatar is too large', userNotFound:'User not found', alreadyFriends:'You are already friends',
-    allowMic:'Allow microphone access for calls', userOffline:'User is offline'
+    allowMic:'Allow microphone access for calls', userOffline:'User is offline', delete:'Delete', typing:'is typing'
   }
 };
 
@@ -792,6 +811,21 @@ function createAvatar(user) {
 }
 function escapeHtml(s) { return String(s ?? '').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'", '&#39;'); }
 function formatMessageTime(ts) { if (!ts) return ''; const d = new Date(Number(ts)); if (Number.isNaN(d.getTime())) return ''; return d.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}); }
+
+function renderTypingIndicator() {
+  if (!currentDM || !typingUsers[currentDM]) { typingIndicator.innerHTML = ''; return; }
+  const name = escapeHtml(typingUsers[currentDM]);
+  typingIndicator.innerHTML = `<span>${name} ${escapeHtml(t('typing'))}<span class="typingDot">.</span><span class="typingDot">.</span><span class="typingDot">.</span></span>`;
+}
+function setTypingState(peer, nicknameOrLogin, isTyping) {
+  if (!peer) return;
+  if (isTyping) typingUsers[peer] = nicknameOrLogin || peer; else delete typingUsers[peer];
+  if (peer === currentDM) renderTypingIndicator();
+}
+function sendTyping(active) {
+  if (!ws || ws.readyState !== WebSocket.OPEN || !currentDM) return;
+  ws.send(JSON.stringify({ type:'typing', to:currentDM, active:!!active }));
+}
 
 function updateChatHeader(peerLogin = null, peerNick = null, avatar = null) {
   currentDMAvatar = avatar || currentDMAvatar;
@@ -924,6 +958,7 @@ function handle(d) {
   if (d.type === 'online_friends') { onlineUsers = Array.isArray(d.users) ? d.users : []; renderOnline(); return; }
   if (d.type === 'message') {
     const peer = d.from === login ? d.to : d.from;
+    setTypingState(peer, '', false);
     upsertMessage(peer, d);
     const isIncoming = d.from !== login;
     unread[peer] = peer !== currentDM ? (d.unread || unread[peer] || 0) : 0;
@@ -931,6 +966,18 @@ function handle(d) {
     if (isIncoming) soundMessage();
     if (peer === currentDM) rerenderCurrentChat();
     renderOnline();
+    return;
+  }
+  if (d.type === 'message_deleted') {
+    const peer = d.from === login ? d.to : d.from;
+    chats[peer] = (chats[peer] || []).filter(m => Number(m.id) !== Number(d.id));
+    saveLocalChatState();
+    if (peer === currentDM) rerenderCurrentChat();
+    return;
+  }
+  if (d.type === 'typing') {
+    const peer = d.from;
+    setTypingState(peer, d.fromNick || d.from, !!d.active);
     return;
   }
   if (d.type === 'message_edited') {
@@ -973,8 +1020,9 @@ function handle(d) {
 
 function openDM(l, n, avatar = null) {
   currentDM = l; currentDMNick = n; currentDMAvatar = avatar; editingMessageId = null; emptyChat.style.display = 'none'; messages.style.display = 'block'; unread[l] = 0; saveLocalChatState();
-  updateChatHeader(l, n, avatar); ws.send(JSON.stringify({ type:'read', from:l })); ws.send(JSON.stringify({ type:'get_messages', with:l })); rerenderCurrentChat(); renderOnline();
+  updateChatHeader(l, n, avatar); renderTypingIndicator(); ws.send(JSON.stringify({ type:'read', from:l })); ws.send(JSON.stringify({ type:'get_messages', with:l })); rerenderCurrentChat(); renderOnline();
 }
+
 
 function beginEditMessage(messageId) { editingMessageId = Number(messageId); rerenderCurrentChat(); }
 function cancelEditMessage() { editingMessageId = null; rerenderCurrentChat(); }
@@ -982,7 +1030,11 @@ function saveEditMessage(messageId) {
   const input = document.querySelector(`.editInput[data-message-id="${messageId}"]`); if (!input) return;
   const value = input.value.trim(); if (!value) return; ws.send(JSON.stringify({ type:'edit_message', id:Number(messageId), text:value })); editingMessageId = null;
 }
-window.beginEditMessage = beginEditMessage; window.cancelEditMessage = cancelEditMessage; window.saveEditMessage = saveEditMessage;
+function deleteMessage(messageId) {
+  ws.send(JSON.stringify({ type:'delete_message', id:Number(messageId) }));
+  if (editingMessageId === Number(messageId)) editingMessageId = null;
+}
+window.beginEditMessage = beginEditMessage; window.cancelEditMessage = cancelEditMessage; window.saveEditMessage = saveEditMessage; window.deleteMessage = deleteMessage;
 
 function renderMessage(message) {
   const m = document.createElement('div'); m.className = 'message'; m.dataset.id = message.id;
@@ -994,19 +1046,30 @@ function renderMessage(message) {
     inner += `<div class="editBox"><input class="editInput" data-message-id="${message.id}" value="${escapeHtml(message.text)}"><button class="messageActionBtn" onclick="saveEditMessage(${message.id})">${escapeHtml(t('save'))}</button><button class="messageActionBtn" onclick="cancelEditMessage()">${escapeHtml(t('cancel'))}</button></div>`;
   } else {
     inner += `<div class="messageText">${escapeHtml(message.text)}</div>`;
-    if (message.from === login) inner += `<div class="messageActions"><button class="messageActionBtn" onclick="beginEditMessage(${message.id})">${escapeHtml(t('edit'))}</button></div>`;
+    if (message.from === login) inner += `<div class="messageActions"><button class="messageActionBtn" onclick="beginEditMessage(${message.id})">${escapeHtml(t('edit'))}</button><button class="messageActionBtn" onclick="deleteMessage(${message.id})">${escapeHtml(t('delete'))}</button></div>`;
   }
   c.innerHTML = inner; m.appendChild(c); messages.appendChild(m); messages.scrollTop = messages.scrollHeight;
 }
 
 sendBtn.onclick = async () => {
-  await unlockAudio(); const message = text.value.trim(); if (!message || !currentDM) return; ws.send(JSON.stringify({ type:'message', from:login, to:currentDM, text:message })); text.value = '';
+  await unlockAudio(); const message = text.value.trim(); if (!message || !currentDM) return; ws.send(JSON.stringify({ type:'message', from:login, to:currentDM, text:message })); text.value = ''; sendTyping(false);
 };
 text.addEventListener('keydown', async e => {
   if (e.key === 'Enter') {
     const active = document.activeElement;
     if (active && active.classList.contains('editInput')) return;
-    e.preventDefault(); const message = text.value.trim(); if (!message || !currentDM) return; await unlockAudio(); ws.send(JSON.stringify({ type:'message', from:login, to:currentDM, text:message })); text.value = '';
+    e.preventDefault(); const message = text.value.trim(); if (!message || !currentDM) return; await unlockAudio(); ws.send(JSON.stringify({ type:'message', from:login, to:currentDM, text:message })); text.value = ''; sendTyping(false);
+  }
+});
+text.addEventListener('input', () => {
+  if (!currentDM) return;
+  const hasText = text.value.trim().length > 0;
+  clearTimeout(typingStopTimer);
+  if (hasText) {
+    if (!typingSendTimer) { sendTyping(true); typingSendTimer = setTimeout(() => { typingSendTimer = null; }, 1200); }
+    typingStopTimer = setTimeout(() => sendTyping(false), 1400);
+  } else {
+    sendTyping(false);
   }
 });
 messages.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.classList.contains('editInput')) { e.preventDefault(); saveEditMessage(e.target.dataset.messageId); } });
