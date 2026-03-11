@@ -211,13 +211,6 @@ async function getUnreadMap(login) {
   return unread;
 }
 
-async function getGroupUnreadMap(login) {
-  const result = await pool.query(`SELECT groupId, count FROM group_unread WHERE userLogin = $1`, [login]);
-  const unread = {};
-  for (const row of result.rows) unread[row.groupid] = row.count;
-  return unread;
-}
-
 async function getChatHistory(userA, userB) {
   const result = await pool.query(`
     SELECT id, fromUser, toUser, text, time, edited, editedAt
@@ -315,7 +308,7 @@ async function getGroupsForUser(login) {
 
 async function getGroupHistory(groupId, viewerLogin = null) {
   const result = await pool.query(`
-    SELECT id, groupId, fromUser, text, time, edited, editedAt, kind, fileName, fileMime, fileSize, fileData
+    SELECT id, groupId, fromUser, text, time, edited, editedAt
     FROM group_messages
     WHERE groupId = $1
     ORDER BY time ASC, id ASC
@@ -338,12 +331,7 @@ async function getGroupHistory(groupId, viewerLogin = null) {
       edited: Boolean(row.edited),
       editedAt: row.editedat ? Number(row.editedat) : null,
       fromNick: sender?.nickname || row.fromuser,
-      avatar: sender?.avatar || buildAvatar(row.fromuser, row.fromuser),
-      kind: row.kind || 'text',
-      fileName: row.filename || null,
-      fileMime: row.filemime || null,
-      fileSize: row.filesize ? Number(row.filesize) : null,
-      fileData: row.filedata || null
+      avatar: sender?.avatar || buildAvatar(row.fromuser, row.fromuser)
     });
   }
   return messages;
@@ -478,7 +466,6 @@ wss.on('connection', ws => {
           avatar: buildAvatar(user.login, user.nickname, user.avatarimage),
           friends: await getFriendUsers(user.login),
           unread: await getUnreadMap(user.login),
-          groupUnread: await getGroupUnreadMap(user.login),
           groups: await getGroupsForUser(user.login)
         });
 
@@ -617,57 +604,32 @@ wss.on('connection', ws => {
         return;
       }
 
-      if (data.type === 'group_message' || data.type === 'group_file') {
+      if (data.type === 'group_message') {
         const groupId = Number(data.groupId);
         if (!Number.isFinite(groupId) || !(await isGroupMember(groupId, userLogin))) return;
-        const isFile = data.type === 'group_file';
         const messageText = typeof data.text === 'string' ? data.text.trim() : '';
-        const fileName = isFile && typeof data.fileName === 'string' ? data.fileName.trim().slice(0, 255) : null;
-        const fileMime = isFile && typeof data.fileMime === 'string' ? data.fileMime.trim().slice(0, 120) : null;
-        const fileData = isFile && typeof data.fileData === 'string' ? data.fileData : null;
-        const fileSize = isFile ? Number(data.fileSize) || 0 : null;
-        if (!isFile && !messageText) return;
-        if (isFile) {
-          if (!fileName || !fileData || !fileData.startsWith('data:')) return;
-          if (fileData.length > 11_000_000 || fileSize > 8 * 1024 * 1024) { send(ws, { type:'error', message:'Файл слишком большой. Максимум 8 МБ' }); return; }
-        }
+        if (!messageText) return;
 
         const messageTime = Date.now();
         const insertResult = await pool.query(`
-          INSERT INTO group_messages (groupId, fromUser, text, time, edited, editedAt, kind, fileName, fileMime, fileSize, fileData)
-          VALUES ($1, $2, $3, $4, FALSE, NULL, $5, $6, $7, $8, $9)
+          INSERT INTO group_messages (groupId, fromUser, text, time, edited, editedAt)
+          VALUES ($1, $2, $3, $4, FALSE, NULL)
           RETURNING id
-        `, [groupId, userLogin, messageText || (fileName ? `Файл: ${fileName}` : ''), messageTime, isFile ? 'file' : 'text', fileName, fileMime, fileSize, fileData]);
-
-        await pool.query(`
-          INSERT INTO group_unread (groupId, userLogin, count)
-          SELECT $1, gm.userLogin, 1
-          FROM group_members gm
-          WHERE gm.groupId = $1 AND gm.userLogin <> $2
-          ON CONFLICT (groupId, userLogin)
-          DO UPDATE SET count = group_unread.count + 1
-        `, [groupId, userLogin]);
+        `, [groupId, userLogin, messageText, messageTime]);
 
         const msgData = {
           type: 'group_message',
           id: Number(insertResult.rows[0].id),
           groupId,
           from: userLogin,
-          text: messageText || (fileName ? `Файл: ${fileName}` : ''),
+          text: messageText,
           time: messageTime,
           edited: false,
           editedAt: null,
           fromNick: me.nickname,
-          avatar: buildAvatar(userLogin, me.nickname, me.avatarImage),
-          kind: isFile ? 'file' : 'text',
-          fileName,
-          fileMime,
-          fileSize,
-          fileData
+          avatar: buildAvatar(userLogin, me.nickname, me.avatarImage)
         };
         await sendGroupToMembers(groupId, msgData);
-        const membersResult = await pool.query(`SELECT userLogin FROM group_members WHERE groupId = $1`, [groupId]);
-        for (const row of membersResult.rows) sendToUser(row.userlogin, { type:'group_unread_update', groupUnread: await getGroupUnreadMap(row.userlogin) });
         return;
       }
 
@@ -715,14 +677,6 @@ wss.on('connection', ws => {
           groupId: Number(message.groupid),
           from: userLogin
         });
-        return;
-      }
-
-      if (data.type === 'read_group') {
-        const groupId = Number(data.groupId);
-        if (!Number.isFinite(groupId) || !(await isGroupMember(groupId, userLogin))) return;
-        await pool.query(`DELETE FROM group_unread WHERE groupId = $1 AND userLogin = $2`, [groupId, userLogin]);
-        send(ws, { type: 'group_unread_update', groupUnread: await getGroupUnreadMap(userLogin) });
         return;
       }
 
@@ -777,7 +731,6 @@ wss.on('connection', ws => {
         if (!group || group.ownerlogin !== userLogin || targetLogin === userLogin) return;
 
         await pool.query(`DELETE FROM group_members WHERE groupId = $1 AND userLogin = $2`, [groupId, targetLogin]);
-        await pool.query(`DELETE FROM group_unread WHERE groupId = $1 AND userLogin = $2`, [groupId, targetLogin]);
 
         const updated = await getGroupPublic(groupId, userLogin);
         if (updated) {
@@ -799,7 +752,6 @@ wss.on('connection', ws => {
 
         if (group.ownerlogin === userLogin) {
           await pool.query(`DELETE FROM group_messages WHERE groupId = $1`, [groupId]);
-          await pool.query(`DELETE FROM group_unread WHERE groupId = $1`, [groupId]);
           await pool.query(`DELETE FROM group_members WHERE groupId = $1`, [groupId]);
           await pool.query(`DELETE FROM chat_groups WHERE id = $1`, [groupId]);
           sendToUser(userLogin, { type: 'group_left', groupId });
@@ -808,7 +760,6 @@ wss.on('connection', ws => {
         }
 
         await pool.query(`DELETE FROM group_members WHERE groupId = $1 AND userLogin = $2`, [groupId, userLogin]);
-        await pool.query(`DELETE FROM group_unread WHERE groupId = $1 AND userLogin = $2`, [groupId, userLogin]);
         await sendGroupToMembers(groupId, { type: 'group_updated', group: await getGroupPublic(groupId, userLogin) });
         sendToUser(userLogin, { type: 'group_left', groupId });
         await sendGroupList(userLogin);

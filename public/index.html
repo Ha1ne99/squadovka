@@ -359,14 +359,8 @@ button:hover { transform: translateY(-1px); }
 .friendMain { display:flex; align-items:center; gap:10px; min-width:0; }
 .friendMeta { min-width:0; }
 #groupsSidebar { display:flex; flex-direction:column; gap:6px; overflow:auto; }
-.groupEntryActions { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
-.groupEntryActions button { background:#1b2130; color:#fff; border:1px solid var(--line); border-radius:12px; padding:10px 14px; min-height:42px; cursor:pointer; font-weight:700; }
-.groupUnreadBadge { margin-left:auto; background:#ff5d64; color:#fff; font-size:12px; font-weight:800; border-radius:999px; padding:3px 8px; min-width:24px; text-align:center; }
-.fileBtn { background:#171b23 !important; border:1px solid var(--line) !important; }
-.messageFile { display:block; margin-top:4px; padding:10px 12px; background:#111722; border:1px solid rgba(255,255,255,.07); border-radius:12px; color:#dfe7ff; text-decoration:none; }
-.messageFileName { font-weight:700; display:block; }
-.messageFileMeta { color:var(--muted); font-size:12px; margin-top:3px; display:block; }
-.messageEdited { color:var(--muted); font-size:11px; }
+.groupEntryActions { display:flex; flex-wrap:wrap; gap:6px; }
+.groupEntryActions button { background:#1b2130; color:#fff; border:1px solid var(--line); border-radius:10px; padding:7px 9px; cursor:pointer; }
 .groupBadge { color:var(--muted); font-size:12px; }
 .friendMeta b, .friendMeta span { display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .friendMeta span { font-size:12px; color:var(--muted); }
@@ -602,8 +596,6 @@ input[type="range"]{ width:190px; }
 
     <div id="input">
       <button id="callBtn" title="Позвонить">📞</button>
-      <button id="attachBtn" class="fileBtn" title="Файл">📎</button>
-      <input type="file" id="fileInput" hidden>
       <input id="text" placeholder="Сообщение...">
       <button id="sendBtn" title="Отправить">▶</button>
     </div>
@@ -756,8 +748,6 @@ const messages = document.getElementById('messages');
 const typingIndicator = document.getElementById('typingIndicator');
 const text = document.getElementById('text');
 const sendBtn = document.getElementById('sendBtn');
-const attachBtn = document.getElementById('attachBtn');
-const fileInput = document.getElementById('fileInput');
 const friendsBtn = document.getElementById('friendsBtn');
 const friendsPanel = document.getElementById('friendsPanel');
 const friendNick = document.getElementById('friendNick');
@@ -1014,19 +1004,16 @@ document.querySelectorAll('.langBtn').forEach(btn => btn.onclick = () => setLang
 
 function getChatsStorageKey(userLogin) { return `messenger_chats_${userLogin}`; }
 function getUnreadStorageKey(userLogin) { return `messenger_unread_${userLogin}`; }
-function getGroupUnreadStorageKey(userLogin) { return `messenger_group_unread_${userLogin}`; }
 function saveLocalChatState() {
   if (!login) return;
   localStorage.setItem(getChatsStorageKey(login), JSON.stringify(chats));
   localStorage.setItem(getUnreadStorageKey(login), JSON.stringify(unread));
-  localStorage.setItem(getGroupUnreadStorageKey(login), JSON.stringify(groupUnread));
 }
 function loadLocalChatState(userLogin) {
   try {
     chats = JSON.parse(localStorage.getItem(getChatsStorageKey(userLogin)) || '{}');
     unread = JSON.parse(localStorage.getItem(getUnreadStorageKey(userLogin)) || '{}');
-    groupUnread = JSON.parse(localStorage.getItem(getGroupUnreadStorageKey(userLogin)) || '{}');
-  } catch { chats = {}; unread = {}; groupUnread = {}; }
+  } catch { chats = {}; unread = {}; }
 }
 
 let sctx = null, ringtoneTimer = null, ringtoneActive = false;
@@ -1223,7 +1210,7 @@ function handle(d) {
   if (d.type === 'error') { alert(d.message || t('serverError')); return; }
   if (d.type === 'register_ok') { alert(t('accountCreated')); switchMode.onclick(); return; }
   if (d.type === 'login_ok') {
-    login = d.login; nickname = d.nickname; myStatus = normalizeClientStatus(d.status || 'online'); localStorage.setItem('login', login); localStorage.setItem('password', passwordInput.value); loadLocalChatState(login); friends = Array.isArray(d.friends) ? d.friends : friends; groups = Array.isArray(d.groups) ? d.groups : groups; unread = d.unread || unread || {}; groupUnread = d.groupUnread || groupUnread || {}; saveLocalChatState();
+    login = d.login; nickname = d.nickname; myStatus = normalizeClientStatus(d.status || 'online'); localStorage.setItem('login', login); localStorage.setItem('password', passwordInput.value); loadLocalChatState(login); friends = Array.isArray(d.friends) ? d.friends : friends; groups = Array.isArray(d.groups) ? d.groups : groups; unread = d.unread || unread || {};
     loginDiv.style.display = 'none'; appDiv.style.display = 'flex'; profileNick.textContent = nickname; profileLogin.textContent = login;
     myAvatar = d.avatar || { letter:(nickname || login || '?')[0]?.toUpperCase() || '?', color:'#5865f2' }; const avatarEl = createAvatar(myAvatar, myStatus, true); const old = document.getElementById('profileAvatar'); old.replaceWith(avatarEl); avatarEl.id = 'profileAvatar';
     profileModalLoginPreview.textContent = login;
@@ -1335,11 +1322,10 @@ function handle(d) {
   }
 
   if (d.type === 'groups_list') { groups = Array.isArray(d.groups) ? d.groups : []; renderGroups(); if (currentChatType === 'group' && currentGroupId && !findGroupData(currentGroupId)) { currentGroupId = null; currentChatType = 'dm'; emptyChat.style.display = 'flex'; messages.style.display = 'none'; updateChatHeader(); } return; }
-  if (d.type === 'group_unread_update') { groupUnread = d.groupUnread || groupUnread || {}; saveLocalChatState(); renderGroups(); return; }
   if (d.type === 'group_created') { if (d.group && !groups.some(g => Number(g.id) === Number(d.group.id))) groups.unshift(d.group); renderGroups(); return; }
   if (d.type === 'group_updated') { if (d.group) { groups = (groups || []).filter(g => Number(g.id) !== Number(d.group.id)); groups.unshift(d.group); renderGroups(); if (currentChatType === 'group' && Number(currentGroupId) === Number(d.group.id)) { updateChatHeader(); rerenderCurrentChat(); } } return; }
   if (d.type === 'group_left') { groups = (groups || []).filter(g => Number(g.id) !== Number(d.groupId)); delete chats[getGroupChatKey(d.groupId)]; saveLocalChatState(); if (currentChatType === 'group' && Number(currentGroupId) === Number(d.groupId)) { currentGroupId = null; currentChatType = 'dm'; emptyChat.style.display = 'flex'; messages.style.display = 'none'; updateChatHeader(); } renderGroups(); return; }
-  if (d.type === 'group_message') { upsertGroupMessage(d.groupId, d); if (!(currentChatType === 'group' && Number(currentGroupId) === Number(d.groupId)) && d.from !== login) { groupUnread[d.groupId] = (groupUnread[d.groupId] || 0) + 1; } saveLocalChatState(); renderGroups(); if (currentChatType === 'group' && Number(currentGroupId) === Number(d.groupId)) rerenderCurrentChat(); return; }
+  if (d.type === 'group_message') { upsertGroupMessage(d.groupId, d); saveLocalChatState(); if (currentChatType === 'group' && Number(currentGroupId) === Number(d.groupId)) rerenderCurrentChat(); return; }
   if (d.type === 'group_message_edited') { updateGroupMessageLocally(d.groupId, d.id, { text:d.text, edited:d.edited, editedAt:d.editedAt }); saveLocalChatState(); if (currentChatType === 'group' && Number(currentGroupId) === Number(d.groupId)) rerenderCurrentChat(); return; }
   if (d.type === 'group_message_deleted') { removeGroupMessageLocally(d.groupId, d.id); saveLocalChatState(); if (currentChatType === 'group' && Number(currentGroupId) === Number(d.groupId)) rerenderCurrentChat(); return; }
   if (d.type === 'group_history') { chats[getGroupChatKey(d.groupId)] = Array.isArray(d.messages) ? d.messages : []; saveLocalChatState(); if (currentChatType === 'group' && Number(currentGroupId) === Number(d.groupId)) rerenderCurrentChat(); return; }
@@ -1392,48 +1378,23 @@ function deleteMessage(messageId) {
 }
 window.beginEditMessage = beginEditMessage; window.cancelEditMessage = cancelEditMessage; window.saveEditMessage = saveEditMessage; window.deleteMessage = deleteMessage;
 
-function formatBytes(bytes) { const n = Number(bytes) || 0; if (n < 1024) return `${n} Б`; if (n < 1024*1024) return `${(n/1024).toFixed(1)} КБ`; return `${(n/1024/1024).toFixed(1)} МБ`; }
 function renderMessage(message) {
   const m = document.createElement('div'); m.className = 'message'; m.dataset.id = message.id;
   m.appendChild(createAvatar(message.avatar || { letter:String(message.from || '?').charAt(0).toUpperCase(), color:'#5865f2' }, 'offline', false));
   const c = document.createElement('div'); c.className = 'messageContent';
   const editedLabel = message.edited ? `<span class="messageEdited">(${escapeHtml(t('edited'))})</span>` : '';
   let inner = `<div class="messageHeader"><b>${escapeHtml(message.fromNick || message.from)}</b><span class="messageTime">${escapeHtml(formatMessageTime(message.time))}</span>${editedLabel}</div>`;
-  const isFile = message.kind === 'file' && message.fileData;
-  if (editingMessageId === Number(message.id) && message.from === login && !isFile) {
+  if (editingMessageId === Number(message.id) && message.from === login) {
     inner += `<div class="editBox"><input class="editInput" data-message-id="${message.id}" value="${escapeHtml(message.text)}"><button class="messageActionBtn" onclick="saveEditMessage(${message.id})">${escapeHtml(t('save'))}</button><button class="messageActionBtn" onclick="cancelEditMessage()">${escapeHtml(t('cancel'))}</button></div>`;
   } else {
-    if (isFile) {
-      inner += `<div class="messageText">${escapeHtml(message.text || 'Файл')}</div>`;
-      inner += `<a class="messageFile" href="${message.fileData}" download="${escapeHtml(message.fileName || 'file')}"><span class="messageFileName">📎 ${escapeHtml(message.fileName || 'file')}</span><span class="messageFileMeta">${escapeHtml(message.fileMime || 'file')} • ${escapeHtml(formatBytes(message.fileSize || 0))}</span></a>`;
-    } else {
-      inner += `<div class="messageText">${escapeHtml(message.text)}</div>`;
-    }
-    if (message.from === login) {
-      inner += `<div class="messageActions">${!isFile ? `<button class="messageActionBtn" onclick="beginEditMessage(${message.id})">${escapeHtml(t('edit'))}</button>` : ''}<button class="messageActionBtn" onclick="deleteMessage(${message.id})">${escapeHtml(t('delete'))}</button></div>`;
-    }
+    inner += `<div class="messageText">${escapeHtml(message.text)}</div>`;
+    if (message.from === login) inner += `<div class="messageActions"><button class="messageActionBtn" onclick="beginEditMessage(${message.id})">${escapeHtml(t('edit'))}</button><button class="messageActionBtn" onclick="deleteMessage(${message.id})">${escapeHtml(t('delete'))}</button></div>`;
   }
   c.innerHTML = inner; m.appendChild(c); messages.appendChild(m); messages.scrollTop = messages.scrollHeight;
 }
 
 sendBtn.onclick = async () => {
   await unlockAudio(); const message = text.value.trim(); if (!message) return; if (currentChatType === 'group' && currentGroupId) { ws.send(JSON.stringify({ type:'group_message', groupId:currentGroupId, text:message })); text.value = ''; return; } if (!currentDM) return; ws.send(JSON.stringify({ type:'message', from:login, to:currentDM, text:message })); text.value = ''; sendTyping(false);
-};
-attachBtn.onclick = () => {
-  if (currentChatType !== 'group' || !currentGroupId) return alert('Файлы пока доступны только в группах');
-  fileInput.click();
-};
-fileInput.onchange = () => {
-  const file = fileInput.files?.[0];
-  if (!file || !ws || currentChatType !== 'group' || !currentGroupId) return;
-  if (file.size > 8 * 1024 * 1024) { alert('Файл слишком большой. Максимум 8 МБ'); fileInput.value = ''; return; }
-  const reader = new FileReader();
-  reader.onload = () => {
-    ws.send(JSON.stringify({ type:'group_file', groupId:currentGroupId, fileName:file.name, fileMime:file.type || 'application/octet-stream', fileSize:file.size, fileData:reader.result, text:text.value.trim() || `Файл: ${file.name}` }));
-    fileInput.value = '';
-    text.value = '';
-  };
-  reader.readAsDataURL(file);
 };
 text.addEventListener('keydown', async e => {
   if (e.key === 'Enter') {
@@ -1596,7 +1557,6 @@ function renderGroups() {
       info.className = 'userInfo';
       info.innerHTML = `<div class="userName">${escapeHtml(group.name || ('Group ' + group.id))}</div><div class="userSub">${escapeHtml(String((group.members || []).length))} участ.</div>`;
       div.appendChild(info);
-      if (groupUnread[group.id]) { const badge = document.createElement('div'); badge.className = 'unread'; badge.textContent = groupUnread[group.id] > 99 ? '99+' : String(groupUnread[group.id]); div.appendChild(badge); }
       div.onclick = () => openGroup(group.id);
       groupsSidebar.appendChild(div);
     }
@@ -1620,7 +1580,6 @@ function renderGroups() {
       openBtn.textContent = 'Открыть';
       openBtn.onclick = () => openGroup(group.id);
       actions.appendChild(openBtn);
-      if (groupUnread[group.id]) { const badge = document.createElement('div'); badge.className = 'groupUnreadBadge'; badge.textContent = groupUnread[group.id] > 99 ? '99+' : String(groupUnread[group.id]); actions.appendChild(badge); }
 
       const groupData = findGroupData(group.id) || group;
       const isOwner = groupData.ownerLogin === login;
