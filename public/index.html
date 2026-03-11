@@ -393,6 +393,57 @@ input[type="range"]{ width:190px; }
 .profileMeta { min-width:0; flex:1; }
 .profileMeta b, .profileMeta span { display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .profileMeta span { font-size:12px; color:var(--muted); }
+
+.avatarWrap { position:relative; width:48px; height:48px; flex:0 0 48px; }
+.avatarWrap .avatar { width:100%; height:100%; }
+.presenceDot {
+  position:absolute; right:-1px; bottom:-1px; width:14px; height:14px; border-radius:50%;
+  border:3px solid var(--panel); background:#43b581;
+}
+.presence-online { background:#43b581; }
+.presence-idle { background:#f0b232; }
+.presence-dnd { background:#f23f43; }
+.presence-invisible, .presence-offline { background:#747f8d; }
+.profileCard { gap:10px; cursor:pointer; }
+.profileTools { display:flex; align-items:center; gap:8px; }
+.profileStatusPill {
+  padding:6px 10px; border-radius:999px; border:1px solid var(--line); background:#141925;
+  font-size:12px; color:var(--muted); white-space:nowrap;
+}
+.profileSettingsBtn {
+  width:38px; height:38px; border-radius:12px; border:1px solid var(--line); background:#141925; color:#fff; cursor:pointer; font-size:18px;
+}
+.profileSettingsBtn:hover { background:#1b2130; }
+#profileModalOverlay {
+  position:fixed; inset:0; background:rgba(0,0,0,.55); display:none; align-items:center; justify-content:center; z-index:70;
+}
+#profileModal {
+  width:min(92vw, 520px); background:linear-gradient(180deg,#23283a,#171b27); border:1px solid var(--line);
+  border-radius:22px; box-shadow:0 24px 80px rgba(0,0,0,.45); overflow:hidden;
+}
+.profileBanner { height:110px; background:linear-gradient(135deg,#8792c7,#9ba2bf); }
+.profileModalBody { padding:0 18px 18px; }
+.profileHero { display:flex; align-items:flex-end; justify-content:space-between; margin-top:-42px; gap:12px; }
+.profileHeroLeft { display:flex; align-items:flex-end; gap:14px; }
+.profileHeroMeta b { display:block; font-size:24px; }
+.profileHeroMeta span { color:var(--muted); font-size:14px; }
+#profileModalAvatar.avatarWrap { width:86px; height:86px; flex:0 0 86px; }
+#profileModalAvatar .presenceDot { width:18px; height:18px; border-width:4px; }
+.profileStatusBar { margin-top:14px; display:flex; gap:8px; flex-wrap:wrap; }
+.statusChoice {
+  flex:1 1 calc(50% - 8px); min-width:140px; display:flex; align-items:center; gap:10px; padding:12px 14px;
+  border-radius:14px; border:1px solid var(--line); background:#141925; color:#fff; cursor:pointer;
+}
+.statusChoice.active { border-color:#6b7cff; box-shadow:0 0 0 1px rgba(107,124,255,.35) inset; background:#1a2134; }
+.statusDot { width:12px; height:12px; border-radius:50%; }
+.profileSection { margin-top:16px; background:#141925; border:1px solid var(--line); border-radius:16px; padding:14px; }
+.profileSection h4 { margin:0 0 12px; font-size:14px; color:#cfd6e6; }
+.profileFieldLabel { display:block; font-size:12px; color:var(--muted); margin-bottom:6px; }
+.profileInput { width:100%; padding:12px 14px; border-radius:12px; background:#0f1420; border:1px solid var(--line); color:#fff; }
+.profileActions { display:flex; justify-content:flex-end; gap:10px; margin-top:16px; }
+.profileActionBtn { padding:11px 16px; border-radius:12px; border:1px solid var(--line); background:#1a2030; color:#fff; cursor:pointer; }
+.profileActionBtn.primary { background:linear-gradient(135deg,var(--accent),var(--accent2)); border:none; }
+.friendMeta .statusText { text-transform:none; }
 #avatarUploadInput { display:none; }
 #avatarUploadBtn { padding:9px 10px; min-width:auto; height:auto; font-size:13px; }
 
@@ -478,13 +529,16 @@ input[type="range"]{ width:190px; }
     <div id="online"></div>
 
     <!-- PROFILE -->
-    <div class="profileCard">
-      <div id="profileAvatar" class="avatar" style="background:#5865f2">?</div>
+    <div class="profileCard" id="profileCard">
+      <div id="profileAvatar" class="avatarWrap"><div class="avatar" style="background:#5865f2">?</div><div class="presenceDot presence-online"></div></div>
       <div class="profileMeta">
         <b id="profileNick"></b>
         <span>Логин: <span id="profileLogin"></span></span>
       </div>
-      <button id="avatarUploadBtn" class="ghostBtn">Аватар</button>
+      <div class="profileTools">
+        <div id="profileStatusPill" class="profileStatusPill">В сети</div>
+        <button id="profileSettingsBtn" class="profileSettingsBtn" title="Профиль">⚙</button>
+      </div>
       <input type="file" id="avatarUploadInput" accept="image/*">
     </div>
   </div>
@@ -560,6 +614,44 @@ input[type="range"]{ width:190px; }
   </div>
 </div>
 
+
+<!-- PROFILE MODAL -->
+<div id="profileModalOverlay">
+  <div id="profileModal">
+    <div class="profileBanner"></div>
+    <div class="profileModalBody">
+      <div class="profileHero">
+        <div class="profileHeroLeft">
+          <div id="profileModalAvatar" class="avatarWrap"><div class="avatar" style="background:#5865f2">?</div><div class="presenceDot presence-online"></div></div>
+          <div class="profileHeroMeta">
+            <b id="profileModalNickPreview">User</b>
+            <span>@<span id="profileModalLoginPreview">login</span></span>
+          </div>
+        </div>
+        <button id="profileAvatarBtn" class="profileActionBtn">Аватар</button>
+      </div>
+
+      <div class="profileStatusBar" id="profileStatusBar">
+        <button class="statusChoice active" data-status="online"><span class="statusDot presence-online"></span><span id="statusOnlineLabel">В сети</span></button>
+        <button class="statusChoice" data-status="idle"><span class="statusDot presence-idle"></span><span id="statusIdleLabel">Не активен</span></button>
+        <button class="statusChoice" data-status="dnd"><span class="statusDot presence-dnd"></span><span id="statusDndLabel">Не беспокоить</span></button>
+        <button class="statusChoice" data-status="invisible"><span class="statusDot presence-invisible"></span><span id="statusInvisibleLabel">Невидимка</span></button>
+      </div>
+
+      <div class="profileSection">
+        <h4 id="profileSettingsTitle">Настройка профиля</h4>
+        <label class="profileFieldLabel" id="profileNameLabel" for="profileNicknameInput">Отображаемое имя</label>
+        <input id="profileNicknameInput" class="profileInput" maxlength="32" placeholder="Введите имя">
+      </div>
+
+      <div class="profileActions">
+        <button id="profileCancelBtn" class="profileActionBtn">Отмена</button>
+        <button id="profileSaveBtn" class="profileActionBtn primary">Сохранить</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- CALL OVERLAY -->
 <div id="callOverlay" style="display:none;">
   <div id="callModal">
@@ -614,6 +706,19 @@ const switchMode = document.getElementById('switchMode');
 const online = document.getElementById('online');
 const profileNick = document.getElementById('profileNick');
 const profileLogin = document.getElementById('profileLogin');
+const profileCard = document.getElementById('profileCard');
+const profileStatusPill = document.getElementById('profileStatusPill');
+const profileSettingsBtn = document.getElementById('profileSettingsBtn');
+const profileModalOverlay = document.getElementById('profileModalOverlay');
+const profileModalNickPreview = document.getElementById('profileModalNickPreview');
+const profileModalLoginPreview = document.getElementById('profileModalLoginPreview');
+const profileModalAvatar = document.getElementById('profileModalAvatar');
+const profileAvatarBtn = document.getElementById('profileAvatarBtn');
+const profileSettingsTitle = document.getElementById('profileSettingsTitle');
+const profileNameLabel = document.getElementById('profileNameLabel');
+const profileNicknameInput = document.getElementById('profileNicknameInput');
+const profileCancelBtn = document.getElementById('profileCancelBtn');
+const profileSaveBtn = document.getElementById('profileSaveBtn');
 const chatAvatar = document.getElementById('chatAvatar');
 const chatTitle = document.getElementById('chatTitle');
 const chatStatus = document.getElementById('chatStatus');
@@ -629,7 +734,6 @@ const friendNick = document.getElementById('friendNick');
 const addFriendBtn = document.getElementById('addFriendBtn');
 const requestsDiv = document.getElementById('requests');
 const friendsDiv = document.getElementById('friends');
-const avatarUploadBtn = document.getElementById('avatarUploadBtn');
 const avatarUploadInput = document.getElementById('avatarUploadInput');
 const callBtn = document.getElementById('callBtn');
 const callOverlay = document.getElementById('callOverlay');
@@ -654,6 +758,9 @@ const callFlagHang = document.getElementById('callFlagHang');
 let ws;
 let isRegister = false;
 let login, nickname;
+let myStatus = 'online';
+let selectedProfileStatus = 'online';
+let myAvatar = null;
 let currentDM = null;
 let currentDMNick = null;
 let currentDMAvatar = null;
@@ -684,7 +791,7 @@ const i18n = {
     messageNotFound:'Сообщение не найдено', edit:'Редактировать', save:'Сохранить', cancel:'Отмена', edited:'изменено', editOwnOnly:'Можно редактировать только свои сообщения',
     serverError:'Ошибка сервера', accountCreated:'Аккаунт создан, войдите', enterLoginPassword:'Введите логин и пароль', loginTaken:'Логин занят', badLogin:'Неверный логин или пароль',
     badAvatar:'Неверный формат аватара', bigAvatar:'Аватар слишком большой', userNotFound:'Пользователь не найден', alreadyFriends:'Вы уже друзья',
-    allowMic:'Разрешите доступ к микрофону для звонков', userOffline:'Пользователь не в сети', delete:'Удалить', typing:'печатает'
+    allowMic:'Разрешите доступ к микрофону для звонков', userOffline:'Пользователь не в сети', delete:'Удалить', typing:'печатает', profileSettings:'Настройка профиля', displayName:'Отображаемое имя', enterDisplayName:'Введите имя', status_online:'В сети', status_idle:'Не активен', status_dnd:'Не беспокоить', status_invisible:'Невидимка', status_offline:'Не в сети'
   },
   uk: {
     loginBrandSubtitle:'Твій затишний месенджер для друзів', login:'Вхід', register:'Реєстрація', loginBtn:'Увійти', registerBtn:'Створити акаунт',
@@ -702,7 +809,7 @@ const i18n = {
     messageNotFound:'Повідомлення не знайдено', edit:'Редагувати', save:'Зберегти', cancel:'Скасування', edited:'змінено', editOwnOnly:'Можна редагувати лише свої повідомлення',
     serverError:'Помилка сервера', accountCreated:'Акаунт створено, увійди', enterLoginPassword:'Введи логін і пароль', loginTaken:'Логін зайнятий', badLogin:'Невірний логін або пароль',
     badAvatar:'Невірний формат аватара', bigAvatar:'Аватар занадто великий', userNotFound:'Користувача не знайдено', alreadyFriends:'Ви вже друзі',
-    allowMic:'Дозволь доступ до мікрофона для дзвінків', userOffline:'Користувач не в мережі', delete:'Видалити', typing:'друкує'
+    allowMic:'Дозволь доступ до мікрофона для дзвінків', userOffline:'Користувач не в мережі', delete:'Видалити', typing:'друкує', profileSettings:'Налаштування профілю', displayName:'Відображуване ім’я', enterDisplayName:'Введи ім’я', status_online:'В мережі', status_idle:'Не активний', status_dnd:'Не турбувати', status_invisible:'Невидимка', status_offline:'Не в мережі'
   },
   en: {
     loginBrandSubtitle:'Your cozy messenger for friends', login:'Login', register:'Register', loginBtn:'Sign in', registerBtn:'Create account',
@@ -720,11 +827,56 @@ const i18n = {
     messageNotFound:'Message not found', edit:'Edit', save:'Save', cancel:'Cancel', edited:'edited', editOwnOnly:'You can edit only your own messages',
     serverError:'Server error', accountCreated:'Account created, sign in', enterLoginPassword:'Enter login and password', loginTaken:'Login is already taken', badLogin:'Invalid login or password',
     badAvatar:'Invalid avatar format', bigAvatar:'Avatar is too large', userNotFound:'User not found', alreadyFriends:'You are already friends',
-    allowMic:'Allow microphone access for calls', userOffline:'User is offline', delete:'Delete', typing:'is typing'
+    allowMic:'Allow microphone access for calls', userOffline:'User is offline', delete:'Delete', typing:'is typing', profileSettings:'Profile settings', displayName:'Display name', enterDisplayName:'Enter display name', status_online:'Online', status_idle:'Idle', status_dnd:'Do not disturb', status_invisible:'Invisible', status_offline:'Offline'
   }
 };
 
 function t(key) { return i18n[currentLanguage]?.[key] || i18n.ru[key] || key; }
+function statusText(status, isSelf = false) {
+  const s = status || 'offline';
+  if (s === 'offline' && isSelf && myStatus === 'invisible') return t('status_invisible');
+  return t('status_' + s) || s;
+}
+function normalizeClientStatus(status) {
+  return ['online','idle','dnd','invisible','offline'].includes(status) ? status : 'online';
+}
+function findFriendData(userLogin) {
+  return (friends || []).find(f => (typeof f === 'string' ? f : f.login) === userLogin) || (onlineUsers || []).find(f => f.login === userLogin) || null;
+}
+function updateStatusChoices() {
+  document.querySelectorAll('.statusChoice').forEach(btn => btn.classList.toggle('active', btn.dataset.status === selectedProfileStatus));
+}
+function syncProfileMiniCard() {
+  profileStatusPill.textContent = statusText(myStatus, true);
+}
+function openProfileModal() {
+  selectedProfileStatus = myStatus || 'online';
+  profileModalNickPreview.textContent = nickname || login || 'User';
+  profileModalLoginPreview.textContent = login || '';
+  profileNicknameInput.value = nickname || '';
+  profileNicknameInput.placeholder = t('enterDisplayName');
+  const currentAvatarNode = document.getElementById('profileAvatar');
+  const modalAvatarNode = currentAvatarNode ? currentAvatarNode.cloneNode(true) : createAvatar(myAvatar || { letter:(nickname||login||'?')[0]?.toUpperCase() || '?', color:'#5865f2' }, myStatus, true);
+  if (profileModalAvatar) profileModalAvatar.replaceWith(modalAvatarNode);
+  modalAvatarNode.id = 'profileModalAvatar';
+  updateStatusChoices();
+  profileModalOverlay.style.display = 'flex';
+}
+function closeProfileModal() { profileModalOverlay.style.display = 'none'; }
+function applyProfileUpdateLocal(user) {
+  if (!user || !user.login) return;
+  friends = friends.map(f => {
+    const old = typeof f === 'string' ? { login:f, nickname:f, avatar:{ letter:f[0].toUpperCase(), color:'#5865f2' }, status:'offline' } : f;
+    return old.login === user.login ? { ...old, ...user } : old;
+  });
+  onlineUsers = onlineUsers.map(u => u.login === user.login ? { ...u, ...user } : u);
+  if (currentDM === user.login) {
+    currentDMNick = user.nickname || currentDMNick;
+    currentDMAvatar = user.avatar || currentDMAvatar;
+    updateChatHeader(currentDM, currentDMNick, currentDMAvatar);
+  }
+  renderFriends(); renderOnline();
+}
 function setLanguage(lang) {
   currentLanguage = i18n[lang] ? lang : 'ru';
   localStorage.setItem('messenger_language', currentLanguage);
@@ -746,7 +898,6 @@ function applyLanguage() {
   document.getElementById('friendsBtnLabel').textContent = '👥 ' + t('friends');
   document.getElementById('headerFriendsBtnLabel').textContent = t('friends');
   document.getElementById('onlineSectionLabel').textContent = t('onlineFriends');
-  avatarUploadBtn.textContent = t('avatar');
   document.getElementById('emptyTitle').textContent = t('welcome');
   document.getElementById('emptyTextLabel').textContent = t('welcomeText');
   text.placeholder = t('messagePlaceholder');
@@ -756,6 +907,22 @@ function applyLanguage() {
   addFriendBtn.textContent = t('sendRequest');
   document.getElementById('requestsTitle').textContent = t('requests');
   document.getElementById('friendsTitle').textContent = t('friendsTitle');
+  document.getElementById('callNatHint').textContent = t('natHint');
+  profileSettingsTitle.textContent = t('profileSettings');
+  profileNameLabel.textContent = t('displayName');
+  profileNicknameInput.placeholder = t('enterDisplayName');
+  profileCancelBtn.textContent = t('cancel');
+  profileSaveBtn.textContent = t('save');
+  profileAvatarBtn.textContent = t('avatar');
+  document.getElementById('statusOnlineLabel').textContent = t('status_online');
+  document.getElementById('statusIdleLabel').textContent = t('status_idle');
+  document.getElementById('statusDndLabel').textContent = t('status_dnd');
+  document.getElementById('statusInvisibleLabel').textContent = t('status_invisible');
+  syncProfileMiniCard();
+  if (currentDM) {
+    const peer = findFriendData(currentDM) || onlineUsers.find(u => u.login === currentDM);
+    chatStatus.textContent = statusText(peer?.status || 'offline');
+  }
   document.getElementById('callNatHint').textContent = t('natHint');
   btnAccept.textContent = t('accept');
   if (callState === 'ringing') btnDecline.textContent = t('decline');
@@ -803,11 +970,18 @@ function startRingtone() { ringtoneActive = true; stopRingtone(); ringtoneTimer 
 function stopRingtone() { ringtoneActive = false; if (ringtoneTimer) clearInterval(ringtoneTimer); ringtoneTimer = null; }
 document.addEventListener('pointerdown', unlockAudio, { passive: true });
 
-function createAvatar(user) {
+function createAvatar(user, status = 'online', showPresence = true) {
+  const wrap = document.createElement('div'); wrap.className = 'avatarWrap';
   const a = document.createElement('div'); a.className = 'avatar';
   if (user?.image) { a.textContent = ''; a.style.backgroundImage = `url(${user.image})`; a.style.backgroundColor = '#2a2f3a'; }
   else { a.textContent = user?.letter || '?'; a.style.background = user?.color || '#5865f2'; }
-  return a;
+  wrap.appendChild(a);
+  if (showPresence) {
+    const dot = document.createElement('div');
+    dot.className = `presenceDot presence-${normalizeClientStatus(status)}`;
+    wrap.appendChild(dot);
+  }
+  return wrap;
 }
 function escapeHtml(s) { return String(s ?? '').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'", '&#39;'); }
 function formatMessageTime(ts) { if (!ts) return ''; const d = new Date(Number(ts)); if (Number.isNaN(d.getTime())) return ''; return d.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}); }
@@ -832,7 +1006,9 @@ function updateChatHeader(peerLogin = null, peerNick = null, avatar = null) {
   if (!peerLogin) {
     chatTitle.textContent = 'Squadovka'; chatStatus.textContent = t('chooseFriend'); chatAvatar.textContent = 'S'; chatAvatar.style.backgroundImage = ''; chatAvatar.style.background = '#5865f2'; return;
   }
-  chatTitle.textContent = peerNick || peerLogin; chatStatus.textContent = t('personalDialog');
+  const peer = findFriendData(peerLogin) || {};
+  chatTitle.textContent = peerNick || peer.nickname || peerLogin;
+  chatStatus.textContent = statusText(peer.status || 'offline');
   if (avatar?.image) { chatAvatar.textContent = ''; chatAvatar.style.backgroundImage = `url(${avatar.image})`; chatAvatar.style.backgroundColor = '#2a2f3a'; }
   else { chatAvatar.textContent = avatar?.letter || (peerNick || peerLogin || '?')[0]?.toUpperCase() || '?'; chatAvatar.style.backgroundImage = ''; chatAvatar.style.background = avatar?.color || '#5865f2'; }
 }
@@ -950,9 +1126,10 @@ function handle(d) {
   if (d.type === 'error') { alert(d.message || t('serverError')); return; }
   if (d.type === 'register_ok') { alert(t('accountCreated')); switchMode.onclick(); return; }
   if (d.type === 'login_ok') {
-    login = d.login; nickname = d.nickname; localStorage.setItem('login', login); localStorage.setItem('password', passwordInput.value); loadLocalChatState(login); friends = Array.isArray(d.friends) ? d.friends : friends; unread = d.unread || unread || {};
+    login = d.login; nickname = d.nickname; myStatus = normalizeClientStatus(d.status || 'online'); localStorage.setItem('login', login); localStorage.setItem('password', passwordInput.value); loadLocalChatState(login); friends = Array.isArray(d.friends) ? d.friends : friends; unread = d.unread || unread || {};
     loginDiv.style.display = 'none'; appDiv.style.display = 'flex'; profileNick.textContent = nickname; profileLogin.textContent = login;
-    const myAvatar = d.avatar || { letter:(nickname || login || '?')[0]?.toUpperCase() || '?', color:'#5865f2' }; const avatarEl = createAvatar(myAvatar); const old = document.getElementById('profileAvatar'); old.replaceWith(avatarEl); avatarEl.id = 'profileAvatar';
+    myAvatar = d.avatar || { letter:(nickname || login || '?')[0]?.toUpperCase() || '?', color:'#5865f2' }; const avatarEl = createAvatar(myAvatar, myStatus, true); const old = document.getElementById('profileAvatar'); old.replaceWith(avatarEl); avatarEl.id = 'profileAvatar';
+    profileModalLoginPreview.textContent = login;
     renderFriends(); renderRequests(); renderOnline(); applyLanguage(); return;
   }
   if (d.type === 'online_friends') { onlineUsers = Array.isArray(d.users) ? d.users : []; renderOnline(); return; }
@@ -1020,7 +1197,8 @@ function handle(d) {
 
 function openDM(l, n, avatar = null) {
   currentDM = l; currentDMNick = n; currentDMAvatar = avatar; editingMessageId = null; emptyChat.style.display = 'none'; messages.style.display = 'block'; unread[l] = 0; saveLocalChatState();
-  updateChatHeader(l, n, avatar); renderTypingIndicator(); ws.send(JSON.stringify({ type:'read', from:l })); ws.send(JSON.stringify({ type:'get_messages', with:l })); rerenderCurrentChat(); renderOnline();
+  const peer = findFriendData(l) || { nickname:n, avatar, status:'offline' };
+  updateChatHeader(l, peer.nickname || n, peer.avatar || avatar); renderTypingIndicator(); ws.send(JSON.stringify({ type:'read', from:l })); ws.send(JSON.stringify({ type:'get_messages', with:l })); rerenderCurrentChat(); renderOnline();
 }
 
 
@@ -1038,7 +1216,7 @@ window.beginEditMessage = beginEditMessage; window.cancelEditMessage = cancelEdi
 
 function renderMessage(message) {
   const m = document.createElement('div'); m.className = 'message'; m.dataset.id = message.id;
-  m.appendChild(createAvatar(message.avatar || { letter:String(message.from || '?').charAt(0).toUpperCase(), color:'#5865f2' }));
+  m.appendChild(createAvatar(message.avatar || { letter:String(message.from || '?').charAt(0).toUpperCase(), color:'#5865f2' }, 'offline', false));
   const c = document.createElement('div'); c.className = 'messageContent';
   const editedLabel = message.edited ? `<span class="messageEdited">(${escapeHtml(t('edited'))})</span>` : '';
   let inner = `<div class="messageHeader"><b>${escapeHtml(message.fromNick || message.from)}</b><span class="messageTime">${escapeHtml(formatMessageTime(message.time))}</span>${editedLabel}</div>`;
@@ -1084,7 +1262,7 @@ function renderRequests() {
   requestsDiv.className = '';
   requests.forEach(u => {
     const d = document.createElement('div'); d.className = 'friendEntry';
-    const main = document.createElement('div'); main.className = 'friendMain'; main.appendChild(createAvatar({ letter:u[0].toUpperCase(), color:'#5865f2' }));
+    const main = document.createElement('div'); main.className = 'friendMain'; main.appendChild(createAvatar({ letter:u[0].toUpperCase(), color:'#5865f2' }, 'offline', false));
     const meta = document.createElement('div'); meta.className = 'friendMeta'; meta.innerHTML = `<b>${escapeHtml(u)}</b><span>${escapeHtml(t('incomingRequest'))}</span>`; main.appendChild(meta); d.appendChild(main);
     const s = document.createElement('span'); s.innerHTML = `<button onclick="accept('${escapeHtml(u)}')">✔</button><button onclick="decline('${escapeHtml(u)}')">✖</button>`; d.appendChild(s); requestsDiv.appendChild(d);
   });
@@ -1095,10 +1273,10 @@ function renderFriends() {
   if (!friends.length) { friendsDiv.textContent = t('noFriends'); friendsDiv.className = 'emptyText'; return; }
   friendsDiv.className = '';
   friends.forEach(u => {
-    const user = typeof u === 'string' ? { login:u, nickname:u, avatar:{ letter:u[0].toUpperCase(), color:'#5865f2' } } : u;
+    const user = typeof u === 'string' ? { login:u, nickname:u, avatar:{ letter:u[0].toUpperCase(), color:'#5865f2' }, status:'offline' } : u;
     const d = document.createElement('div'); d.className = 'friendEntry';
-    const main = document.createElement('div'); main.className = 'friendMain'; main.appendChild(createAvatar(user.avatar || { letter:user.login[0].toUpperCase(), color:'#5865f2' }));
-    const meta = document.createElement('div'); meta.className = 'friendMeta'; meta.innerHTML = `<b>${escapeHtml(user.nickname || user.login)}</b><span>${escapeHtml(t('friend'))}</span>`; main.appendChild(meta); d.appendChild(main);
+    const main = document.createElement('div'); main.className = 'friendMain'; main.appendChild(createAvatar(user.avatar || { letter:user.login[0].toUpperCase(), color:'#5865f2' }, user.status || 'offline', true));
+    const meta = document.createElement('div'); meta.className = 'friendMeta'; meta.innerHTML = `<b>${escapeHtml(user.nickname || user.login)}</b><span class="statusText">${escapeHtml(statusText(user.status || 'offline'))}</span>`; main.appendChild(meta); d.appendChild(main);
     d.onclick = () => openDM(user.login, user.nickname || user.login, user.avatar || null); friendsDiv.appendChild(d);
   });
 }
@@ -1107,8 +1285,8 @@ function renderOnline() {
   online.innerHTML = '';
   if (!onlineUsers.length) { const e = document.createElement('div'); e.className = 'emptyText'; e.textContent = t('nobodyOnline'); online.appendChild(e); return; }
   onlineUsers.forEach(u => {
-    const div = document.createElement('div'); div.className = 'user' + (u.login === currentDM ? ' active' : ''); div.dataset.login = u.login; div.appendChild(createAvatar(u.avatar || u));
-    const info = document.createElement('div'); info.className = 'userInfo'; info.innerHTML = `<div class="userName">${escapeHtml(u.nickname || u.login)}</div><div class="userSub">${escapeHtml(t('online'))}</div>`; div.appendChild(info);
+    const div = document.createElement('div'); div.className = 'user' + (u.login === currentDM ? ' active' : ''); div.dataset.login = u.login; div.appendChild(createAvatar(u.avatar || u, u.status || 'online', true));
+    const info = document.createElement('div'); info.className = 'userInfo'; info.innerHTML = `<div class="userName">${escapeHtml(u.nickname || u.login)}</div><div class="userSub">${escapeHtml(statusText(u.status || 'online'))}</div>`; div.appendChild(info);
     if (unread[u.login] > 0) { const b = document.createElement('div'); b.className = 'unread'; b.textContent = unread[u.login]; div.appendChild(b); }
     div.onclick = () => openDM(u.login, u.nickname, u.avatar); online.appendChild(div);
   });
@@ -1117,7 +1295,21 @@ function renderOnline() {
 function accept(u) { ws.send(JSON.stringify({ type:'friend_accept', from:login, to:u })); requests = requests.filter(r => r !== u); renderRequests(); }
 function decline(u) { requests = requests.filter(r => r !== u); renderRequests(); }
 window.accept = accept; window.decline = decline;
-avatarUploadBtn.onclick = () => avatarUploadInput.click();
+profileCard.onclick = (e) => {
+  if (e.target === profileSettingsBtn) return;
+  openProfileModal();
+};
+profileSettingsBtn.onclick = (e) => { e.stopPropagation(); openProfileModal(); };
+profileAvatarBtn.onclick = () => avatarUploadInput.click();
+profileCancelBtn.onclick = closeProfileModal;
+profileModalOverlay.addEventListener('click', e => { if (e.target === profileModalOverlay) closeProfileModal(); });
+document.querySelectorAll('.statusChoice').forEach(btn => btn.onclick = () => { selectedProfileStatus = btn.dataset.status; updateStatusChoices(); });
+profileSaveBtn.onclick = () => {
+  const newNickname = profileNicknameInput.value.trim();
+  if (!newNickname || !ws || ws.readyState !== WebSocket.OPEN) return;
+  ws.send(JSON.stringify({ type:'update_profile', nickname:newNickname, status:selectedProfileStatus }));
+  closeProfileModal();
+};
 avatarUploadInput.onchange = () => {
   const file = avatarUploadInput.files?.[0]; if (!file || !ws) return; const reader = new FileReader(); reader.onload = () => ws.send(JSON.stringify({ type:'update_avatar', image:reader.result })); reader.readAsDataURL(file);
 };

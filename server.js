@@ -49,9 +49,12 @@ async function initDb() {
       login TEXT PRIMARY KEY,
       password TEXT NOT NULL,
       nickname TEXT NOT NULL,
-      avatarImage TEXT
+      avatarImage TEXT,
+      status TEXT NOT NULL DEFAULT 'online'
     )
   `);
+
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'online'`);
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS messages (
@@ -127,13 +130,26 @@ function buildAvatar(login, nickname, avatarImage = null) {
   };
 }
 
-async function getUserPublic(login) {
-  const result = await pool.query(`SELECT login, nickname, avatarImage FROM users WHERE login = $1`, [login]);
+function normalizeStatus(status) {
+  return ['online', 'idle', 'dnd', 'invisible'].includes(status) ? status : 'online';
+}
+
+function getEffectiveStatus(targetLogin, rawStatus, viewerLogin = null) {
+  const isOnline = [...clients.values()].some(c => c.login === targetLogin);
+  if (!isOnline) return 'offline';
+  const normalized = normalizeStatus(rawStatus);
+  if (normalized === 'invisible' && viewerLogin !== targetLogin) return 'offline';
+  return normalized;
+}
+
+async function getUserPublic(login, viewerLogin = null) {
+  const result = await pool.query(`SELECT login, nickname, avatarImage, status FROM users WHERE login = $1`, [login]);
   const user = result.rows[0];
   if (!user) return null;
   return {
     login: user.login,
     nickname: user.nickname,
+    status: getEffectiveStatus(user.login, user.status, viewerLogin),
     avatar: buildAvatar(user.login, user.nickname, user.avatarimage)
   };
 }
@@ -150,7 +166,7 @@ async function getFriends(login) {
 async function getFriendUsers(login) {
   const friends = await getFriends(login);
   if (!friends.length) return [];
-  const users = await Promise.all(friends.map(friendLogin => getUserPublic(friendLogin)));
+  const users = await Promise.all(friends.map(friendLogin => getUserPublic(friendLogin, login)));
   return users.filter(Boolean);
 }
 
@@ -176,7 +192,7 @@ async function getChatHistory(userA, userB) {
   for (const row of result.rows) {
     let sender = senders.get(row.fromuser);
     if (!sender) {
-      sender = await getUserPublic(row.fromuser);
+      sender = await getUserPublic(row.fromuser, userA);
       senders.set(row.fromuser, sender);
     }
     messages.push({
@@ -199,9 +215,12 @@ async function broadcastOnlineFriends() {
     const online = [];
     for (const [, other] of clients) {
       if (friendLogins.includes(other.login)) {
+        const effectiveStatus = getEffectiveStatus(other.login, other.status, info.login);
+        if (effectiveStatus === 'offline') continue;
         online.push({
           login: other.login,
           nickname: other.nickname,
+          status: effectiveStatus,
           avatar: buildAvatar(other.login, other.nickname, other.avatarImage)
         });
       }
@@ -248,7 +267,7 @@ wss.on('connection', ws => {
         }
 
         const hashedPassword = await bcrypt.hash(password, 10);
-        await pool.query(`INSERT INTO users (login, password, nickname, avatarImage) VALUES ($1, $2, $3, $4)`, [login, hashedPassword, login, null]);
+        await pool.query(`INSERT INTO users (login, password, nickname, avatarImage, status) VALUES ($1, $2, $3, $4, $5)`, [login, hashedPassword, login, null, 'online']);
         send(ws, { type: 'register_ok' });
         return;
       }
@@ -262,7 +281,7 @@ wss.on('connection', ws => {
           return;
         }
 
-        const result = await pool.query(`SELECT login, password, nickname, avatarImage FROM users WHERE login = $1`, [login]);
+        const result = await pool.query(`SELECT login, password, nickname, avatarImage, status FROM users WHERE login = $1`, [login]);
         const user = result.rows[0];
 
         if (!user) {
@@ -291,13 +310,15 @@ wss.on('connection', ws => {
         clients.set(ws, {
           login: user.login,
           nickname: user.nickname,
-          avatarImage: user.avatarimage
+          avatarImage: user.avatarimage,
+          status: normalizeStatus(user.status)
         });
 
         send(ws, {
           type: 'login_ok',
           login: user.login,
           nickname: user.nickname,
+          status: normalizeStatus(user.status),
           avatar: buildAvatar(user.login, user.nickname, user.avatarimage),
           friends: await getFriendUsers(user.login),
           unread: await getUnreadMap(user.login)
@@ -327,27 +348,65 @@ wss.on('connection', ws => {
         }
 
         await pool.query(`UPDATE users SET avatarImage = $1 WHERE login = $2`, [image, userLogin]);
-        const updatedResult = await pool.query(`SELECT login, nickname, avatarImage FROM users WHERE login = $1`, [userLogin]);
+        const updatedResult = await pool.query(`SELECT login, nickname, avatarImage, status FROM users WHERE login = $1`, [userLogin]);
         const updatedUser = updatedResult.rows[0];
 
         if (updatedUser) {
           clients.set(ws, {
             login: updatedUser.login,
             nickname: updatedUser.nickname,
-            avatarImage: updatedUser.avatarimage
+            avatarImage: updatedUser.avatarimage,
+            status: normalizeStatus(updatedUser.status)
           });
 
-          const payload = {
-            type: 'avatar_updated',
-            login: updatedUser.login,
-            nickname: updatedUser.nickname,
-            avatar: buildAvatar(updatedUser.login, updatedUser.nickname, updatedUser.avatarimage)
-          };
-
-          for (const [clientWs] of clients) send(clientWs, payload);
-          send(ws, { type: 'friends_list', friends: await getFriendUsers(userLogin) });
+          for (const [clientWs, info] of clients) {
+            const publicUser = await getUserPublic(updatedUser.login, info.login);
+            send(clientWs, { type: 'profile_updated', user: publicUser });
+            if (info.login === updatedUser.login) {
+              send(clientWs, {
+                type: 'my_profile_updated',
+                nickname: updatedUser.nickname,
+                status: normalizeStatus(updatedUser.status),
+                avatar: buildAvatar(updatedUser.login, updatedUser.nickname, updatedUser.avatarimage)
+              });
+            }
+          }
           await broadcastOnlineFriends();
         }
+        return;
+      }
+
+      if (data.type === 'update_profile') {
+        const newNickname = typeof data.nickname === 'string' ? data.nickname.trim().slice(0, 32) : '';
+        const newStatus = normalizeStatus(typeof data.status === 'string' ? data.status : 'online');
+        if (!newNickname) {
+          send(ws, { type: 'error', message: 'Введите имя профиля' });
+          return;
+        }
+
+        await pool.query(`UPDATE users SET nickname = $1, status = $2 WHERE login = $3`, [newNickname, newStatus, userLogin]);
+        const updatedResult = await pool.query(`SELECT login, nickname, avatarImage, status FROM users WHERE login = $1`, [userLogin]);
+        const updatedUser = updatedResult.rows[0];
+        clients.set(ws, {
+          login: updatedUser.login,
+          nickname: updatedUser.nickname,
+          avatarImage: updatedUser.avatarimage,
+          status: normalizeStatus(updatedUser.status)
+        });
+
+        for (const [clientWs, info] of clients) {
+          const publicUser = await getUserPublic(updatedUser.login, info.login);
+          send(clientWs, { type: 'profile_updated', user: publicUser });
+          if (info.login === updatedUser.login) {
+            send(clientWs, {
+              type: 'my_profile_updated',
+              nickname: updatedUser.nickname,
+              status: normalizeStatus(updatedUser.status),
+              avatar: buildAvatar(updatedUser.login, updatedUser.nickname, updatedUser.avatarimage)
+            });
+          }
+        }
+        await broadcastOnlineFriends();
         return;
       }
 
