@@ -781,6 +781,7 @@ const callFlagOpen = document.getElementById('callFlagOpen');
 const callFlagHang = document.getElementById('callFlagHang');
 
 let ws;
+let authToken = localStorage.getItem('messenger_token') || '';
 let isRegister = false;
 let login, nickname;
 let myStatus = 'online';
@@ -855,7 +856,7 @@ const i18n = {
     incomingCallHint:'Press “Accept” or “Decline”', callEnded:'Call ended', callDeclined:'Call declined', callCancelled:'Call cancelled', userBusy:'User is busy',
     joinedCall:'✅ In call:', outgoingFlag:'📞 Calling:', incomingFlag:'📲 Incoming:', tapToOpen:'Tap to open', tapToOpenCall:'Tap to open the call window',
     messageNotFound:'Message not found', edit:'Edit', save:'Save', cancel:'Cancel', edited:'edited', editOwnOnly:'You can edit only your own messages',
-    serverError:'Server error', accountCreated:'Account created, sign in', enterLoginPassword:'Enter login and password', loginTaken:'Login is already taken', badLogin:'Invalid login or password',
+    serverError:'Server error', accountCreated:'Account created, sign in', enterLoginPassword:'Enter login and password', loginTaken:'Login is already taken', badLogin:'Invalid login or password', authExpired:'Session expired. Sign in again.',
     badAvatar:'Invalid avatar format', bigAvatar:'Avatar is too large', userNotFound:'User not found', alreadyFriends:'You are already friends',
     allowMic:'Allow microphone access for calls', userOffline:'User is offline', delete:'Delete', typing:'is typing', profileSettings:'Profile settings', displayName:'Display name', enterDisplayName:'Enter display name', status_online:'Online', status_idle:'Idle', status_dnd:'Do not disturb', status_invisible:'Invisible', status_offline:'Offline', viewProfile:'Profile', removeFriend:'Remove', profileViewTitle:'User profile', removeFriendConfirm:'Remove this user from friends?', removedFromFriends:'User removed from friends'
   }
@@ -1110,12 +1111,10 @@ switchMode.onclick = () => {
 
 loginBtn.onclick = async () => {
   await unlockAudio();
-  const l = loginInput.value.trim(), p = passwordInput.value.trim();
+  const l = loginInput.value.trim();
+  const p = passwordInput.value.trim();
   if (!l || !p) return;
-  const protocol = location.protocol === 'https:' ? 'wss://' : 'ws://';
-  ws = new WebSocket(protocol + location.host);
-  ws.onopen = () => ws.send(JSON.stringify({ type: isRegister ? 'register' : 'login', login:l, password:p }));
-  ws.onmessage = e => handle(JSON.parse(e.data));
+  openSocket({ type: isRegister ? 'register' : 'login', login: l, password: p });
 };
 
 const RTC_CONFIG = { iceServers: [{ urls:'stun:stun.l.google.com:19302' }] };
@@ -1208,9 +1207,10 @@ function updateMessageLocally(peer, id, patch) {
 
 function handle(d) {
   if (d.type === 'error') { alert(d.message || t('serverError')); return; }
+  if (d.type === 'auth_expired') { clearSavedAuth(); alert(t('authExpired')); return; }
   if (d.type === 'register_ok') { alert(t('accountCreated')); switchMode.onclick(); return; }
   if (d.type === 'login_ok') {
-    login = d.login; nickname = d.nickname; myStatus = normalizeClientStatus(d.status || 'online'); localStorage.setItem('login', login); localStorage.setItem('password', passwordInput.value); loadLocalChatState(login); friends = Array.isArray(d.friends) ? d.friends : friends; groups = Array.isArray(d.groups) ? d.groups : groups; unread = d.unread || unread || {};
+    login = d.login; nickname = d.nickname; myStatus = normalizeClientStatus(d.status || 'online'); localStorage.setItem('login', login); authToken = typeof d.token === 'string' ? d.token : authToken; if (authToken) localStorage.setItem('messenger_token', authToken); localStorage.removeItem('password'); loadLocalChatState(login); friends = Array.isArray(d.friends) ? d.friends : friends; groups = Array.isArray(d.groups) ? d.groups : groups; unread = d.unread || unread || {};
     loginDiv.style.display = 'none'; appDiv.style.display = 'flex'; profileNick.textContent = nickname; profileLogin.textContent = login;
     myAvatar = d.avatar || { letter:(nickname || login || '?')[0]?.toUpperCase() || '?', color:'#5865f2' }; const avatarEl = createAvatar(myAvatar, myStatus, true); const old = document.getElementById('profileAvatar'); old.replaceWith(avatarEl); avatarEl.id = 'profileAvatar';
     profileModalLoginPreview.textContent = login;
@@ -1638,7 +1638,7 @@ function renderOnline() {
   });
 }
 
-function accept(u) { ws.send(JSON.stringify({ type:'friend_accept', from:login, to:u })); requests = requests.filter(r => r !== u); renderRequests(); }
+function accept(u) { ws.send(JSON.stringify({ type:'friend_accept', from:u })); requests = requests.filter(r => r !== u); renderRequests(); }
 function decline(u) { requests = requests.filter(r => r !== u); renderRequests(); }
 window.accept = accept; window.decline = decline; window.openUserProfileModal = openUserProfileModal;
 profileCard.onclick = (e) => {
@@ -1672,11 +1672,10 @@ avatarUploadInput.onchange = () => {
 window.addEventListener('beforeunload', () => { try { if (callState !== 'idle' && callPeer) ws.send(JSON.stringify({ type:'call_end', to:callPeer })); } catch {} });
 window.addEventListener('load', () => {
   applyLanguage();
-  const savedLogin = localStorage.getItem('login'); const savedPassword = localStorage.getItem('password');
-  if (!savedLogin || !savedPassword) return;
-  const protocol = location.protocol === 'https:' ? 'wss://' : 'ws://'; ws = new WebSocket(protocol + location.host);
-  ws.onopen = () => ws.send(JSON.stringify({ type:'login', login:savedLogin, password:savedPassword }));
-  ws.onmessage = e => handle(JSON.parse(e.data));
+  const savedToken = localStorage.getItem('messenger_token');
+  if (!savedToken) return;
+  authToken = savedToken;
+  openSocket({ type:'auth_token', token:savedToken });
 });
 </script>
 

@@ -4,20 +4,139 @@ const WebSocket = require('ws');
 const path = require('path');
 const { Pool } = require('pg');
 const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
+const fs = require('fs');
 
 const app = express();
 const server = http.createServer(app);
-const wss = new WebSocket.Server({ server });
+const wss = new WebSocket.Server({ server, maxPayload: 2 * 1024 * 1024 });
 
 const publicDir = path.join(__dirname, 'public');
 const rootIndex = path.join(__dirname, 'index.html');
 const publicIndex = path.join(publicDir, 'index.html');
 
+
+app.set('trust proxy', 1);
+
+const SESSION_SECRET = process.env.SESSION_SECRET || 'change-this-session-secret-on-render';
+const SESSION_TTL_MS = 1000 * 60 * 60 * 24 * 30;
+const AUTH_WINDOW_MS = 1000 * 60 * 10;
+const AUTH_MAX_ATTEMPTS = 10;
+const MAX_MESSAGE_LENGTH = 4000;
+const MAX_GROUP_NAME_LENGTH = 48;
+const MAX_NICKNAME_LENGTH = 32;
+const LOGIN_RE = /^[a-zA-Z0-9_\-.]{3,32}$/;
+const authAttempts = new Map();
+
+function getClientIp(req) {
+  return (req.headers['x-forwarded-for'] || '').split(',')[0].trim() || req.socket?.remoteAddress || 'unknown';
+}
+
+function isProduction() {
+  return process.env.NODE_ENV === 'production';
+}
+
+function hmacSafeEqual(a, b) {
+  const left = Buffer.from(String(a));
+  const right = Buffer.from(String(b));
+  if (left.length !== right.length) return false;
+  return crypto.timingSafeEqual(left, right);
+}
+
+function signSessionPayload(payload) {
+  return crypto.createHmac('sha256', SESSION_SECRET).update(payload).digest('base64url');
+}
+
+function issueSessionToken(login) {
+  const now = Date.now();
+  const expiresAt = now + SESSION_TTL_MS;
+  const nonce = crypto.randomBytes(16).toString('base64url');
+  const payload = `${login}.${expiresAt}.${nonce}`;
+  const signature = signSessionPayload(payload);
+  return `${payload}.${signature}`;
+}
+
+function verifySessionToken(token) {
+  if (typeof token !== 'string' || !token) return null;
+  const parts = token.split('.');
+  if (parts.length < 4) return null;
+  const signature = parts.pop();
+  const nonce = parts.pop();
+  const expiresAt = Number(parts.pop());
+  const login = parts.join('.');
+  if (!login || !Number.isFinite(expiresAt) || !nonce) return null;
+  const payload = `${login}.${expiresAt}.${nonce}`;
+  const expected = signSessionPayload(payload);
+  if (!hmacSafeEqual(signature, expected) || expiresAt < Date.now()) return null;
+  return { login, expiresAt };
+}
+
+function cleanupOldAuthAttempts(now = Date.now()) {
+  for (const [ip, data] of authAttempts) {
+    if (!data || now - data.firstSeenAt > AUTH_WINDOW_MS) authAttempts.delete(ip);
+  }
+}
+
+function recordAuthAttempt(ip, success) {
+  const now = Date.now();
+  cleanupOldAuthAttempts(now);
+  if (success) {
+    authAttempts.delete(ip);
+    return false;
+  }
+  const current = authAttempts.get(ip);
+  if (!current || now - current.firstSeenAt > AUTH_WINDOW_MS) {
+    authAttempts.set(ip, { count: 1, firstSeenAt: now });
+    return false;
+  }
+  current.count += 1;
+  authAttempts.set(ip, current);
+  return current.count >= AUTH_MAX_ATTEMPTS;
+}
+
+function isRateLimited(ip) {
+  cleanupOldAuthAttempts();
+  const entry = authAttempts.get(ip);
+  return Boolean(entry && entry.count >= AUTH_MAX_ATTEMPTS && Date.now() - entry.firstSeenAt <= AUTH_WINDOW_MS);
+}
+
+function sanitizeLogin(value) {
+  const login = typeof value === 'string' ? value.trim() : '';
+  return LOGIN_RE.test(login) ? login : '';
+}
+
+function sanitizeText(value, maxLen = MAX_MESSAGE_LENGTH) {
+  if (typeof value !== 'string') return '';
+  return value.trim().slice(0, maxLen);
+}
+
+function sanitizeName(value, maxLen) {
+  if (typeof value !== 'string') return '';
+  return value.trim().replace(/\s+/g, ' ').slice(0, maxLen);
+}
+
+function isSecureRequest(req) {
+  return req.secure || req.headers['x-forwarded-proto'] === 'https';
+}
+
+app.use((req, res, next) => {
+  if (isProduction() && !isSecureRequest(req)) {
+    return res.redirect(301, `https://${req.headers.host}${req.originalUrl}`);
+  }
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('Referrer-Policy', 'same-origin');
+  res.setHeader('Permissions-Policy', 'microphone=(self)');
+  res.setHeader('Content-Security-Policy', "default-src 'self' data: blob:; connect-src 'self' wss: ws:; img-src 'self' data: blob:; media-src 'self' blob: data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'");
+  next();
+});
+
+
 app.use(express.static(publicDir));
 app.use(express.static(__dirname));
 
 app.get('/', (req, res) => {
-  if (require('fs').existsSync(publicIndex)) {
+  if (fs.existsSync(publicIndex)) {
     return res.sendFile(publicIndex);
   }
   return res.sendFile(rootIndex);
@@ -147,6 +266,43 @@ function sendToUser(login, data) {
     }
   }
 }
+
+
+async function loginSocket(ws, user) {
+  const normalizedStatus = normalizeStatus(user.status);
+  const token = issueSessionToken(user.login);
+
+  clients.set(ws, {
+    login: user.login,
+    nickname: user.nickname,
+    avatarImage: user.avatarimage,
+    status: normalizedStatus
+  });
+
+  send(ws, {
+    type: 'login_ok',
+    login: user.login,
+    nickname: user.nickname,
+    status: normalizedStatus,
+    avatar: buildAvatar(user.login, user.nickname, user.avatarimage),
+    friends: await getFriendUsers(user.login),
+    unread: await getUnreadMap(user.login),
+    groups: await getGroupsForUser(user.login),
+    token
+  });
+
+  const requests = await pool.query(`SELECT fromUser FROM friend_requests WHERE toUser = $1`, [user.login]);
+  for (const r of requests.rows) {
+    send(ws, { type: 'friend_request', from: r.fromuser });
+  }
+}
+
+async function userExists(login) {
+  if (!login) return false;
+  const result = await pool.query(`SELECT 1 FROM users WHERE login = $1 LIMIT 1`, [login]);
+  return Boolean(result.rows.length);
+}
+
 
 function avatarColor(str) {
   let hash = 0;
@@ -383,8 +539,17 @@ function clearCall(login) {
   if (peer && inCall.get(peer) === login) inCall.delete(peer);
 }
 
-wss.on('connection', ws => {
+server.on('upgrade', (req, socket, head) => {
+  if (isProduction() && !isSecureRequest(req)) {
+    socket.write('HTTP/1.1 400 Bad Request\r\n\r\n');
+    socket.destroy();
+    return;
+  }
+});
+
+wss.on('connection', (ws, req) => {
   let userLogin = null;
+  const clientIp = getClientIp(req);
 
   ws.on('message', async msg => {
     let data;
@@ -395,12 +560,17 @@ wss.on('connection', ws => {
     }
 
     try {
+
       if (data.type === 'register') {
-        const login = typeof data.login === 'string' ? data.login.trim() : '';
+        const login = sanitizeLogin(data.login);
         const password = typeof data.password === 'string' ? data.password : '';
 
         if (!login || !password) {
           send(ws, { type: 'error', message: 'Введите логин и пароль' });
+          return;
+        }
+        if (password.length < 6) {
+          send(ws, { type: 'error', message: 'Пароль слишком короткий' });
           return;
         }
 
@@ -410,15 +580,20 @@ wss.on('connection', ws => {
           return;
         }
 
-        const hashedPassword = await bcrypt.hash(password, 10);
+        const hashedPassword = await bcrypt.hash(password, 12);
         await pool.query(`INSERT INTO users (login, password, nickname, avatarImage, status) VALUES ($1, $2, $3, $4, $5)`, [login, hashedPassword, login, null, 'online']);
         send(ws, { type: 'register_ok' });
         return;
       }
 
       if (data.type === 'login') {
-        const login = typeof data.login === 'string' ? data.login.trim() : '';
+        const login = sanitizeLogin(data.login);
         const password = typeof data.password === 'string' ? data.password : '';
+
+        if (isRateLimited(clientIp)) {
+          send(ws, { type: 'error', message: 'Слишком много попыток входа. Попробуй чуть позже.' });
+          return;
+        }
 
         if (!login || !password) {
           send(ws, { type: 'error', message: 'Введите логин и пароль' });
@@ -429,6 +604,7 @@ wss.on('connection', ws => {
         const user = result.rows[0];
 
         if (!user) {
+          recordAuthAttempt(clientIp, false);
           send(ws, { type: 'error', message: 'Неверный логин или пароль' });
           return;
         }
@@ -439,47 +615,47 @@ wss.on('connection', ws => {
         } else {
           ok = password === user.password;
           if (ok) {
-            const upgradedHash = await bcrypt.hash(password, 10);
+            const upgradedHash = await bcrypt.hash(password, 12);
             await pool.query(`UPDATE users SET password = $1 WHERE login = $2`, [upgradedHash, user.login]);
-            user.password = upgradedHash;
           }
         }
 
         if (!ok) {
+          recordAuthAttempt(clientIp, false);
           send(ws, { type: 'error', message: 'Неверный логин или пароль' });
           return;
         }
 
+        recordAuthAttempt(clientIp, true);
         userLogin = user.login;
-        clients.set(ws, {
-          login: user.login,
-          nickname: user.nickname,
-          avatarImage: user.avatarimage,
-          status: normalizeStatus(user.status)
-        });
+        await loginSocket(ws, user);
+        await broadcastOnlineFriends();
+        return;
+      }
 
-        send(ws, {
-          type: 'login_ok',
-          login: user.login,
-          nickname: user.nickname,
-          status: normalizeStatus(user.status),
-          avatar: buildAvatar(user.login, user.nickname, user.avatarimage),
-          friends: await getFriendUsers(user.login),
-          unread: await getUnreadMap(user.login),
-          groups: await getGroupsForUser(user.login)
-        });
-
-        const requests = await pool.query(`SELECT fromUser FROM friend_requests WHERE toUser = $1`, [user.login]);
-        for (const r of requests.rows) {
-          send(ws, { type: 'friend_request', from: r.fromuser });
+      if (data.type === 'auth_token') {
+        const verified = verifySessionToken(typeof data.token === 'string' ? data.token : '');
+        if (!verified) {
+          send(ws, { type: 'auth_expired' });
+          return;
         }
 
+        const result = await pool.query(`SELECT login, nickname, avatarImage, status FROM users WHERE login = $1`, [verified.login]);
+        const user = result.rows[0];
+        if (!user) {
+          send(ws, { type: 'auth_expired' });
+          return;
+        }
+
+        userLogin = user.login;
+        await loginSocket(ws, user);
         await broadcastOnlineFriends();
         return;
       }
 
       if (!userLogin) return;
       const me = clients.get(ws);
+      if (!me) return;
 
       if (data.type === 'update_avatar') {
         const image = typeof data.image === 'string' ? data.image : '';
@@ -522,7 +698,7 @@ wss.on('connection', ws => {
       }
 
       if (data.type === 'update_profile') {
-        const newNickname = typeof data.nickname === 'string' ? data.nickname.trim().slice(0, 32) : '';
+        const newNickname = sanitizeName(data.nickname, MAX_NICKNAME_LENGTH);
         const newStatus = normalizeStatus(typeof data.status === 'string' ? data.status : 'online');
         if (!newNickname) {
           send(ws, { type: 'error', message: 'Введите имя профиля' });
@@ -562,8 +738,8 @@ wss.on('connection', ws => {
       }
 
       if (data.type === 'create_group') {
-        const name = typeof data.name === 'string' ? data.name.trim().slice(0, 48) : '';
-        const memberLogins = Array.isArray(data.members) ? data.members.filter(v => typeof v === 'string').map(v => v.trim()).filter(Boolean) : [];
+        const name = sanitizeName(data.name, MAX_GROUP_NAME_LENGTH);
+        const memberLogins = Array.isArray(data.members) ? data.members.map(sanitizeLogin).filter(Boolean) : [];
         if (!name) {
           send(ws, { type: 'error', message: 'Введите название группы' });
           return;
@@ -607,7 +783,7 @@ wss.on('connection', ws => {
       if (data.type === 'group_message') {
         const groupId = Number(data.groupId);
         if (!Number.isFinite(groupId) || !(await isGroupMember(groupId, userLogin))) return;
-        const messageText = typeof data.text === 'string' ? data.text.trim() : '';
+        const messageText = sanitizeText(data.text);
         if (!messageText) return;
 
         const messageTime = Date.now();
@@ -635,7 +811,7 @@ wss.on('connection', ws => {
 
       if (data.type === 'edit_group_message') {
         const messageId = Number(data.id);
-        const newText = typeof data.text === 'string' ? data.text.trim() : '';
+        const newText = sanitizeText(data.text);
         if (!messageId || !newText) return;
 
         const messageResult = await pool.query(`
@@ -682,7 +858,7 @@ wss.on('connection', ws => {
 
       if (data.type === 'update_group') {
         const groupId = Number(data.groupId);
-        const name = typeof data.name === 'string' ? data.name.trim().slice(0, 48) : '';
+        const name = sanitizeName(data.name, MAX_GROUP_NAME_LENGTH);
         if (!Number.isFinite(groupId) || !name) return;
 
         const groupResult = await pool.query(`SELECT ownerLogin FROM chat_groups WHERE id = $1 LIMIT 1`, [groupId]);
@@ -699,7 +875,7 @@ wss.on('connection', ws => {
 
       if (data.type === 'add_group_members') {
         const groupId = Number(data.groupId);
-        const members = Array.isArray(data.members) ? data.members.filter(v => typeof v === 'string').map(v => v.trim()).filter(Boolean) : [];
+        const members = Array.isArray(data.members) ? data.members.map(sanitizeLogin).filter(Boolean) : [];
         if (!Number.isFinite(groupId) || !members.length) return;
 
         const groupResult = await pool.query(`SELECT ownerLogin FROM chat_groups WHERE id = $1 LIMIT 1`, [groupId]);
@@ -723,7 +899,7 @@ wss.on('connection', ws => {
 
       if (data.type === 'remove_group_member') {
         const groupId = Number(data.groupId);
-        const targetLogin = typeof data.userLogin === 'string' ? data.userLogin.trim() : '';
+        const targetLogin = sanitizeLogin(data.userLogin);
         if (!Number.isFinite(groupId) || !targetLogin) return;
 
         const groupResult = await pool.query(`SELECT ownerLogin FROM chat_groups WHERE id = $1 LIMIT 1`, [groupId]);
@@ -768,9 +944,10 @@ wss.on('connection', ws => {
 
 
       if (data.type === 'friend_request') {
-        if (!data.to || data.to === userLogin) return;
+        const targetLogin = sanitizeLogin(data.to);
+        if (!targetLogin || targetLogin === userLogin) return;
 
-        const target = await pool.query(`SELECT login FROM users WHERE login = $1`, [data.to]);
+        const target = await pool.query(`SELECT login FROM users WHERE login = $1`, [targetLogin]);
         if (!target.rows.length) {
           send(ws, { type: 'error', message: 'Пользователь не найден' });
           return;
@@ -780,7 +957,7 @@ wss.on('connection', ws => {
           SELECT 1 FROM friends
           WHERE (user1 = $1 AND user2 = $2) OR (user1 = $2 AND user2 = $1)
           LIMIT 1
-        `, [userLogin, data.to]);
+        `, [userLogin, targetLogin]);
 
         if (alreadyFriends.rows.length) {
           send(ws, { type: 'error', message: 'Вы уже друзья' });
@@ -791,27 +968,31 @@ wss.on('connection', ws => {
           INSERT INTO friend_requests (fromUser, toUser)
           VALUES ($1, $2)
           ON CONFLICT (fromUser, toUser) DO NOTHING
-        `, [userLogin, data.to]);
+        `, [userLogin, targetLogin]);
 
-        sendToUser(data.to, { type: 'friend_request', from: userLogin, fromNick: me.nickname });
+        sendToUser(targetLogin, { type: 'friend_request', from: userLogin, fromNick: me.nickname });
         return;
       }
 
-      if (data.type === 'friend_accept') {
-        if (!data.from || !data.to) return;
 
-        await pool.query(`INSERT INTO friends (user1, user2) VALUES ($1, $2) ON CONFLICT (user1, user2) DO NOTHING`, [data.from, data.to]);
-        await pool.query(`DELETE FROM friend_requests WHERE fromUser = $1 AND toUser = $2`, [data.to, data.from]);
+      if (data.type === 'friend_accept') {
+        const fromLogin = sanitizeLogin(data.from);
+        if (!fromLogin || fromLogin === userLogin) return;
+
+        const requestExists = await pool.query(`SELECT 1 FROM friend_requests WHERE fromUser = $1 AND toUser = $2 LIMIT 1`, [fromLogin, userLogin]);
+        if (!requestExists.rows.length) return;
+
+        await pool.query(`INSERT INTO friends (user1, user2) VALUES ($1, $2) ON CONFLICT (user1, user2) DO NOTHING`, [fromLogin, userLogin]);
+        await pool.query(`DELETE FROM friend_requests WHERE fromUser = $1 AND toUser = $2`, [fromLogin, userLogin]);
 
         const acceptedMe = await getUserPublic(userLogin);
-        sendToUser(data.to, { type: 'friend_accept', from: userLogin, fromNick: me.nickname, friend: acceptedMe });
+        sendToUser(fromLogin, { type: 'friend_accept', from: userLogin, fromNick: me.nickname, friend: acceptedMe });
 
         send(ws, { type: 'friends_list', friends: await getFriendUsers(userLogin) });
-        sendToUser(data.to, { type: 'friends_list', friends: await getFriendUsers(data.to) });
+        sendToUser(fromLogin, { type: 'friends_list', friends: await getFriendUsers(fromLogin) });
         await broadcastOnlineFriends();
         return;
       }
-
 
       if (data.type === 'remove_friend') {
         const otherLogin = typeof data.with === 'string' ? data.with.trim() : '';
@@ -830,32 +1011,35 @@ wss.on('connection', ws => {
         return;
       }
 
-      if (data.type === 'message') {
-        if (!data.to || typeof data.text !== 'string' || !data.text.trim()) return;
 
-        const messageText = data.text.trim();
+      if (data.type === 'message') {
+        const targetLogin = sanitizeLogin(data.to);
+        const messageText = sanitizeText(data.text);
+        if (!targetLogin || !messageText) return;
+        if (!(await userExists(targetLogin))) return;
+
         const messageTime = Date.now();
         const insertResult = await pool.query(`
           INSERT INTO messages (fromUser, toUser, text, time, edited, editedAt)
           VALUES ($1, $2, $3, $4, FALSE, NULL)
           RETURNING id
-        `, [userLogin, data.to, messageText, messageTime]);
+        `, [userLogin, targetLogin, messageText, messageTime]);
 
         await pool.query(`
           INSERT INTO unread (fromUser, toUser, count)
           VALUES ($1, $2, 1)
           ON CONFLICT (fromUser, toUser)
           DO UPDATE SET count = unread.count + 1
-        `, [userLogin, data.to]);
+        `, [userLogin, targetLogin]);
 
-        const unreadResult = await pool.query(`SELECT count FROM unread WHERE fromUser = $1 AND toUser = $2`, [userLogin, data.to]);
+        const unreadResult = await pool.query(`SELECT count FROM unread WHERE fromUser = $1 AND toUser = $2`, [userLogin, targetLogin]);
         const unreadCount = unreadResult.rows[0]?.count || 0;
 
         const msgData = {
           type: 'message',
           id: Number(insertResult.rows[0].id),
           from: userLogin,
-          to: data.to,
+          to: targetLogin,
           text: messageText,
           time: messageTime,
           edited: false,
@@ -867,7 +1051,7 @@ wss.on('connection', ws => {
         };
 
         sendToUser(userLogin, msgData);
-        sendToUser(data.to, msgData);
+        sendToUser(targetLogin, msgData);
         return;
       }
 
@@ -912,7 +1096,7 @@ wss.on('connection', ws => {
 
       if (data.type === 'edit_message') {
         const messageId = Number(data.id);
-        const newText = typeof data.text === 'string' ? data.text.trim() : '';
+        const newText = sanitizeText(data.text);
         if (!messageId || !newText) return;
 
         const messageResult = await pool.query(`SELECT id, fromUser, toUser FROM messages WHERE id = $1 LIMIT 1`, [messageId]);
