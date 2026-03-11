@@ -1169,9 +1169,16 @@ function handle(d) {
     loginDiv.style.display = 'none'; appDiv.style.display = 'flex'; profileNick.textContent = nickname; profileLogin.textContent = login;
     myAvatar = d.avatar || { letter:(nickname || login || '?')[0]?.toUpperCase() || '?', color:'#5865f2' }; const avatarEl = createAvatar(myAvatar, myStatus, true); const old = document.getElementById('profileAvatar'); old.replaceWith(avatarEl); avatarEl.id = 'profileAvatar';
     profileModalLoginPreview.textContent = login;
+    syncPresenceFromOnline();
     renderFriends(); renderRequests(); renderOnline(); applyLanguage(); return;
   }
-  if (d.type === 'online_friends') { onlineUsers = Array.isArray(d.users) ? d.users : []; renderOnline(); return; }
+  if (d.type === 'online_friends') {
+    onlineUsers = Array.isArray(d.users) ? d.users : [];
+    syncPresenceFromOnline();
+    renderFriends();
+    renderOnline();
+    return;
+  }
   if (d.type === 'message') {
     const peer = d.from === login ? d.to : d.from;
     setTypingState(peer, '', false);
@@ -1210,7 +1217,13 @@ function handle(d) {
     if (currentDM === d.with) rerenderCurrentChat();
     return;
   }
-  if (d.type === 'friends_list') { friends = Array.isArray(d.friends) ? d.friends : []; renderFriends(); return; }
+  if (d.type === 'friends_list') {
+    friends = Array.isArray(d.friends) ? d.friends : [];
+    syncPresenceFromOnline();
+    renderFriends();
+    if (currentDM) rerenderCurrentChat();
+    return;
+  }
   if (d.type === 'unread_update') { unread = d.unread || unread || {}; saveLocalChatState(); renderOnline(); return; }
   if (d.type === 'avatar_updated') {
     if (d.login === login) {
@@ -1244,7 +1257,13 @@ function handle(d) {
     return;
   }
   if (d.type === 'friend_request') { if (!requests.includes(d.from)) requests.push(d.from); renderRequests(); return; }
-  if (d.type === 'friend_accept') { friends = Array.isArray(friends) ? friends : []; if (d.friend && !friends.some(f => f.login === d.friend.login)) friends.push(d.friend); renderFriends(); return; }
+  if (d.type === 'friend_accept') {
+    friends = Array.isArray(friends) ? friends : [];
+    if (d.friend && !friends.some(f => f.login === d.friend.login)) friends.push(d.friend);
+    syncPresenceFromOnline();
+    renderFriends();
+    return;
+  }
   if (d.type === 'friend_removed') {
     const removedLogin = d.with;
     friends = dedupeUsers(friends).filter(f => (typeof f === 'string' ? f : f.login) !== removedLogin);
@@ -1361,6 +1380,45 @@ function dedupeUsers(users = []) {
     });
   });
   return Array.from(map.values());
+}
+
+function syncPresenceFromOnline() {
+  const onlineMap = new Map(dedupeUsers(onlineUsers).map(u => [u.login, u]));
+
+  friends = dedupeUsers(friends).map(friend => {
+    const current = typeof friend === 'string'
+      ? { login:friend, nickname:friend, avatar:{ letter:friend[0].toUpperCase(), color:'#5865f2' }, status:'offline' }
+      : friend;
+
+    const onlineVersion = onlineMap.get(current.login);
+    if (onlineVersion) {
+      return {
+        ...current,
+        ...onlineVersion,
+        nickname: onlineVersion.nickname || current.nickname || current.login,
+        avatar: onlineVersion.avatar || current.avatar,
+        status: normalizeClientStatus(onlineVersion.status || current.status || 'online')
+      };
+    }
+
+    return {
+      ...current,
+      status: 'offline'
+    };
+  });
+
+  if (currentDM) {
+    const peer = findFriendData(currentDM) || onlineMap.get(currentDM) || {
+      login: currentDM,
+      nickname: currentDMNick || currentDM,
+      avatar: currentDMAvatar || null,
+      status: 'offline'
+    };
+
+    currentDMNick = peer.nickname || currentDMNick || currentDM;
+    currentDMAvatar = peer.avatar || currentDMAvatar || null;
+    updateChatHeader(currentDM, currentDMNick, currentDMAvatar);
+  }
 }
 
 function renderFriends() {
