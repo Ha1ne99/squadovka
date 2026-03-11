@@ -212,12 +212,16 @@ async function getChatHistory(userA, userB) {
 async function broadcastOnlineFriends() {
   for (const [ws, info] of clients) {
     const friendLogins = await getFriends(info.login);
-    const online = [];
+    const onlineMap = new Map();
+
     for (const [, other] of clients) {
-      if (friendLogins.includes(other.login)) {
-        const effectiveStatus = getEffectiveStatus(other.login, other.status, info.login);
-        if (effectiveStatus === 'offline') continue;
-        online.push({
+      if (!friendLogins.includes(other.login)) continue;
+
+      const effectiveStatus = getEffectiveStatus(other.login, other.status, info.login);
+      if (effectiveStatus === 'offline') continue;
+
+      if (!onlineMap.has(other.login)) {
+        onlineMap.set(other.login, {
           login: other.login,
           nickname: other.nickname,
           status: effectiveStatus,
@@ -225,7 +229,8 @@ async function broadcastOnlineFriends() {
         });
       }
     }
-    send(ws, { type: 'online_friends', users: online });
+
+    send(ws, { type: 'online_friends', users: Array.from(onlineMap.values()) });
   }
 }
 

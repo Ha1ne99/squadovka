@@ -1288,12 +1288,33 @@ function renderRequests() {
   });
 }
 
+function dedupeUsers(users = []) {
+  const map = new Map();
+  users.forEach(item => {
+    const user = typeof item === 'string'
+      ? { login:item, nickname:item, avatar:{ letter:item[0].toUpperCase(), color:'#5865f2' }, status:'offline' }
+      : item;
+
+    if (!user?.login) return;
+
+    const prev = map.get(user.login);
+    map.set(user.login, {
+      ...prev,
+      ...user,
+      avatar: user.avatar || prev?.avatar || { letter:user.login[0].toUpperCase(), color:'#5865f2' },
+      nickname: user.nickname || prev?.nickname || user.login,
+      status: user.status || prev?.status || 'offline'
+    });
+  });
+  return Array.from(map.values());
+}
+
 function renderFriends() {
   friendsDiv.innerHTML = '';
-  if (!friends.length) { friendsDiv.textContent = t('noFriends'); friendsDiv.className = 'emptyText'; return; }
+  const uniqueFriends = dedupeUsers(friends);
+  if (!uniqueFriends.length) { friendsDiv.textContent = t('noFriends'); friendsDiv.className = 'emptyText'; return; }
   friendsDiv.className = '';
-  friends.forEach(u => {
-    const user = typeof u === 'string' ? { login:u, nickname:u, avatar:{ letter:u[0].toUpperCase(), color:'#5865f2' }, status:'offline' } : u;
+  uniqueFriends.forEach(user => {
     const d = document.createElement('div'); d.className = 'friendEntry';
     const main = document.createElement('div'); main.className = 'friendMain'; main.appendChild(createAvatar(user.avatar || { letter:user.login[0].toUpperCase(), color:'#5865f2' }, user.status || 'offline', true));
     const meta = document.createElement('div'); meta.className = 'friendMeta'; meta.innerHTML = `<b>${escapeHtml(user.nickname || user.login)}</b><span class="statusText">${escapeHtml(statusText(user.status || 'offline'))}</span>`; main.appendChild(meta); d.appendChild(main);
@@ -1303,8 +1324,9 @@ function renderFriends() {
 
 function renderOnline() {
   online.innerHTML = '';
-  if (!onlineUsers.length) { const e = document.createElement('div'); e.className = 'emptyText'; e.textContent = t('nobodyOnline'); online.appendChild(e); return; }
-  onlineUsers.forEach(u => {
+  const uniqueOnlineUsers = dedupeUsers(onlineUsers).filter(u => normalizeClientStatus(u.status || 'online') !== 'offline');
+  if (!uniqueOnlineUsers.length) { const e = document.createElement('div'); e.className = 'emptyText'; e.textContent = t('nobodyOnline'); online.appendChild(e); return; }
+  uniqueOnlineUsers.forEach(u => {
     const div = document.createElement('div'); div.className = 'user' + (u.login === currentDM ? ' active' : ''); div.dataset.login = u.login; div.appendChild(createAvatar(u.avatar || u, u.status || 'online', true));
     const info = document.createElement('div'); info.className = 'userInfo'; info.innerHTML = `<div class="userName">${escapeHtml(u.nickname || u.login)}</div><div class="userSub">${escapeHtml(statusText(u.status || 'online'))}</div>`; div.appendChild(info);
     if (unread[u.login] > 0) { const b = document.createElement('div'); b.className = 'unread'; b.textContent = unread[u.login]; div.appendChild(b); }
