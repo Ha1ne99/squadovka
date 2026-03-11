@@ -847,7 +847,7 @@ function updateStatusChoices() {
   document.querySelectorAll('.statusChoice').forEach(btn => btn.classList.toggle('active', btn.dataset.status === selectedProfileStatus));
 }
 function syncProfileMiniCard() {
-  profileStatusPill.textContent = statusText(myStatus, true);
+  if (profileStatusPill) profileStatusPill.textContent = '';
 }
 function openProfileModal() {
   selectedProfileStatus = myStatus || 'online';
@@ -1175,10 +1175,30 @@ function handle(d) {
   if (d.type === 'unread_update') { unread = d.unread || unread || {}; saveLocalChatState(); renderOnline(); return; }
   if (d.type === 'avatar_updated') {
     if (d.login === login) {
-      const newA = createAvatar(d.avatar); const oldA = document.getElementById('profileAvatar'); if (oldA) oldA.replaceWith(newA); newA.id = 'profileAvatar';
+      myAvatar = d.avatar || myAvatar;
+      const newA = createAvatar(d.avatar, myStatus, true); const oldA = document.getElementById('profileAvatar'); if (oldA) oldA.replaceWith(newA); newA.id = 'profileAvatar';
     }
     onlineUsers = onlineUsers.map(u => u.login === d.login ? { ...u, nickname:d.nickname, avatar:d.avatar } : u);
-    renderOnline(); if (currentDM === d.login) updateChatHeader(d.login, d.nickname, d.avatar); return;
+    friends = friends.map(f => { const obj = typeof f === 'string' ? { login:f, nickname:f, avatar:null, status:'offline' } : f; return obj.login === d.login ? { ...obj, nickname:d.nickname, avatar:d.avatar } : obj; });
+    renderOnline(); renderFriends(); if (currentDM === d.login) updateChatHeader(d.login, d.nickname, d.avatar); return;
+  }
+  if (d.type === 'profile_updated') {
+    applyProfileUpdateLocal(d.user);
+    return;
+  }
+  if (d.type === 'my_profile_updated') {
+    nickname = d.nickname || nickname;
+    myStatus = normalizeClientStatus(d.status || myStatus);
+    myAvatar = d.avatar || myAvatar;
+    profileNick.textContent = nickname;
+    profileLogin.textContent = login;
+    const newA = createAvatar(myAvatar, myStatus, true);
+    const oldA = document.getElementById('profileAvatar');
+    if (oldA) oldA.replaceWith(newA);
+    newA.id = 'profileAvatar';
+    syncProfileMiniCard();
+    applyProfileUpdateLocal({ login, nickname, avatar: myAvatar, status: myStatus === 'invisible' ? 'offline' : myStatus });
+    return;
   }
   if (d.type === 'friend_request') { if (!requests.includes(d.from)) requests.push(d.from); renderRequests(); return; }
   if (d.type === 'friend_accept') { friends = Array.isArray(friends) ? friends : []; if (d.friend && !friends.some(f => f.login === d.friend.login)) friends.push(d.friend); renderFriends(); return; }
@@ -1307,6 +1327,16 @@ document.querySelectorAll('.statusChoice').forEach(btn => btn.onclick = () => { 
 profileSaveBtn.onclick = () => {
   const newNickname = profileNicknameInput.value.trim();
   if (!newNickname || !ws || ws.readyState !== WebSocket.OPEN) return;
+  nickname = newNickname;
+  myStatus = normalizeClientStatus(selectedProfileStatus);
+  profileNick.textContent = nickname;
+  profileLogin.textContent = login;
+  const newA = createAvatar(myAvatar || { letter:(nickname||login||'?')[0]?.toUpperCase() || '?', color:'#5865f2' }, myStatus, true);
+  const oldA = document.getElementById('profileAvatar');
+  if (oldA) oldA.replaceWith(newA);
+  newA.id = 'profileAvatar';
+  syncProfileMiniCard();
+  applyProfileUpdateLocal({ login, nickname, avatar: myAvatar, status: myStatus === 'invisible' ? 'offline' : myStatus });
   ws.send(JSON.stringify({ type:'update_profile', nickname:newNickname, status:selectedProfileStatus }));
   closeProfileModal();
 };
