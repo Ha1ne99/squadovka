@@ -1109,6 +1109,28 @@ switchMode.onclick = () => {
   applyLanguage();
 };
 
+
+function openSocket(initialPayload) {
+  try {
+    if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
+      try { ws.close(); } catch {}
+    }
+  } catch {}
+  const protocol = location.protocol === 'https:' ? 'wss://' : 'ws://';
+  ws = new WebSocket(protocol + location.host);
+  ws.onopen = () => {
+    if (initialPayload) ws.send(JSON.stringify(initialPayload));
+  };
+  ws.onmessage = e => handle(JSON.parse(e.data));
+  ws.onclose = () => {
+    if (appDiv.style.display !== 'none') {
+      // keep token for next reload; just drop broken socket reference
+      ws = null;
+    }
+  };
+  ws.onerror = () => {};
+}
+
 loginBtn.onclick = async () => {
   await unlockAudio();
   const l = loginInput.value.trim();
