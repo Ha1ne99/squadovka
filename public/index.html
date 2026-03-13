@@ -347,6 +347,10 @@ button:hover { transform: translateY(-1px); }
   backdrop-filter: blur(16px);
 }
 #friendsPanel.open { transform:translateX(0) !important; }
+.friendsPanelHeader { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:16px 16px 0; }
+.friendsPanelHeader h2 { margin:0; font-size:18px; }
+#closeFriendsPanelBtn { min-width:42px; height:42px; padding:0 14px; border-radius:12px; border:1px solid var(--line); background:#141925; color:#fff; cursor:pointer; font-size:20px; }
+#closeFriendsPanelBtn:hover { background:#1b2130; }
 .friendSection {
   background:#151922;
   border:1px solid var(--line);
@@ -807,6 +811,10 @@ button:hover { transform: translateY(-1px); }
 
 <!-- FRIEND PANEL -->
 <div id="friendsPanel" style="transform:translateX(100%);">
+  <div class="friendsPanelHeader">
+    <h2 id="friendsPanelHeading">Друзья</h2>
+    <button id="closeFriendsPanelBtn" type="button" aria-label="Закрыть">✕</button>
+  </div>
   <div class="friendSection">
     <h3 id="addFriendTitle">Добавить друга (по логину)</h3>
     <input id="friendNick" class="addFriendInput" placeholder="Логин пользователя">
@@ -868,6 +876,7 @@ button:hover { transform: translateY(-1px); }
       </div>
 
       <div class="profileActions">
+        <button id="profileLogoutBtn" class="profileActionBtn">Выйти</button>
         <button id="profileCancelBtn" class="profileActionBtn">Отмена</button>
         <button id="profileSaveBtn" class="profileActionBtn primary">Сохранить</button>
       </div>
@@ -898,6 +907,7 @@ const profileSettingsTitle = document.getElementById('profileSettingsTitle');
 const profileReadonlyNote = document.getElementById('profileReadonlyNote');
 const profileNameLabel = document.getElementById('profileNameLabel');
 const profileNicknameInput = document.getElementById('profileNicknameInput');
+const profileLogoutBtn = document.getElementById('profileLogoutBtn');
 const profileCancelBtn = document.getElementById('profileCancelBtn');
 const profileSaveBtn = document.getElementById('profileSaveBtn');
 const chatAvatar = document.getElementById('chatAvatar');
@@ -912,6 +922,7 @@ const text = document.getElementById('text');
 const sendBtn = document.getElementById('sendBtn');
 const friendsBtn = document.getElementById('friendsBtn');
 const friendsPanel = document.getElementById('friendsPanel');
+const closeFriendsPanelBtn = document.getElementById('closeFriendsPanelBtn');
 const friendNick = document.getElementById('friendNick');
 const addFriendBtn = document.getElementById('addFriendBtn');
 const requestsDiv = document.getElementById('requests');
@@ -980,7 +991,7 @@ const i18n = {
     messageNotFound:'Сообщение не найдено', edit:'Редактировать', save:'Сохранить', cancel:'Отмена', edited:'изменено', editOwnOnly:'Можно редактировать только свои сообщения',
     serverError:'Ошибка сервера', accountCreated:'Аккаунт создан, войдите', enterLoginPassword:'Введите логин и пароль', loginTaken:'Логин занят', badLogin:'Неверный логин или пароль',
     badAvatar:'Неверный формат аватара', bigAvatar:'Аватар слишком большой', userNotFound:'Пользователь не найден', alreadyFriends:'Вы уже друзья',
-    allowMic:'Разрешите доступ к микрофону для звонков', userOffline:'Пользователь не в сети', delete:'Удалить', typing:'печатает', profileSettings:'Настройка профиля', displayName:'Отображаемое имя', enterDisplayName:'Введите имя', status_online:'В сети', status_idle:'Не активен', status_dnd:'Не беспокоить', status_invisible:'Невидимка', status_offline:'Не в сети', viewProfile:'Профиль', removeFriend:'Удалить', profileViewTitle:'Профиль пользователя', removeFriendConfirm:'Удалить этого пользователя из друзей?', removedFromFriends:'Пользователь удалён из друзей'
+    allowMic:'Разрешите доступ к микрофону для звонков', userOffline:'Пользователь не в сети', delete:'Удалить', typing:'печатает', profileSettings:'Настройка профиля', displayName:'Отображаемое имя', enterDisplayName:'Введите имя', status_online:'В сети', status_idle:'Не активен', status_dnd:'Не беспокоить', status_invisible:'Невидимка', status_offline:'Не в сети', viewProfile:'Профиль', removeFriend:'Удалить', profileViewTitle:'Профиль пользователя', removeFriendConfirm:'Удалить этого пользователя из друзей?', removedFromFriends:'Пользователь удалён из друзей', logout:'Выйти из аккаунта'
   },
   uk: {
     loginBrandSubtitle:'Твій затишний месенджер для друзів', login:'Вхід', register:'Реєстрація', loginBtn:'Увійти', registerBtn:'Створити акаунт',
@@ -998,7 +1009,7 @@ const i18n = {
     messageNotFound:'Повідомлення не знайдено', edit:'Редагувати', save:'Зберегти', cancel:'Скасування', edited:'змінено', editOwnOnly:'Можна редагувати лише свої повідомлення',
     serverError:'Помилка сервера', accountCreated:'Акаунт створено, увійди', enterLoginPassword:'Введи логін і пароль', loginTaken:'Логін зайнятий', badLogin:'Невірний логін або пароль',
     badAvatar:'Невірний формат аватара', bigAvatar:'Аватар занадто великий', userNotFound:'Користувача не знайдено', alreadyFriends:'Ви вже друзі',
-    allowMic:'Дозволь доступ до мікрофона для дзвінків', userOffline:'Користувач не в мережі', delete:'Видалити', typing:'друкує', profileSettings:'Налаштування профілю', displayName:'Відображуване ім’я', enterDisplayName:'Введи ім’я', status_online:'В мережі', status_idle:'Не активний', status_dnd:'Не турбувати', status_invisible:'Невидимка', status_offline:'Не в мережі'
+    allowMic:'Дозволь доступ до мікрофона для дзвінків', userOffline:'Користувач не в мережі', delete:'Видалити', typing:'друкує', profileSettings:'Налаштування профілю', displayName:'Відображуване ім’я', enterDisplayName:'Введи ім’я', status_online:'В мережі', status_idle:'Не активний', status_dnd:'Не турбувати', status_invisible:'Невидимка', status_offline:'Не в мережі', logout:'Вийти з акаунта'
   },
   en: {
     loginBrandSubtitle:'Your cozy messenger for friends', login:'Login', register:'Register', loginBtn:'Sign in', registerBtn:'Create account',
@@ -1016,7 +1027,7 @@ const i18n = {
     messageNotFound:'Message not found', edit:'Edit', save:'Save', cancel:'Cancel', edited:'edited', editOwnOnly:'You can edit only your own messages',
     serverError:'Server error', accountCreated:'Account created, sign in', enterLoginPassword:'Enter login and password', loginTaken:'Login is already taken', badLogin:'Invalid login or password', authExpired:'Session expired. Sign in again.',
     badAvatar:'Invalid avatar format', bigAvatar:'Avatar is too large', userNotFound:'User not found', alreadyFriends:'You are already friends',
-    allowMic:'Allow microphone access for calls', userOffline:'User is offline', delete:'Delete', typing:'is typing', profileSettings:'Profile settings', displayName:'Display name', enterDisplayName:'Enter display name', status_online:'Online', status_idle:'Idle', status_dnd:'Do not disturb', status_invisible:'Invisible', status_offline:'Offline', viewProfile:'Profile', removeFriend:'Remove', profileViewTitle:'User profile', removeFriendConfirm:'Remove this user from friends?', removedFromFriends:'User removed from friends'
+    allowMic:'Allow microphone access for calls', userOffline:'User is offline', delete:'Delete', typing:'is typing', profileSettings:'Profile settings', displayName:'Display name', enterDisplayName:'Enter display name', status_online:'Online', status_idle:'Idle', status_dnd:'Do not disturb', status_invisible:'Invisible', status_offline:'Offline', viewProfile:'Profile', removeFriend:'Remove', profileViewTitle:'User profile', removeFriendConfirm:'Remove this user from friends?', removedFromFriends:'User removed from friends', logout:'Log out'
   }
 };
 
@@ -1042,6 +1053,7 @@ function setProfileModalMode(mode) {
   profileModalMode = mode === 'other' ? 'other' : 'self';
   const isSelfMode = profileModalMode === 'self';
   profileAvatarBtn.classList.toggle('hidden', !isSelfMode);
+  profileLogoutBtn.classList.toggle('hidden', !isSelfMode);
   profileSaveBtn.classList.toggle('hidden', !isSelfMode);
   profileStatusBar.classList.toggle('hidden', !isSelfMode);
   profileReadonlyNote.classList.toggle('hidden', isSelfMode);
@@ -1119,6 +1131,8 @@ function applyLanguage() {
   document.getElementById('sidebarSubtitle').textContent = t('sidebarSubtitle');
   document.getElementById('friendsBtnLabel').textContent = '👥 ' + t('friends');
   document.getElementById('headerFriendsBtnLabel').textContent = t('friends');
+  document.getElementById('friendsPanelHeading').textContent = t('friends');
+  closeFriendsPanelBtn.setAttribute('aria-label', t('close'));
   document.getElementById('onlineSectionLabel').textContent = t('onlineFriends');
   document.getElementById('emptyTitle').textContent = t('welcome');
   document.getElementById('emptyTextLabel').textContent = t('welcomeText');
@@ -1133,6 +1147,7 @@ function applyLanguage() {
   profileReadonlyNote.textContent = t('profileViewTitle');
   profileNameLabel.textContent = t('displayName');
   profileNicknameInput.placeholder = t('enterDisplayName');
+  profileLogoutBtn.textContent = t('logout');
   profileCancelBtn.textContent = t('cancel');
   profileSaveBtn.textContent = t('save');
   profileAvatarBtn.textContent = t('avatar');
@@ -1340,6 +1355,48 @@ switchMode.onclick = () => {
   applyLanguage();
 };
 
+function clearSavedAuth() {
+  authToken = '';
+  localStorage.removeItem('messenger_token');
+  localStorage.removeItem('login');
+  localStorage.removeItem('password');
+}
+
+function resetUiToLoggedOut() {
+  if (ws) { try { ws.close(); } catch {} }
+  ws = null;
+  clearSavedAuth();
+  currentDM = null;
+  currentDMNick = null;
+  currentDMAvatar = null;
+  currentChatType = 'dm';
+  currentGroupId = null;
+  groups = [];
+  chats = {};
+  requests = [];
+  friends = [];
+  unread = {};
+  onlineUsers = [];
+  typingUsers = {};
+  editingMessageId = null;
+  viewedProfile = null;
+  closeFriendsPanel();
+  closeProfileModal();
+  emptyChat.style.display = 'flex';
+  messages.style.display = 'none';
+  messages.innerHTML = '';
+  typingIndicator.innerHTML = '';
+  text.value = '';
+  loginInput.value = '';
+  passwordInput.value = '';
+  loginDiv.style.display = 'flex';
+  appDiv.style.display = 'none';
+  syncMobileLayout(false);
+}
+
+function performLogout() {
+  resetUiToLoggedOut();
+}
 
 function openSocket(initialPayload) {
   try {
@@ -1528,8 +1585,7 @@ function handle(d) {
 }
 
 function openDM(l, n, avatar = null) {
-  friendsPanel.classList.remove('open');
-  friendsBtn.classList.remove('active');
+  closeFriendsPanel();
   syncMobileLayout(true);
   currentChatType = 'dm';
   currentGroupId = null;
@@ -1611,9 +1667,15 @@ text.addEventListener('input', () => {
 });
 messages.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.classList.contains('editInput')) { e.preventDefault(); saveEditMessage(e.target.dataset.messageId); } });
 
-function toggleFriendsPanel() { friendsPanel.classList.toggle('open'); friendsBtn.classList.toggle('active'); }
-mobileBackBtn.onclick = () => { friendsPanel.classList.remove('open'); friendsBtn.classList.remove('active'); syncMobileLayout(false); };
+function closeFriendsPanel() { friendsPanel.classList.remove('open'); friendsBtn.classList.remove('active'); }
+function toggleFriendsPanel() {
+  const shouldOpen = !friendsPanel.classList.contains('open');
+  friendsPanel.classList.toggle('open', shouldOpen);
+  friendsBtn.classList.toggle('active', shouldOpen);
+}
+mobileBackBtn.onclick = () => { closeFriendsPanel(); syncMobileLayout(false); };
 friendsBtn.onclick = toggleFriendsPanel; headerFriendsBtn.onclick = toggleFriendsPanel;
+closeFriendsPanelBtn.onclick = closeFriendsPanel;
 addFriendBtn.onclick = () => { const to = friendNick.value.trim(); if (!to) return; ws.send(JSON.stringify({ type:'friend_request', from:login, to })); friendNick.value = ''; };
 createGroupBtn.onclick = () => {
   const name = groupNameInput.value.trim();
@@ -1843,6 +1905,7 @@ profileCard.onclick = (e) => {
 };
 profileSettingsBtn.onclick = (e) => { e.stopPropagation(); openProfileModal(); };
 profileAvatarBtn.onclick = () => avatarUploadInput.click();
+profileLogoutBtn.onclick = () => { performLogout(); };
 profileCancelBtn.onclick = closeProfileModal;
 profileModalOverlay.addEventListener('click', e => { if (e.target === profileModalOverlay) closeProfileModal(); });
 document.querySelectorAll('.statusChoice').forEach(btn => btn.onclick = () => { selectedProfileStatus = btn.dataset.status; updateStatusChoices(); });
