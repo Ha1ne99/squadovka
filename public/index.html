@@ -231,6 +231,7 @@ button:hover { transform: translateY(-1px); }
   cursor:pointer;
   border:1px solid var(--line);
 }
+#mobileBackBtn { display:none; }
 #emptyChat {
   flex:1;
   display:flex;
@@ -457,26 +458,258 @@ button:hover { transform: translateY(-1px); }
 .editInput { flex:1; min-width:180px; padding:9px 10px; background:#0f131a; border:1px solid var(--line); border-radius:12px; color:white; }
 
 @media (max-width: 900px) {
+  html, body { height:100%; overflow:hidden; }
   body { display:block; }
-  #login { margin:18px auto; }
-  #app { height:100vh; }
-  #sidebar { width:88px; min-width:88px; padding:10px 8px; }
-  .sidebarBrand { padding:8px; justify-content:center; }
-  .sidebarBrandText, .sectionLabel, #profileNick, #profileLogin, #friendsBtn span, .userInfo, #avatarUploadBtn { display:none; }
-  #friendsBtn { padding:12px 8px; }
-  #friendsBtn::before { content:"👥"; font-size:20px; }
-  .user { justify-content:center; padding:10px 6px; }
-  .user .unread { right:4px; top:6px; transform:none; }
-  .profileCard { padding:8px; justify-content:center; }
-  .profileMeta { display:none; }
-  #friendsPanel { width:100vw; }
-  #chatHeader { padding:12px; }
+  #login {
+    margin:14px auto;
+    width:min(94vw, 420px);
+    padding:22px;
+    border-radius:22px;
+  }
+  #app {
+    height:100dvh;
+    display:block;
+  }
+  #app:not(.mobile-chat-open) #chat {
+    display:none;
+  }
+  #app.mobile-chat-open #sidebar {
+    display:none;
+  }
+  #app.mobile-chat-open #chat {
+    display:flex;
+    height:100dvh;
+  }
+  #sidebar {
+    width:100%;
+    min-width:0;
+    height:100dvh;
+    padding:12px 12px calc(12px + env(safe-area-inset-bottom));
+    gap:12px;
+    border-right:none;
+    overflow:hidden;
+  }
+  .sidebarBrand {
+    padding:12px;
+    border-radius:18px;
+  }
+  .sectionLabel,
+  #avatarUploadBtn,
+  #chatStatus,
+  #headerLangSwitcher {
+    display:none;
+  }
+  #online,
+  #groupsSidebar {
+    overflow:auto;
+  }
+  #online {
+    flex:1;
+    min-height:160px;
+    padding-right:2px;
+  }
+  #groupsSidebar {
+    max-height:26dvh;
+    padding-right:2px;
+    gap:8px;
+  }
+  #friendsBtn {
+    min-height:52px;
+    padding:12px 14px;
+    border-radius:16px;
+    justify-content:flex-start;
+  }
+  .user {
+    padding:12px;
+    min-height:68px;
+    border-radius:18px;
+  }
+  .user .avatar,
+  #chatAvatar,
+  .profileCard .avatar {
+    width:48px;
+    height:48px;
+  }
+  .user .unread {
+    right:10px;
+    top:50%;
+    transform:translateY(-50%);
+    min-width:24px;
+    text-align:center;
+    padding:3px 7px;
+  }
+  .profileCard {
+    padding:10px 12px;
+    border-radius:18px;
+  }
+  .profileSettingsBtn {
+    width:46px;
+    height:46px;
+    border-radius:14px;
+    font-size:19px;
+  }
+  #mobileBackBtn {
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    min-width:44px;
+    height:44px;
+    padding:0;
+    border-radius:14px;
+    font-size:20px;
+    flex:0 0 44px;
+  }
+  #chat {
+    width:100%;
+    min-width:0;
+    height:100dvh;
+  }
+  #chatHeader {
+    padding:12px 14px;
+    min-height:72px;
+  }
+  #chatTitle {
+    font-size:17px;
+    line-height:1.2;
+  }
+  .headerActions .ghostBtn {
+    min-height:44px;
+    min-width:44px;
+    padding:10px 12px;
+    border-radius:14px;
+  }
   .headerActions .ghostBtn span { display:none; }
-  #messages { padding:12px; }
-  .messageContent { max-width: 100%; }
-  #typingIndicator { padding: 0 12px 6px; }
-  #input { padding:12px; }
-  #callModal { width:min(92vw, 420px); }
+  #emptyChat { padding:16px; }
+  .emptyCard {
+    padding:22px 18px;
+    border-radius:22px;
+  }
+  .emptyCard h2 { font-size:22px; }
+  #messages {
+    padding:12px 10px 8px;
+  }
+  .message {
+    gap:10px;
+    margin-bottom:12px;
+  }
+  .message .avatar {
+    width:38px;
+    height:38px;
+  }
+  .messageContent {
+    max-width:100%;
+    padding:11px 12px;
+    border-radius:16px;
+  }
+  .messageHeader b { font-size:13px; }
+  .messageText {
+    font-size:15px;
+    line-height:1.45;
+  }
+  #typingIndicator {
+    min-height:22px;
+    padding:0 12px 4px;
+    font-size:12px;
+  }
+  #input {
+    position:sticky;
+    bottom:0;
+    z-index:5;
+    gap:8px;
+    padding:10px 10px calc(10px + env(safe-area-inset-bottom));
+    background:rgba(12,14,19,.94);
+    backdrop-filter: blur(12px);
+  }
+  #input input {
+    min-height:50px;
+    padding:12px 14px;
+    border-radius:16px;
+    font-size:16px;
+  }
+  #input button {
+    height:50px;
+    min-width:50px;
+    padding:0 14px;
+    border-radius:16px;
+    font-size:18px;
+  }
+  #friendsPanel {
+    width:100vw;
+    max-width:100vw;
+    padding:12px 12px calc(12px + env(safe-area-inset-bottom));
+  }
+  .friendSection {
+    border-radius:18px;
+    padding:12px;
+  }
+  .friendSection h3 { font-size:15px; }
+  .addFriendInput, .addFriendBtn {
+    min-height:48px;
+    border-radius:14px;
+    font-size:16px;
+  }
+  .friendEntry {
+    min-height:60px;
+    border-radius:16px;
+    padding:10px 12px;
+  }
+  .friendEntry button {
+    width:40px;
+    height:40px;
+    border-radius:13px;
+  }
+  #profileModal {
+    width:100vw;
+    height:100dvh;
+    max-width:none;
+    border-radius:0;
+  }
+  .profileBanner { height:96px; }
+  .profileModalBody { padding:0 14px calc(14px + env(safe-area-inset-bottom)); }
+  .profileHeroMeta b { font-size:22px; }
+  .statusChoice {
+    min-height:48px;
+    border-radius:14px;
+  }
+  .profileInput { min-height:48px; font-size:16px; }
+  .profileActionBtn { min-height:46px; }
+}
+
+@media (max-width: 640px) {
+  #sidebar {
+    width:100%;
+    min-width:0;
+    padding:8px 8px calc(8px + env(safe-area-inset-bottom));
+  }
+  .brandLogo { width:48px; height:48px; font-size:22px; }
+  #chatHeader {
+    padding:10px 12px;
+    min-height:64px;
+  }
+  #chatAvatar { width:40px; height:40px; }
+  #chatTitle { font-size:15px; }
+  #messages {
+    padding:10px 8px 6px;
+  }
+  .messageContent {
+    padding:10px 11px;
+    border-radius:15px;
+  }
+  .messageText { font-size:14px; }
+  #input {
+    gap:6px;
+    padding:8px 8px calc(8px + env(safe-area-inset-bottom));
+  }
+  #input input {
+    min-height:46px;
+    padding:11px 12px;
+  }
+  #input button {
+    min-width:46px;
+    height:46px;
+    padding:0 12px;
+  }
+  .emptyCard h2 { font-size:20px; }
 }
 </style>
 </head>
@@ -535,6 +768,7 @@ button:hover { transform: translateY(-1px); }
   <div id="chat">
     <div id="chatHeader">
       <div class="left">
+        <button id="mobileBackBtn" class="ghostBtn" title="Назад">←</button>
         <div id="chatAvatar" class="avatar" style="background:#5865f2">S</div>
         <div id="chatTitleWrap">
           <div id="chatTitle">Squadovka</div>
@@ -666,6 +900,7 @@ const profileNicknameInput = document.getElementById('profileNicknameInput');
 const profileCancelBtn = document.getElementById('profileCancelBtn');
 const profileSaveBtn = document.getElementById('profileSaveBtn');
 const chatAvatar = document.getElementById('chatAvatar');
+const mobileBackBtn = document.getElementById('mobileBackBtn');
 const chatTitle = document.getElementById('chatTitle');
 const chatStatus = document.getElementById('chatStatus');
 const headerFriendsBtn = document.getElementById('headerFriendsBtn');
@@ -713,6 +948,19 @@ let typingStopTimer = null;
 const MAX_RENDERED_MESSAGES = 200;
 const MAX_STORED_MESSAGES = 500;
 let renderChatRaf = null;
+const mobileMediaQuery = window.matchMedia('(max-width: 900px)');
+
+function isMobileLayout() { return mobileMediaQuery.matches; }
+function hasOpenedChat() { return (currentChatType === 'group' && !!currentGroupId) || (currentChatType === 'dm' && !!currentDM); }
+function syncMobileLayout(forceChatOpen = null) {
+  if (!appDiv) return;
+  if (!isMobileLayout()) {
+    appDiv.classList.remove('mobile-chat-open');
+    return;
+  }
+  const shouldOpenChat = typeof forceChatOpen === 'boolean' ? forceChatOpen : hasOpenedChat();
+  appDiv.classList.toggle('mobile-chat-open', shouldOpenChat);
+}
 
 const i18n = {
   ru: {
@@ -1230,6 +1478,7 @@ function handle(d) {
 }
 
 function openDM(l, n, avatar = null) {
+  syncMobileLayout(true);
   currentChatType = 'dm';
   currentGroupId = null;
   currentDM = l; currentDMNick = n; currentDMAvatar = avatar; editingMessageId = null; emptyChat.style.display = 'none'; messages.style.display = 'block'; unread[l] = 0; saveLocalChatState();
@@ -1238,6 +1487,7 @@ function openDM(l, n, avatar = null) {
 }
 
 function openGroup(groupId) {
+  syncMobileLayout(true);
   currentChatType = 'group';
   currentGroupId = Number(groupId);
   currentDM = null;
@@ -1308,6 +1558,7 @@ text.addEventListener('input', () => {
 messages.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.classList.contains('editInput')) { e.preventDefault(); saveEditMessage(e.target.dataset.messageId); } });
 
 function toggleFriendsPanel() { friendsPanel.classList.toggle('open'); friendsBtn.classList.toggle('active'); }
+mobileBackBtn.onclick = () => syncMobileLayout(false);
 friendsBtn.onclick = toggleFriendsPanel; headerFriendsBtn.onclick = toggleFriendsPanel;
 addFriendBtn.onclick = () => { const to = friendNick.value.trim(); if (!to) return; ws.send(JSON.stringify({ type:'friend_request', from:login, to })); friendNick.value = ''; };
 createGroupBtn.onclick = () => {
@@ -1562,11 +1813,15 @@ avatarUploadInput.onchange = () => {
 };
 window.addEventListener('load', () => {
   applyLanguage();
+  syncMobileLayout();
   const savedToken = localStorage.getItem('messenger_token');
   if (!savedToken) return;
   authToken = savedToken;
   openSocket({ type:'auth_token', token:savedToken });
 });
+if (mobileMediaQuery.addEventListener) mobileMediaQuery.addEventListener('change', () => syncMobileLayout());
+else if (mobileMediaQuery.addListener) mobileMediaQuery.addListener(() => syncMobileLayout());
+
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible' && currentChatType === 'dm' && currentDM && ws && ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify({ type:'read', from:currentDM }));
