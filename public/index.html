@@ -1153,14 +1153,63 @@ document.querySelectorAll('.langBtn').forEach(btn => btn.onclick = () => setLang
 
 function getChatsStorageKey(userLogin) { return `messenger_chats_${userLogin}`; }
 function getUnreadStorageKey(userLogin) { return `messenger_unread_${userLogin}`; }
+function compactStoredMessage(message) {
+  if (!message || typeof message !== 'object') return message;
+  const compact = {
+    id: message.id,
+    from: message.from,
+    to: message.to,
+    text: message.text,
+    time: message.time,
+    edited: !!message.edited,
+    editedAt: message.editedAt || null,
+    deliveredAt: message.deliveredAt || null,
+    readAt: message.readAt || null,
+    receiptStatus: message.receiptStatus || null,
+    fromNick: message.fromNick || null
+  };
+  if (message.groupId != null) compact.groupId = message.groupId;
+  return compact;
+}
+function buildCompactChatsForStorage() {
+  const compactChats = {};
+  for (const [key, list] of Object.entries(chats || {})) {
+    if (!Array.isArray(list) || !list.length) continue;
+    compactChats[key] = list.slice(-MAX_STORED_MESSAGES).map(compactStoredMessage);
+  }
+  return compactChats;
+}
 function saveLocalChatState() {
   if (!login) return;
-  localStorage.setItem(getChatsStorageKey(login), JSON.stringify(chats));
-  localStorage.setItem(getUnreadStorageKey(login), JSON.stringify(unread));
+  try {
+    localStorage.setItem(getChatsStorageKey(login), JSON.stringify(buildCompactChatsForStorage()));
+    localStorage.setItem(getUnreadStorageKey(login), JSON.stringify(unread || {}));
+  } catch (err) {
+    console.warn('Failed to save local chat state:', err);
+    try {
+      localStorage.removeItem(getChatsStorageKey(login));
+      localStorage.setItem(getUnreadStorageKey(login), JSON.stringify(unread || {}));
+    } catch {}
+  }
+}
+function hydrateStoredChats(rawChats) {
+  const restored = {};
+  for (const [key, list] of Object.entries(rawChats || {})) {
+    if (!Array.isArray(list)) continue;
+    restored[key] = list.map(item => {
+      const msg = { ...item };
+      if (!msg.avatar && msg.from) {
+        const letter = String(msg.from || '?').charAt(0).toUpperCase() || '?';
+        msg.avatar = { letter, color:'#5865f2' };
+      }
+      return msg;
+    }).slice(-MAX_STORED_MESSAGES);
+  }
+  return restored;
 }
 function loadLocalChatState(userLogin) {
   try {
-    chats = JSON.parse(localStorage.getItem(getChatsStorageKey(userLogin)) || '{}');
+    chats = hydrateStoredChats(JSON.parse(localStorage.getItem(getChatsStorageKey(userLogin)) || '{}'));
     unread = JSON.parse(localStorage.getItem(getUnreadStorageKey(userLogin)) || '{}');
   } catch { chats = {}; unread = {}; }
 }
