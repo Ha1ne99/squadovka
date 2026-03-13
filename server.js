@@ -24,6 +24,7 @@ const AUTH_WINDOW_MS = 1000 * 60 * 10;
 const AUTH_MAX_ATTEMPTS = 10;
 const MAX_MESSAGE_LENGTH = 4000;
 const MAX_GROUP_NAME_LENGTH = 48;
+const CHAT_HISTORY_LIMIT = 200;
 const MAX_NICKNAME_LENGTH = 32;
 const LOGIN_RE = /^[a-zA-Z0-9_\-.]{3,32}$/;
 const authAttempts = new Map();
@@ -251,7 +252,6 @@ async function initDb() {
 }
 
 const clients = new Map();
-const inCall = new Map();
 
 function send(ws, data) {
   if (ws.readyState === WebSocket.OPEN) {
@@ -370,11 +370,16 @@ async function getUnreadMap(login) {
 async function getChatHistory(userA, userB) {
   const result = await pool.query(`
     SELECT id, fromUser, toUser, text, time, edited, editedAt
-    FROM messages
-    WHERE (fromUser = $1 AND toUser = $2)
-       OR (fromUser = $2 AND toUser = $1)
+    FROM (
+      SELECT id, fromUser, toUser, text, time, edited, editedAt
+      FROM messages
+      WHERE (fromUser = $1 AND toUser = $2)
+         OR (fromUser = $2 AND toUser = $1)
+      ORDER BY time DESC, id DESC
+      LIMIT $3
+    ) recent_messages
     ORDER BY time ASC, id ASC
-  `, [userA, userB]);
+  `, [userA, userB, CHAT_HISTORY_LIMIT]);
 
   const senders = new Map();
   const messages = [];
@@ -465,10 +470,15 @@ async function getGroupsForUser(login) {
 async function getGroupHistory(groupId, viewerLogin = null) {
   const result = await pool.query(`
     SELECT id, groupId, fromUser, text, time, edited, editedAt
-    FROM group_messages
-    WHERE groupId = $1
+    FROM (
+      SELECT id, groupId, fromUser, text, time, edited, editedAt
+      FROM group_messages
+      WHERE groupId = $1
+      ORDER BY time DESC, id DESC
+      LIMIT $2
+    ) recent_group_messages
     ORDER BY time ASC, id ASC
-  `, [groupId]);
+  `, [groupId, CHAT_HISTORY_LIMIT]);
 
   const senders = new Map();
   const messages = [];
@@ -529,15 +539,6 @@ async function broadcastOnlineFriends() {
   }
 }
 
-function isBusy(login) {
-  return inCall.has(login);
-}
-
-function clearCall(login) {
-  const peer = inCall.get(login);
-  inCall.delete(login);
-  if (peer && inCall.get(peer) === login) inCall.delete(peer);
-}
 
 server.on('upgrade', (req, socket, head) => {
   if (isProduction() && !isSecureRequest(req)) {
@@ -1135,36 +1136,6 @@ wss.on('connection', (ws, req) => {
         return;
       }
 
-      const callTypes = new Set(['call_offer','call_answer','call_ice','call_cancel','call_decline','call_end','call_busy']);
-      if (callTypes.has(data.type)) {
-        const to = data.to;
-        if (!to || to === userLogin) return;
-
-        const targetOnline = [...clients.values()].some(c => c.login === to);
-
-        if (data.type === 'call_offer') {
-          if (!targetOnline) {
-            send(ws, { type: 'error', message: 'Пользователь не в сети' });
-            return;
-          }
-          if (isBusy(userLogin) || isBusy(to)) {
-            sendToUser(userLogin, { type: 'call_busy' });
-            return;
-          }
-          inCall.set(userLogin, to);
-          inCall.set(to, userLogin);
-        }
-
-        if ((data.type === 'call_answer' || data.type === 'call_ice') && inCall.get(userLogin) !== to) return;
-
-        if (data.type === 'call_cancel' || data.type === 'call_decline' || data.type === 'call_end' || data.type === 'call_busy') {
-          clearCall(userLogin);
-          clearCall(to);
-        }
-
-        sendToUser(to, { ...data, from: userLogin, fromNick: me.nickname });
-        return;
-      }
     } catch (err) {
       console.error('WS message error:', err);
       send(ws, { type: 'error', message: 'Ошибка сервера' });
@@ -1176,9 +1147,7 @@ wss.on('connection', (ws, req) => {
     clients.delete(ws);
 
     if (info?.login) {
-      const peer = inCall.get(info.login);
-      if (peer) sendToUser(peer, { type: 'call_end', from: info.login });
-      clearCall(info.login);
+      // no call cleanup needed
     }
 
     try {
