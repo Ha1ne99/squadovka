@@ -9,7 +9,7 @@ const fs = require('fs');
 
 const app = express();
 const server = http.createServer(app);
-const wss = new WebSocket.Server({ server, maxPayload: 2 * 1024 * 1024 });
+const wss = new WebSocket.Server({ server, maxPayload: 10 * 1024 * 1024 });
 
 const publicDir = path.join(__dirname, 'public');
 const rootIndex = path.join(__dirname, 'index.html');
@@ -127,7 +127,7 @@ app.use((req, res, next) => {
   res.setHeader('X-Frame-Options', 'DENY');
   res.setHeader('Referrer-Policy', 'same-origin');
   res.setHeader('Permissions-Policy', 'microphone=(self)');
-  res.setHeader('Content-Security-Policy', "default-src 'self' data: blob:; connect-src 'self' wss: ws:; img-src 'self' data: blob:; media-src 'self' blob: data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'");
+  res.setHeader('Content-Security-Policy', "default-src 'self' data: blob:; connect-src 'self' wss: ws: https: stun: turn:; img-src 'self' data: blob:; media-src 'self' blob: data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'");
   next();
 });
 
@@ -140,6 +140,38 @@ app.get('/', (req, res) => {
     return res.sendFile(publicIndex);
   }
   return res.sendFile(rootIndex);
+});
+
+function parseIceUrls(value) {
+  if (typeof value !== 'string') return [];
+  return value.split(',').map(v => v.trim()).filter(Boolean);
+}
+
+function buildRtcConfig() {
+  const stunUrls = parseIceUrls(process.env.STUN_URLS || 'stun:stun.l.google.com:19302');
+  const turnUrls = parseIceUrls(process.env.TURN_URLS);
+  const iceServers = [];
+
+  if (stunUrls.length) iceServers.push({ urls: stunUrls });
+  if (turnUrls.length) {
+    const turnServer = { urls: turnUrls };
+    if (process.env.TURN_USERNAME) turnServer.username = process.env.TURN_USERNAME;
+    if (process.env.TURN_CREDENTIAL) turnServer.credential = process.env.TURN_CREDENTIAL;
+    iceServers.push(turnServer);
+  }
+
+  if (!iceServers.length) iceServers.push({ urls: ['stun:stun.l.google.com:19302'] });
+
+  return {
+    iceServers,
+    hasTurn: turnUrls.length > 0
+  };
+}
+
+const RTC_CONFIG = buildRtcConfig();
+
+app.get('/rtc-config', (req, res) => {
+  res.json(RTC_CONFIG);
 });
 
 if (!process.env.DATABASE_URL) {
@@ -288,6 +320,7 @@ async function loginSocket(ws, user) {
     friends: await getFriendUsers(user.login),
     unread: await getUnreadMap(user.login),
     groups: await getGroupsForUser(user.login),
+    rtcConfig: RTC_CONFIG,
     token
   });
 
