@@ -467,12 +467,12 @@ async function broadcastOnlineFriends() {
     send(ws, { type: 'online_friends', users: Array.from(onlineMap.values()) });
   }
 }
-server.on('upgrade', (req, socket, head) => {
-  if (isProduction() && !isSecureRequest(req)) {
-    socket.write('HTTP/1.1 400 Bad Request\r\n\r\n');
-    socket.destroy();
-    return;
-  }
+// В Render WebSocket идёт через прокси, и x-forwarded-proto на upgrade может
+// приходить не так, как на обычных HTTP-запросах. Если жёстко резать upgrade,
+// браузер вообще не сможет подключиться к wss://... Поэтому здесь ничего не
+// блокируем: обычный HTTPS-редирект остаётся на уровне HTTP middleware.
+server.on('upgrade', (_req, _socket, _head) => {
+  // no-op
 });
 
 wss.on('connection', (ws, req) => {
