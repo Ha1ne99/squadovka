@@ -251,6 +251,75 @@ async function initDb() {
 }
 
 const clients = new Map();
+const inCall = new Map();
+
+function send(ws, data) {
+  if (ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify(data));
+  }
+}
+
+function sendToUser(login, data) {
+  for (const [ws, info] of clients) {
+    if (info.login === login) {
+      send(ws, data);
+    }
+  }
+}
+
+
+async function loginSocket(ws, user) {
+  const normalizedStatus = normalizeStatus(user.status);
+  const token = issueSessionToken(user.login);
+
+  clients.set(ws, {
+    login: user.login,
+    nickname: user.nickname,
+    avatarImage: user.avatarimage,
+    status: normalizedStatus
+  });
+
+  send(ws, {
+    type: 'login_ok',
+    login: user.login,
+    nickname: user.nickname,
+    status: normalizedStatus,
+    avatar: buildAvatar(user.login, user.nickname, user.avatarimage),
+    friends: await getFriendUsers(user.login),
+    unread: await getUnreadMap(user.login),
+    groups: await getGroupsForUser(user.login),
+    token
+  });
+
+  const requests = await pool.query(`SELECT fromUser FROM friend_requests WHERE toUser = $1`, [user.login]);
+  for (const r of requests.rows) {
+    send(ws, { type: 'friend_request', from: r.fromuser });
+  }
+}
+
+async function userExists(login) {
+  if (!login) return false;
+  const result = await pool.query(`SELECT 1 FROM users WHERE login = $1 LIMIT 1`, [login]);
+  return Boolean(result.rows.length);
+}
+
+
+function avatarColor(str) {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = str.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  return `hsl(${Math.abs(hash) % 360},70%,55%)`;
+}
+
+function buildAvatar(login, nickname, avatarImage = null) {
+  return {
+    letter: (nickname?.[0] || login?.[0] || '?').toUpperCase(),
+    color: avatarColor(login || nickname || '?'),
+    image: avatarImage || null
+  };
+}
+
 function normalizeStatus(status) {
   return ['online', 'idle', 'dnd', 'invisible'].includes(status) ? status : 'online';
 }
@@ -300,16 +369,12 @@ async function getUnreadMap(login) {
 
 async function getChatHistory(userA, userB) {
   const result = await pool.query(`
-    SELECT * FROM (
-      SELECT id, fromUser, toUser, text, time, edited, editedAt
-      FROM messages
-      WHERE (fromUser = $1 AND toUser = $2)
-         OR (fromUser = $2 AND toUser = $1)
-      ORDER BY time DESC, id DESC
-      LIMIT $3
-    ) recent_messages
+    SELECT id, fromUser, toUser, text, time, edited, editedAt
+    FROM messages
+    WHERE (fromUser = $1 AND toUser = $2)
+       OR (fromUser = $2 AND toUser = $1)
     ORDER BY time ASC, id ASC
-  `, [userA, userB, MAX_CHAT_HISTORY]);
+  `, [userA, userB]);
 
   const senders = new Map();
   const messages = [];
@@ -399,15 +464,11 @@ async function getGroupsForUser(login) {
 
 async function getGroupHistory(groupId, viewerLogin = null) {
   const result = await pool.query(`
-    SELECT * FROM (
-      SELECT id, groupId, fromUser, text, time, edited, editedAt
-      FROM group_messages
-      WHERE groupId = $1
-      ORDER BY time DESC, id DESC
-      LIMIT $2
-    ) recent_group_messages
+    SELECT id, groupId, fromUser, text, time, edited, editedAt
+    FROM group_messages
+    WHERE groupId = $1
     ORDER BY time ASC, id ASC
-  `, [groupId, MAX_GROUP_HISTORY]);
+  `, [groupId]);
 
   const senders = new Map();
   const messages = [];
@@ -467,12 +528,23 @@ async function broadcastOnlineFriends() {
     send(ws, { type: 'online_friends', users: Array.from(onlineMap.values()) });
   }
 }
-// В Render WebSocket идёт через прокси, и x-forwarded-proto на upgrade может
-// приходить не так, как на обычных HTTP-запросах. Если жёстко резать upgrade,
-// браузер вообще не сможет подключиться к wss://... Поэтому здесь ничего не
-// блокируем: обычный HTTPS-редирект остаётся на уровне HTTP middleware.
-server.on('upgrade', (_req, _socket, _head) => {
-  // no-op
+
+function isBusy(login) {
+  return inCall.has(login);
+}
+
+function clearCall(login) {
+  const peer = inCall.get(login);
+  inCall.delete(login);
+  if (peer && inCall.get(peer) === login) inCall.delete(peer);
+}
+
+server.on('upgrade', (req, socket, head) => {
+  if (isProduction() && !isSecureRequest(req)) {
+    socket.write('HTTP/1.1 400 Bad Request\r\n\r\n');
+    socket.destroy();
+    return;
+  }
 });
 
 wss.on('connection', (ws, req) => {
@@ -1063,6 +1135,36 @@ wss.on('connection', (ws, req) => {
         return;
       }
 
+      const callTypes = new Set(['call_offer','call_answer','call_ice','call_cancel','call_decline','call_end','call_busy']);
+      if (callTypes.has(data.type)) {
+        const to = data.to;
+        if (!to || to === userLogin) return;
+
+        const targetOnline = [...clients.values()].some(c => c.login === to);
+
+        if (data.type === 'call_offer') {
+          if (!targetOnline) {
+            send(ws, { type: 'error', message: 'Пользователь не в сети' });
+            return;
+          }
+          if (isBusy(userLogin) || isBusy(to)) {
+            sendToUser(userLogin, { type: 'call_busy' });
+            return;
+          }
+          inCall.set(userLogin, to);
+          inCall.set(to, userLogin);
+        }
+
+        if ((data.type === 'call_answer' || data.type === 'call_ice') && inCall.get(userLogin) !== to) return;
+
+        if (data.type === 'call_cancel' || data.type === 'call_decline' || data.type === 'call_end' || data.type === 'call_busy') {
+          clearCall(userLogin);
+          clearCall(to);
+        }
+
+        sendToUser(to, { ...data, from: userLogin, fromNick: me.nickname });
+        return;
+      }
     } catch (err) {
       console.error('WS message error:', err);
       send(ws, { type: 'error', message: 'Ошибка сервера' });
@@ -1070,7 +1172,14 @@ wss.on('connection', (ws, req) => {
   });
 
   ws.on('close', async () => {
+    const info = clients.get(ws);
     clients.delete(ws);
+
+    if (info?.login) {
+      const peer = inCall.get(info.login);
+      if (peer) sendToUser(peer, { type: 'call_end', from: info.login });
+      clearCall(info.login);
+    }
 
     try {
       await broadcastOnlineFriends();
