@@ -190,6 +190,8 @@ async function initDb() {
 
   await pool.query(`ALTER TABLE messages ADD COLUMN IF NOT EXISTS edited BOOLEAN NOT NULL DEFAULT FALSE`);
   await pool.query(`ALTER TABLE messages ADD COLUMN IF NOT EXISTS editedAt BIGINT`);
+  await pool.query(`ALTER TABLE messages ADD COLUMN IF NOT EXISTS deliveredAt BIGINT`);
+  await pool.query(`ALTER TABLE messages ADD COLUMN IF NOT EXISTS readAt BIGINT`);
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS friends (
@@ -260,11 +262,30 @@ function send(ws, data) {
 }
 
 function sendToUser(login, data) {
+  let delivered = false;
   for (const [ws, info] of clients) {
-    if (info.login === login) {
+    if (info.login === login && ws.readyState === WebSocket.OPEN) {
       send(ws, data);
+      delivered = true;
     }
   }
+  return delivered;
+}
+
+function getMessageReceiptStatus(message) {
+  if (message?.readat) return 'read';
+  if (message?.deliveredat) return 'sent';
+  return 'pending';
+}
+
+async function notifyReceiptUpdate(senderLogin, peerLogin, ids, status) {
+  if (!senderLogin || !peerLogin || !Array.isArray(ids) || !ids.length) return;
+  sendToUser(senderLogin, {
+    type: 'receipt_update',
+    with: peerLogin,
+    ids: ids.map(Number),
+    status
+  });
 }
 
 
@@ -369,9 +390,9 @@ async function getUnreadMap(login) {
 
 async function getChatHistory(userA, userB) {
   const result = await pool.query(`
-    SELECT id, fromUser, toUser, text, time, edited, editedAt
+    SELECT id, fromUser, toUser, text, time, edited, editedAt, deliveredAt, readAt
     FROM (
-      SELECT id, fromUser, toUser, text, time, edited, editedAt
+      SELECT id, fromUser, toUser, text, time, edited, editedAt, deliveredAt, readAt
       FROM messages
       WHERE (fromUser = $1 AND toUser = $2)
          OR (fromUser = $2 AND toUser = $1)
@@ -398,6 +419,9 @@ async function getChatHistory(userA, userB) {
       time: Number(row.time),
       edited: Boolean(row.edited),
       editedAt: row.editedat ? Number(row.editedat) : null,
+      deliveredAt: row.deliveredat ? Number(row.deliveredat) : null,
+      readAt: row.readat ? Number(row.readat) : null,
+      receiptStatus: getMessageReceiptStatus(row),
       avatar: sender?.avatar || buildAvatar(row.fromuser, row.fromuser)
     });
   }
@@ -733,8 +757,22 @@ wss.on('connection', (ws, req) => {
       }
 
       if (data.type === 'get_messages') {
-        if (!data.with) return;
-        send(ws, { type: 'chat_history', with: data.with, messages: await getChatHistory(userLogin, data.with) });
+        const peerLogin = sanitizeLogin(data.with);
+        if (!peerLogin) return;
+
+        const deliveredAt = Date.now();
+        const deliveredResult = await pool.query(`
+          UPDATE messages
+          SET deliveredAt = COALESCE(deliveredAt, $3)
+          WHERE fromUser = $1 AND toUser = $2 AND deliveredAt IS NULL
+          RETURNING id
+        `, [peerLogin, userLogin, deliveredAt]);
+
+        if (deliveredResult.rows.length) {
+          await notifyReceiptUpdate(peerLogin, userLogin, deliveredResult.rows.map(row => row.id), 'sent');
+        }
+
+        send(ws, { type: 'chat_history', with: peerLogin, messages: await getChatHistory(userLogin, peerLogin) });
         return;
       }
 
@@ -1021,8 +1059,8 @@ wss.on('connection', (ws, req) => {
 
         const messageTime = Date.now();
         const insertResult = await pool.query(`
-          INSERT INTO messages (fromUser, toUser, text, time, edited, editedAt)
-          VALUES ($1, $2, $3, $4, FALSE, NULL)
+          INSERT INTO messages (fromUser, toUser, text, time, edited, editedAt, deliveredAt, readAt)
+          VALUES ($1, $2, $3, $4, FALSE, NULL, NULL, NULL)
           RETURNING id
         `, [userLogin, targetLogin, messageText, messageTime]);
 
@@ -1035,16 +1073,21 @@ wss.on('connection', (ws, req) => {
 
         const unreadResult = await pool.query(`SELECT count FROM unread WHERE fromUser = $1 AND toUser = $2`, [userLogin, targetLogin]);
         const unreadCount = unreadResult.rows[0]?.count || 0;
+        const messageId = Number(insertResult.rows[0].id);
+        let deliveredAt = null;
 
         const msgData = {
           type: 'message',
-          id: Number(insertResult.rows[0].id),
+          id: messageId,
           from: userLogin,
           to: targetLogin,
           text: messageText,
           time: messageTime,
           edited: false,
           editedAt: null,
+          deliveredAt: null,
+          readAt: null,
+          receiptStatus: 'pending',
           fromNick: me.nickname,
           avatar: buildAvatar(userLogin, me.nickname, me.avatarImage),
           unread: unreadCount,
@@ -1052,7 +1095,18 @@ wss.on('connection', (ws, req) => {
         };
 
         sendToUser(userLogin, msgData);
-        sendToUser(targetLogin, msgData);
+        const deliveredNow = sendToUser(targetLogin, msgData);
+
+        if (deliveredNow) {
+          deliveredAt = Date.now();
+          await pool.query(`UPDATE messages SET deliveredAt = $1 WHERE id = $2 AND deliveredAt IS NULL`, [deliveredAt, messageId]);
+          sendToUser(userLogin, {
+            type: 'receipt_update',
+            with: targetLogin,
+            ids: [messageId],
+            status: 'sent'
+          });
+        }
         return;
       }
 
@@ -1130,8 +1184,23 @@ wss.on('connection', (ws, req) => {
       }
 
       if (data.type === 'read') {
-        if (!data.from) return;
-        await pool.query(`DELETE FROM unread WHERE fromUser = $1 AND toUser = $2`, [data.from, userLogin]);
+        const peerLogin = sanitizeLogin(data.from);
+        if (!peerLogin) return;
+
+        const now = Date.now();
+        const readResult = await pool.query(`
+          UPDATE messages
+          SET deliveredAt = COALESCE(deliveredAt, $3),
+              readAt = COALESCE(readAt, $3)
+          WHERE fromUser = $1 AND toUser = $2 AND readAt IS NULL
+          RETURNING id
+        `, [peerLogin, userLogin, now]);
+
+        if (readResult.rows.length) {
+          await notifyReceiptUpdate(peerLogin, userLogin, readResult.rows.map(row => row.id), 'read');
+        }
+
+        await pool.query(`DELETE FROM unread WHERE fromUser = $1 AND toUser = $2`, [peerLogin, userLogin]);
         send(ws, { type: 'unread_update', unread: await getUnreadMap(userLogin) });
         return;
       }

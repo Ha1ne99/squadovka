@@ -280,6 +280,14 @@ button:hover { transform: translateY(-1px); }
 }
 .messageHeader b { font-size:14px; }
 .messageTime { color:var(--muted); font-size:11px; }
+.messageReceipt {
+  color: var(--muted);
+  font-size: 12px;
+  margin-left: auto;
+  letter-spacing: .02em;
+  user-select: none;
+}
+.messageReceipt.read { color: var(--accent-2); }
 .messageText { line-height:1.4; word-break:break-word; white-space:pre-wrap; }
 #typingIndicator {
   min-height: 24px;
@@ -929,6 +937,23 @@ function createAvatar(user, status = 'online', showPresence = true) {
 function escapeHtml(s) { return String(s ?? '').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'", '&#39;'); }
 function formatMessageTime(ts) { if (!ts) return ''; const d = new Date(Number(ts)); if (Number.isNaN(d.getTime())) return ''; return d.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}); }
 
+function normalizeReceiptStatus(status) { return ['pending', 'sent', 'read'].includes(status) ? status : 'pending'; }
+function getReceiptStatus(message) {
+  if (message?.readAt) return 'read';
+  if (message?.deliveredAt) return 'sent';
+  return normalizeReceiptStatus(message?.receiptStatus);
+}
+function getReceiptIcon(status) {
+  if (status === 'read') return '✓✓';
+  if (status === 'sent') return '✓';
+  return '◌';
+}
+function getReceiptTitle(status) {
+  if (status === 'read') return 'Прочитано';
+  if (status === 'sent') return 'Доставлено';
+  return 'Не доставлено';
+}
+
 
 function getGroupChatKey(groupId) { return `group_${groupId}`; }
 function getCurrentChatKey() { return currentChatType === 'group' ? getGroupChatKey(currentGroupId) : currentDM; }
@@ -1087,7 +1112,12 @@ function handle(d) {
     const isIncoming = d.from !== login;
     unread[peer] = peer !== currentDM ? (d.unread || unread[peer] || 0) : 0;
     saveLocalChatState();
-    if (isIncoming) soundMessage();
+    if (isIncoming) {
+      soundMessage();
+      if (peer === currentDM && document.visibilityState === 'visible' && ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type:'read', from:peer }));
+      }
+    }
     if (peer === currentDM) scheduleRenderCurrentChat(true);
     renderOnline();
     return;
@@ -1107,6 +1137,18 @@ function handle(d) {
   if (d.type === 'message_edited') {
     const peer = d.from === login ? d.to : d.from;
     updateMessageLocally(peer, d.id, { text:d.text, edited:d.edited, editedAt:d.editedAt });
+    saveLocalChatState();
+    if (peer === currentDM) scheduleRenderCurrentChat();
+    return;
+  }
+  if (d.type === 'receipt_update') {
+    const peer = d.with;
+    const ids = Array.isArray(d.ids) ? d.ids.map(Number) : [];
+    const status = normalizeReceiptStatus(d.status);
+    const patch = status === 'read'
+      ? { receiptStatus: 'read', deliveredAt: Date.now(), readAt: Date.now() }
+      : { receiptStatus: 'sent', deliveredAt: Date.now() };
+    ids.forEach(id => updateMessageLocally(peer, id, patch));
     saveLocalChatState();
     if (peer === currentDM) scheduleRenderCurrentChat();
     return;
@@ -1192,7 +1234,7 @@ function openDM(l, n, avatar = null) {
   currentGroupId = null;
   currentDM = l; currentDMNick = n; currentDMAvatar = avatar; editingMessageId = null; emptyChat.style.display = 'none'; messages.style.display = 'block'; unread[l] = 0; saveLocalChatState();
   const peer = findFriendData(l) || { nickname:n, avatar, status:'offline' };
-  updateChatHeader(l, peer.nickname || n, peer.avatar || avatar); renderTypingIndicator(); ws.send(JSON.stringify({ type:'read', from:l })); ws.send(JSON.stringify({ type:'get_messages', with:l })); scheduleRenderCurrentChat(true); renderOnline(); renderGroups();
+  updateChatHeader(l, peer.nickname || n, peer.avatar || avatar); renderTypingIndicator(); ws.send(JSON.stringify({ type:'get_messages', with:l })); ws.send(JSON.stringify({ type:'read', from:l })); scheduleRenderCurrentChat(true); renderOnline(); renderGroups();
 }
 
 function openGroup(groupId) {
@@ -1227,7 +1269,10 @@ function renderMessage(message) {
   m.appendChild(createAvatar(message.avatar || { letter:String(message.from || '?').charAt(0).toUpperCase(), color:'#5865f2' }, 'offline', false));
   const c = document.createElement('div'); c.className = 'messageContent';
   const editedLabel = message.edited ? `<span class="messageEdited">(${escapeHtml(t('edited'))})</span>` : '';
-  let inner = `<div class="messageHeader"><b>${escapeHtml(message.fromNick || message.from)}</b><span class="messageTime">${escapeHtml(formatMessageTime(message.time))}</span>${editedLabel}</div>`;
+  const isOwn = message.from === login;
+  const receiptStatus = isOwn ? getReceiptStatus(message) : '';
+  const receiptHtml = isOwn ? `<span class="messageReceipt ${receiptStatus}" title="${escapeHtml(getReceiptTitle(receiptStatus))}">${getReceiptIcon(receiptStatus)}</span>` : '';
+  let inner = `<div class="messageHeader"><b>${escapeHtml(message.fromNick || message.from)}</b><span class="messageTime">${escapeHtml(formatMessageTime(message.time))}</span>${editedLabel}${receiptHtml}</div>`;
   if (editingMessageId === Number(message.id) && message.from === login) {
     inner += `<div class="editBox"><input class="editInput" data-message-id="${message.id}" value="${escapeHtml(message.text)}"><button class="messageActionBtn" onclick="saveEditMessage(${message.id})">${escapeHtml(t('save'))}</button><button class="messageActionBtn" onclick="cancelEditMessage()">${escapeHtml(t('cancel'))}</button></div>`;
   } else {
@@ -1521,6 +1566,11 @@ window.addEventListener('load', () => {
   if (!savedToken) return;
   authToken = savedToken;
   openSocket({ type:'auth_token', token:savedToken });
+});
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && currentChatType === 'dm' && currentDM && ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type:'read', from:currentDM }));
+  }
 });
 </script>
 
