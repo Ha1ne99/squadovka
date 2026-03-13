@@ -322,6 +322,8 @@ button:hover { transform: translateY(-1px); }
   border-radius:14px;
   font-weight:800;
 }
+#callBtn { background:linear-gradient(135deg, #2fac5f, #42cb76); }
+#callBtn:disabled, .btn:disabled { opacity:0.55; cursor:not-allowed; transform:none; }
 #friendsPanel {
   width:390px;
   max-width:100vw;
@@ -365,6 +367,30 @@ button:hover { transform: translateY(-1px); }
 .friendEntry span { display:flex; gap:8px; }
 .friendEntry button { background:#171b23; border:1px solid var(--line); color:white; cursor:pointer; font-size:15px; width:34px; height:34px; border-radius:12px; }
 .emptyText { color:var(--muted); font-size:13px; }
+#callOverlay { position:fixed; inset:0; display:none; align-items:center; justify-content:center; background:rgba(0,0,0,0.58); z-index:9999; backdrop-filter: blur(5px); }
+#callModal { width:420px; background:var(--panel); border:1px solid var(--line); border-radius:24px; padding:18px; box-shadow:var(--shadow); }
+.callTop, .callTitle, .row, .callActions { display:flex; }
+.callTop { align-items:center; justify-content:space-between; gap:10px; }
+.callTitle { align-items:center; gap:10px; }
+.callTitle b { font-size:16px; }
+.callTitle span, .small, .row { color:var(--muted); }
+.callBody { margin-top:12px; background:#151922; border-radius:18px; padding:12px; display:flex; flex-direction:column; gap:12px; border:1px solid var(--line); }
+.row { align-items:center; justify-content:space-between; gap:12px; font-size:13px; }
+.pill { display:inline-flex; align-items:center; gap:8px; background:#0f131a; border:1px solid var(--line); padding:8px 10px; border-radius:999px; color:white; font-size:13px; }
+.level { height:10px; flex:1; background:#0f131a; border:1px solid var(--line); border-radius:999px; overflow:hidden; }
+.level > div { height:100%; width:0%; background:var(--green); transition:width .08s linear; }
+.callActions { margin-top:12px; gap:10px; justify-content:flex-end; flex-wrap:wrap; }
+.btn { border:none; border-radius:14px; padding:10px 12px; cursor:pointer; color:white; font-weight:800; }
+.btnGreen { background:#3ba55c; } .btnRed { background:#ed4245; } .btnBlue { background:#5865f2; } .btnGray { background:#404249; }
+input[type="range"]{ width:190px; }
+#callFlag{ display:none; align-items:center; justify-content:space-between; gap:12px; padding:12px 18px; background:#121722; border-bottom:1px solid var(--line); }
+#callFlag.show{ display:flex; }
+#callFlag .left, #callFlag .right { display:flex; align-items:center; gap:10px; }
+#callFlag .dot{ width:10px; height:10px; border-radius:50%; background:var(--green); box-shadow:0 0 0 3px rgba(59,165,92,0.2); flex-shrink:0; }
+#callFlag b, #callFlag #callFlagSub { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+#callFlag #callFlagSub{ color:var(--muted); font-size:12px; }
+#callFlag button{ border:none; border-radius:12px; padding:9px 11px; cursor:pointer; color:white; font-weight:800; background:#5865f2; }
+#callFlag button#callFlagHang{ background:#ed4245; }
 .profileCard {
   margin-top:auto; padding:12px; border-top:1px solid var(--line); display:flex; align-items:center; gap:12px; background:rgba(255,255,255,.02); border-radius:18px;
 }
@@ -468,6 +494,7 @@ button:hover { transform: translateY(-1px); }
   .messageContent { max-width: 100%; }
   #typingIndicator { padding: 0 12px 6px; }
   #input { padding:12px; }
+  #callModal { width:min(92vw, 420px); }
 }
 </style>
 </head>
@@ -542,6 +569,18 @@ button:hover { transform: translateY(-1px); }
       </div>
     </div>
 
+    <!-- CALL FLAG (MINIMIZED) -->
+    <div id="callFlag">
+      <div class="left">
+        <span class="dot"></span>
+        <b id="callFlagText">Звонок</b>
+        <span id="callFlagSub">нажми чтобы открыть</span>
+      </div>
+      <div class="right">
+        <button id="callFlagOpen" title="Открыть">Открыть</button>
+        <button id="callFlagHang" title="Сбросить">Сбросить</button>
+      </div>
+    </div>
 
     <div id="emptyChat">
       <div class="emptyCard">
@@ -556,6 +595,7 @@ button:hover { transform: translateY(-1px); }
     <div id="typingIndicator"></div>
 
     <div id="input">
+      <button id="callBtn" title="Позвонить">📞</button>
       <input id="text" placeholder="Сообщение...">
       <button id="sendBtn" title="Отправить">▶</button>
     </div>
@@ -632,6 +672,48 @@ button:hover { transform: translateY(-1px); }
   </div>
 </div>
 
+<!-- CALL OVERLAY -->
+<div id="callOverlay" style="display:none;">
+  <div id="callModal">
+    <div class="callTop">
+      <div class="callTitle">
+        <div class="avatar" id="callAvatar" style="background:#5865f2">?</div>
+        <div>
+          <b id="callName">Звонок</b><br>
+          <span id="callStatus">—</span>
+        </div>
+      </div>
+      <div class="small" id="callHint"></div>
+    </div>
+
+    <div class="callBody">
+      <div class="row">
+        <div class="pill" id="micState">🎙️ Микрофон: включён</div>
+        <div class="pill">🔊 Громкость:
+          <input id="vol" type="range" min="0" max="1" step="0.01" value="1">
+        </div>
+      </div>
+
+      <div class="row">
+        <div style="min-width:120px">Уровень голоса:</div>
+        <div class="level"><div id="levelFill"></div></div>
+      </div>
+
+      <div class="small" id="callNatHint">
+        Если не соединяется у кого-то — это NAT. Для “всегда работает” нужен TURN-сервер.
+      </div>
+    </div>
+
+    <div class="callActions">
+      <button class="btn btnGreen" id="btnAccept">Принять</button>
+      <button class="btn btnRed" id="btnDecline">Отклонить</button>
+      <button class="btn btnBlue" id="btnMute">Mute</button>
+      <button class="btn btnRed" id="btnHang">Сбросить</button>
+      <button class="btn btnGray" id="btnClose">Закрыть</button>
+    </div>
+  </div>
+</div>
+
 
 <script>
 const loginDiv = document.getElementById('login');
@@ -678,6 +760,25 @@ const groupMembersInput = document.getElementById('groupMembersInput');
 const createGroupBtn = document.getElementById('createGroupBtn');
 const groupsPanelList = document.getElementById('groupsPanelList');
 const avatarUploadInput = document.getElementById('avatarUploadInput');
+const callBtn = document.getElementById('callBtn');
+const callOverlay = document.getElementById('callOverlay');
+const callAvatar = document.getElementById('callAvatar');
+const callName = document.getElementById('callName');
+const callStatus = document.getElementById('callStatus');
+const callHint = document.getElementById('callHint');
+const btnAccept = document.getElementById('btnAccept');
+const btnDecline = document.getElementById('btnDecline');
+const btnMute = document.getElementById('btnMute');
+const btnHang = document.getElementById('btnHang');
+const btnClose = document.getElementById('btnClose');
+const micState = document.getElementById('micState');
+const vol = document.getElementById('vol');
+const levelFill = document.getElementById('levelFill');
+const callFlag = document.getElementById('callFlag');
+const callFlagText = document.getElementById('callFlagText');
+const callFlagSub = document.getElementById('callFlagSub');
+const callFlagOpen = document.getElementById('callFlagOpen');
+const callFlagHang = document.getElementById('callFlagHang');
 
 let ws;
 let authToken = localStorage.getItem('messenger_token') || '';
@@ -870,6 +971,7 @@ function applyLanguage() {
   addFriendBtn.textContent = t('sendRequest');
   document.getElementById('requestsTitle').textContent = t('requests');
   document.getElementById('friendsTitle').textContent = t('friendsTitle');
+  document.getElementById('callNatHint').textContent = t('natHint');
   profileSettingsTitle.textContent = profileModalMode === 'other' ? t('profileViewTitle') : t('profileSettings');
   profileReadonlyNote.textContent = t('profileViewTitle');
   profileNameLabel.textContent = t('displayName');
@@ -887,9 +989,13 @@ function applyLanguage() {
     const peer = findFriendData(currentDM) || onlineUsers.find(u => u.login === currentDM);
     chatStatus.textContent = statusText(peer?.status || 'offline');
   }
+  document.getElementById('callNatHint').textContent = t('natHint');
   btnAccept.textContent = t('accept');
+  if (callState === 'ringing') btnDecline.textContent = t('decline');
   btnHang.textContent = t('hang');
   btnClose.textContent = t('close');
+  callFlagOpen.textContent = t('open');
+  callFlagHang.textContent = t('hang');
   updateMicUI();
   updateChatHeader(currentDM, currentDMNick, currentDMAvatar);
   renderOnline(); renderRequests(); renderFriends(); rerenderCurrentChat();
@@ -965,7 +1071,7 @@ function setTypingState(peer, nicknameOrLogin, isTyping) {
 }
 function sendTyping(active) {
   if (!ws || ws.readyState !== WebSocket.OPEN || !currentDM) return;
-  sendWS({ type:'typing', to:currentDM, active:!!active });
+  ws.send(JSON.stringify({ type:'typing', to:currentDM, active:!!active }));
 }
 
 function updateChatHeader(peerLogin = null, peerNick = null, avatar = null) {
@@ -974,7 +1080,7 @@ function updateChatHeader(peerLogin = null, peerNick = null, avatar = null) {
     const groupName = group?.name || peerNick || `Group ${currentGroupId}`;
     chatTitle.textContent = groupName;
     const membersCount = Array.isArray(group?.members) ? group.members.length : 0;
-    chatStatus.textContent = membersCount ? `${membersCount} ${t('membersShort')}` : t('groupChat');
+    chatStatus.textContent = membersCount ? `${membersCount} участ.` : 'Групповой чат';
     chatAvatar.textContent = (groupName || 'G')[0]?.toUpperCase() || 'G';
     chatAvatar.style.backgroundImage = '';
     chatAvatar.style.background = '#5865f2';
@@ -996,7 +1102,6 @@ function rerenderCurrentChat() {
   if (!key) return;
   messages.innerHTML = '';
   (chats[key] || []).forEach(m => renderMessage(m));
-  messages.scrollTop = messages.scrollHeight;
 }
 
 switchMode.onclick = () => {
@@ -1004,21 +1109,6 @@ switchMode.onclick = () => {
   applyLanguage();
 };
 
-
-function sendWS(payload) {
-  const message = JSON.stringify(payload);
-  if (ws && ws.readyState === WebSocket.OPEN) {
-    ws.send(message);
-    return true;
-  }
-  if (authToken) {
-    openSocket({ type:'auth_token', token:authToken });
-    setTimeout(() => {
-      if (ws && ws.readyState === WebSocket.OPEN) ws.send(message);
-    }, 250);
-  }
-  return false;
-}
 
 function openSocket(initialPayload) {
   try {
@@ -1029,7 +1119,7 @@ function openSocket(initialPayload) {
   const protocol = location.protocol === 'https:' ? 'wss://' : 'ws://';
   ws = new WebSocket(protocol + location.host);
   ws.onopen = () => {
-    if (initialPayload) sendWS(initialPayload);
+    if (initialPayload) ws.send(JSON.stringify(initialPayload));
   };
   ws.onmessage = e => handle(JSON.parse(e.data));
   ws.onclose = () => {
@@ -1049,6 +1139,88 @@ loginBtn.onclick = async () => {
   openSocket({ type: isRegister ? 'register' : 'login', login: l, password: p });
 };
 
+const RTC_CONFIG = { iceServers: [{ urls:'stun:stun.l.google.com:19302' }] };
+let pc = null, localStream = null, remoteStream = null, remoteAudio = null, callPeer = null, callPeerNick = null, callState = 'idle', isMicMuted = false, analyser = null, audioCtx = null, levelRaf = null, pendingOffer = null;
+
+function openCallUI({peer, nick, status, hint = ''}) {
+  callOverlay.style.display = 'flex'; callName.textContent = nick ? `${t('callWith')} ${nick}` : t('call'); callStatus.textContent = status || ''; callHint.textContent = hint || '';
+  callAvatar.textContent = (nick || peer || '?')[0]?.toUpperCase() || '?'; btnAccept.style.display = 'none'; btnDecline.style.display = 'none'; btnMute.disabled = true; btnHang.disabled = true; updateMicUI();
+}
+function closeCallUI() { callOverlay.style.display = 'none'; }
+function setCallButtons(mode) {
+  if (mode === 'outgoing') { btnAccept.style.display='none'; btnDecline.style.display='inline-block'; btnDecline.textContent=t('cancel'); btnMute.disabled=true; btnHang.disabled=true; }
+  if (mode === 'incoming') { btnAccept.style.display='inline-block'; btnDecline.style.display='inline-block'; btnDecline.textContent=t('decline'); btnMute.disabled=true; btnHang.disabled=true; }
+  if (mode === 'in_call') { btnAccept.style.display='none'; btnDecline.style.display='none'; btnMute.disabled=false; btnHang.disabled=false; }
+  if (mode === 'ended') { btnAccept.style.display='none'; btnDecline.style.display='none'; btnMute.disabled=true; btnHang.disabled=true; }
+}
+function updateMicUI() { micState.textContent = isMicMuted ? t('micOff') : t('micOn'); btnMute.textContent = isMicMuted ? t('unmute') : t('mute'); }
+function attachRemoteAudio(stream) { if (!remoteAudio) { remoteAudio = new Audio(); remoteAudio.autoplay = true; } remoteAudio.srcObject = stream; remoteAudio.volume = Number(vol.value); remoteAudio.play().catch(()=>{}); }
+vol.oninput = () => { if (remoteAudio) remoteAudio.volume = Number(vol.value); };
+async function ensureLocalAudio() { await unlockAudio(); if (localStream) return localStream; try { localStream = await navigator.mediaDevices.getUserMedia({audio:true}); } catch(e) { alert(t('allowMic')); throw e; } isMicMuted = false; updateMicUI(); startMicLevel(localStream); return localStream; }
+function stopLocalAudio() { if (localStream) { localStream.getTracks().forEach(t => t.stop()); localStream = null; } stopMicLevel(); }
+async function flushPendingIce() { if (!pc || !pc.remoteDescription) return; while (pendingIceCandidates.length) { const candidate = pendingIceCandidates.shift(); try { await pc.addIceCandidate(new RTCIceCandidate(candidate)); } catch (e) { console.warn('ICE add failed:', e); } } }
+function createPeerConnection() {
+  pc = new RTCPeerConnection(RTC_CONFIG);
+  pc.onicecandidate = e => { if (e.candidate && callPeer) ws.send(JSON.stringify({ type:'call_ice', to:callPeer, candidate:e.candidate })); };
+  pc.ontrack = e => { remoteStream = e.streams[0]; attachRemoteAudio(remoteStream); };
+  pc.onconnectionstatechange = () => {
+    const s = pc.connectionState;
+    if (s === 'connected') { callState = 'in_call'; openCallUI({peer:callPeer, nick:callPeerNick, status:t('connected'), hint:''}); setCallButtons('in_call'); showCallFlag(makeFlagTitle(), t('tapToOpenCall')); stopRingtone(); }
+    if (s === 'failed' || s === 'disconnected' || s === 'closed') { if (callState !== 'idle') endCall(t('callEnded')); }
+  };
+  return pc;
+}
+function makeFlagTitle() { const who = callPeerNick || callPeer || 'User'; if (callState === 'ringing') return `${t('incomingFlag')} ${who}`; if (callState === 'calling') return `${t('outgoingFlag')} ${who}`; if (callState === 'in_call') return `${t('joinedCall')} ${who}`; return t('call'); }
+async function startOutgoingCall(peer, nick) {
+  if (!peer || callState !== 'idle') return; await unlockAudio(); callPeer = peer; callPeerNick = nick || peer; callState = 'calling';
+  openCallUI({peer, nick:callPeerNick, status:t('calling'), hint:t('waitingAnswer')}); setCallButtons('outgoing'); showCallFlag(makeFlagTitle(), t('tapToOpenCall')); callBtn.disabled = true;
+  await ensureLocalAudio(); createPeerConnection(); localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
+  const offer = await pc.createOffer({ offerToReceiveAudio:true }); await pc.setLocalDescription(offer); ws.send(JSON.stringify({ type:'call_offer', to:callPeer, offer }));
+}
+async function acceptIncomingCall(offer, from, fromNick) {
+  if (callState !== 'ringing') return; await unlockAudio(); stopRingtone(); soundAccept(); callPeer = from; callPeerNick = fromNick || from; callState = 'calling';
+  openCallUI({peer:callPeer, nick:callPeerNick, status:t('connecting'), hint:''}); setCallButtons('outgoing'); showCallFlag(makeFlagTitle(), t('tapToOpenCall')); callBtn.disabled = true;
+  await ensureLocalAudio(); createPeerConnection(); localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
+  await pc.setRemoteDescription(new RTCSessionDescription(offer)); const answer = await pc.createAnswer(); await pc.setLocalDescription(answer); ws.send(JSON.stringify({ type:'call_answer', to:callPeer, answer }));
+}
+function declineIncomingCall(reason=t('callDeclined')) { if (!callPeer) return; stopRingtone(); soundDecline(); ws.send(JSON.stringify({ type:'call_decline', to:callPeer, reason })); endCall(t('callDeclined')); }
+function cancelOutgoingCall() { if (!callPeer) return; stopRingtone(); soundDecline(); ws.send(JSON.stringify({ type:'call_cancel', to:callPeer })); endCall(t('callCancelled')); }
+function hangup() { if (!callPeer) return; stopRingtone(); ws.send(JSON.stringify({ type:'call_end', to:callPeer })); endCall(t('callEnded')); }
+function endCall(statusText=t('callEnded')) {
+  stopRingtone(); if (callOverlay.style.display === 'flex') { openCallUI({peer:callPeer, nick:callPeerNick, status:statusText, hint:''}); setCallButtons('ended'); }
+  if (pc) { try { pc.ontrack = null; pc.onicecandidate = null; pc.close(); } catch {} pc = null; }
+  if (remoteAudio) { try { remoteAudio.pause(); } catch {} remoteAudio.srcObject = null; }
+  if (remoteStream) { try { remoteStream.getTracks().forEach(t => t.stop()); } catch {} remoteStream = null; }
+  stopLocalAudio(); callState = 'idle'; callPeer = null; callPeerNick = null; callBtn.disabled = false; hideCallFlag(); setTimeout(closeCallUI, 800);
+}
+function startMicLevel(stream) {
+  stopMicLevel(); try {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)(); const src = audioCtx.createMediaStreamSource(stream); analyser = audioCtx.createAnalyser(); analyser.fftSize = 256; src.connect(analyser); const data = new Uint8Array(analyser.frequencyBinCount);
+    const tick = () => { if (!analyser) return; analyser.getByteTimeDomainData(data); let sum = 0; for (let i=0;i<data.length;i++){ const v = (data[i]-128)/128; sum += v*v; } const rms = Math.sqrt(sum / data.length); levelFill.style.width = Math.min(100, Math.max(0, Math.round(rms * 220))) + '%'; levelRaf = requestAnimationFrame(tick); };
+    tick();
+  } catch {}
+}
+function stopMicLevel() { if (levelRaf) cancelAnimationFrame(levelRaf); levelRaf = null; levelFill.style.width = '0%'; analyser = null; if (audioCtx) { try { audioCtx.close(); } catch {} audioCtx = null; } }
+function showCallFlag(text, sub){ callFlagText.textContent = text || t('call'); callFlagSub.textContent = sub || t('tapToOpen'); callFlag.classList.add('show'); }
+function hideCallFlag(){ callFlag.classList.remove('show'); }
+function minimizeCallUI(){ if (callState === 'idle') { closeCallUI(); hideCallFlag(); return; } showCallFlag(makeFlagTitle(), t('tapToOpenCall')); closeCallUI(); }
+function restoreCallUI(){ if (callState === 'idle') { hideCallFlag(); return; } hideCallFlag(); let status = ''; if (callState === 'ringing') status = t('incomingCall'); else if (callState === 'calling') status = t('calling'); else if (callState === 'in_call') status = t('connected'); openCallUI({peer:callPeer, nick:callPeerNick || callPeer || 'User', status, hint:''}); if (callState === 'ringing') setCallButtons('incoming'); else if (callState === 'calling') setCallButtons('outgoing'); else if (callState === 'in_call') setCallButtons('in_call'); }
+callFlag.onclick = e => { if (e.target.tagName === 'BUTTON') return; restoreCallUI(); };
+callFlagOpen.onclick = e => { e.stopPropagation(); restoreCallUI(); };
+callFlagHang.onclick = e => { e.stopPropagation(); if (callState !== 'idle') hangup(); hideCallFlag(); };
+btnAccept.onclick = () => { if (pendingOffer) { const {offer, from, fromNick} = pendingOffer; pendingOffer = null; acceptIncomingCall(offer, from, fromNick); } };
+btnDecline.onclick = () => { if (callState === 'ringing') { declineIncomingCall(); return; } if (callState === 'calling') { cancelOutgoingCall(); return; } closeCallUI(); };
+btnMute.onclick = () => { if (!localStream) return; isMicMuted = !isMicMuted; localStream.getAudioTracks().forEach(t => t.enabled = !isMicMuted); updateMicUI(); };
+btnHang.onclick = () => { if (callState !== 'idle') hangup(); };
+btnClose.onclick = minimizeCallUI;
+callBtn.onclick = () => { if (currentChatType !== 'dm' || !currentDM) return; startOutgoingCall(currentDM, currentDMNick || currentDM); };
+
+function upsertMessage(peer, message) {
+  chats[peer] ??= [];
+  const idx = chats[peer].findIndex(m => Number(m.id) === Number(message.id));
+  if (idx >= 0) chats[peer][idx] = { ...chats[peer][idx], ...message };
+  else chats[peer].push(message);
+}
 function updateMessageLocally(peer, id, patch) {
   const arr = chats[peer] || [];
   const idx = arr.findIndex(m => Number(m.id) === Number(id));
@@ -1179,22 +1351,29 @@ function handle(d) {
   if (d.type === 'group_message_edited') { updateGroupMessageLocally(d.groupId, d.id, { text:d.text, edited:d.edited, editedAt:d.editedAt }); saveLocalChatState(); if (currentChatType === 'group' && Number(currentGroupId) === Number(d.groupId)) rerenderCurrentChat(); return; }
   if (d.type === 'group_message_deleted') { removeGroupMessageLocally(d.groupId, d.id); saveLocalChatState(); if (currentChatType === 'group' && Number(currentGroupId) === Number(d.groupId)) rerenderCurrentChat(); return; }
   if (d.type === 'group_history') { chats[getGroupChatKey(d.groupId)] = Array.isArray(d.messages) ? d.messages : []; saveLocalChatState(); if (currentChatType === 'group' && Number(currentGroupId) === Number(d.groupId)) rerenderCurrentChat(); return; }
+  if (d.type === 'call_offer') {
+    if (callState !== 'idle') { ws.send(JSON.stringify({ type:'call_busy', to:d.from })); return; }
+    unlockAudio().then(startRingtone); callState = 'ringing'; callPeer = d.from; callPeerNick = d.fromNick || d.from; pendingOffer = { offer:d.offer, from:d.from, fromNick:callPeerNick };
+    showCallFlag(makeFlagTitle(), t('tapToOpenCall')); callBtn.disabled = true; openCallUI({peer:d.from, nick:callPeerNick, status:t('incomingCall'), hint:t('incomingCallHint')}); setCallButtons('incoming'); return;
+  }
+  if (d.type === 'call_answer') { stopRingtone(); if (pc && d.answer) pc.setRemoteDescription(new RTCSessionDescription(d.answer)).then(flushPendingIce).catch(() => endCall(t('serverError'))); return; }
+  if (d.type === 'call_ice') { if (!d.candidate) return; if (!pc || !pc.remoteDescription) { pendingIceCandidates.push(d.candidate); return; } pc.addIceCandidate(new RTCIceCandidate(d.candidate)).catch(()=>{}); return; }
+  if (d.type === 'call_decline') { stopRingtone(); soundDecline(); endCall(t('callDeclined')); return; }
+  if (d.type === 'call_cancel') { stopRingtone(); soundDecline(); endCall(t('callCancelled')); return; }
+  if (d.type === 'call_end') { stopRingtone(); endCall(t('callEnded')); return; }
+  if (d.type === 'call_busy') { stopRingtone(); soundDecline(); endCall(t('userBusy')); }
 }
 
 function openDM(l, n, avatar = null) {
   currentChatType = 'dm';
-  friendsPanel.classList.remove('show');
-  groupsPanel.classList.remove('show');
   currentGroupId = null;
   currentDM = l; currentDMNick = n; currentDMAvatar = avatar; editingMessageId = null; emptyChat.style.display = 'none'; messages.style.display = 'block'; unread[l] = 0; saveLocalChatState();
   const peer = findFriendData(l) || { nickname:n, avatar, status:'offline' };
-  updateChatHeader(l, peer.nickname || n, peer.avatar || avatar); renderTypingIndicator(); sendWS({ type:'read', from:l }); sendWS({ type:'get_messages', with:l }); rerenderCurrentChat(); renderOnline(); renderGroups();
+  updateChatHeader(l, peer.nickname || n, peer.avatar || avatar); renderTypingIndicator(); ws.send(JSON.stringify({ type:'read', from:l })); ws.send(JSON.stringify({ type:'get_messages', with:l })); rerenderCurrentChat(); renderOnline(); renderGroups(); callBtn.disabled = false;
 }
 
 function openGroup(groupId) {
   currentChatType = 'group';
-  friendsPanel.classList.remove('show');
-  groupsPanel.classList.remove('show');
   currentGroupId = Number(groupId);
   currentDM = null;
   editingMessageId = null;
@@ -1204,7 +1383,8 @@ function openGroup(groupId) {
   rerenderCurrentChat();
   renderOnline();
   renderGroups();
-  sendWS({ type:'get_group_messages', groupId:currentGroupId });
+  callBtn.disabled = true;
+  ws.send(JSON.stringify({ type:'get_group_messages', groupId:currentGroupId }));
 }
 
 
@@ -1212,10 +1392,10 @@ function beginEditMessage(messageId) { editingMessageId = Number(messageId); rer
 function cancelEditMessage() { editingMessageId = null; rerenderCurrentChat(); }
 function saveEditMessage(messageId) {
   const input = document.querySelector(`.editInput[data-message-id="${messageId}"]`); if (!input) return;
-  const value = input.value.trim(); if (!value) return; if (currentChatType === 'group' && currentGroupId) sendWS({ type:'edit_group_message', id:Number(messageId), text:value }); else sendWS({ type:'edit_message', id:Number(messageId), text:value }); editingMessageId = null;
+  const value = input.value.trim(); if (!value) return; if (currentChatType === 'group' && currentGroupId) ws.send(JSON.stringify({ type:'edit_group_message', id:Number(messageId), text:value })); else ws.send(JSON.stringify({ type:'edit_message', id:Number(messageId), text:value })); editingMessageId = null;
 }
 function deleteMessage(messageId) {
-  if (currentChatType === 'group' && currentGroupId) sendWS({ type:'delete_group_message', id:Number(messageId) }); else sendWS({ type:'delete_message', id:Number(messageId) });
+  if (currentChatType === 'group' && currentGroupId) ws.send(JSON.stringify({ type:'delete_group_message', id:Number(messageId) })); else ws.send(JSON.stringify({ type:'delete_message', id:Number(messageId) }));
   if (editingMessageId === Number(messageId)) editingMessageId = null;
 }
 window.beginEditMessage = beginEditMessage; window.cancelEditMessage = cancelEditMessage; window.saveEditMessage = saveEditMessage; window.deleteMessage = deleteMessage;
@@ -1236,13 +1416,13 @@ function renderMessage(message) {
 }
 
 sendBtn.onclick = async () => {
-  await unlockAudio(); const message = text.value.trim(); if (!message) return; if (currentChatType === 'group' && currentGroupId) { sendWS({ type:'group_message', groupId:currentGroupId, text:message }); text.value = ''; return; } if (!currentDM) return; sendWS({ type:'message', from:login, to:currentDM, text:message }); text.value = ''; sendTyping(false);
+  await unlockAudio(); const message = text.value.trim(); if (!message) return; if (currentChatType === 'group' && currentGroupId) { ws.send(JSON.stringify({ type:'group_message', groupId:currentGroupId, text:message })); text.value = ''; return; } if (!currentDM) return; ws.send(JSON.stringify({ type:'message', from:login, to:currentDM, text:message })); text.value = ''; sendTyping(false);
 };
 text.addEventListener('keydown', async e => {
   if (e.key === 'Enter') {
     const active = document.activeElement;
     if (active && active.classList.contains('editInput')) return;
-    e.preventDefault(); const message = text.value.trim(); if (!message) return; await unlockAudio(); if (currentChatType === 'group' && currentGroupId) { sendWS({ type:'group_message', groupId:currentGroupId, text:message }); text.value = ''; return; } if (!currentDM) return; sendWS({ type:'message', from:login, to:currentDM, text:message }); text.value = ''; sendTyping(false);
+    e.preventDefault(); const message = text.value.trim(); if (!message) return; await unlockAudio(); if (currentChatType === 'group' && currentGroupId) { ws.send(JSON.stringify({ type:'group_message', groupId:currentGroupId, text:message })); text.value = ''; return; } if (!currentDM) return; ws.send(JSON.stringify({ type:'message', from:login, to:currentDM, text:message })); text.value = ''; sendTyping(false);
   }
 });
 text.addEventListener('input', () => {
@@ -1260,12 +1440,12 @@ messages.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.cl
 
 function toggleFriendsPanel() { friendsPanel.classList.toggle('open'); friendsBtn.classList.toggle('active'); }
 friendsBtn.onclick = toggleFriendsPanel; headerFriendsBtn.onclick = toggleFriendsPanel;
-addFriendBtn.onclick = () => { const to = friendNick.value.trim(); if (!to) return; sendWS({ type:'friend_request', from:login, to }); friendNick.value = ''; };
+addFriendBtn.onclick = () => { const to = friendNick.value.trim(); if (!to) return; ws.send(JSON.stringify({ type:'friend_request', from:login, to })); friendNick.value = ''; };
 createGroupBtn.onclick = () => {
   const name = groupNameInput.value.trim();
   const members = groupMembersInput.value.split(',').map(v => v.trim()).filter(Boolean);
   if (!name) return alert('Введите название группы');
-  sendWS({ type:'create_group', name, members });
+  ws.send(JSON.stringify({ type:'create_group', name, members }));
   groupNameInput.value = '';
   groupMembersInput.value = '';
 };
@@ -1369,7 +1549,7 @@ function renderFriends() {
     removeBtn.onclick = (e) => {
       e.stopPropagation();
       if (!confirm(t('removeFriendConfirm'))) return;
-      sendWS({ type:'remove_friend', with:user.login });
+      ws.send(JSON.stringify({ type:'remove_friend', with:user.login }));
     };
 
     actions.appendChild(profileBtn);
@@ -1385,8 +1565,8 @@ function renderGroups() {
   if (groupsPanelList) groupsPanelList.innerHTML = '';
   const list = Array.isArray(groups) ? groups : [];
   if (!list.length) {
-    if (groupsSidebar) groupsSidebar.innerHTML = `<div class="emptyText">${escapeHtml(t('noGroups'))}</div>`;
-    if (groupsPanelList) groupsPanelList.textContent = t('noGroupsYet');
+    if (groupsSidebar) groupsSidebar.innerHTML = '<div class="emptyText">Нет групп</div>';
+    if (groupsPanelList) groupsPanelList.textContent = 'Групп пока нет';
     return;
   }
 
@@ -1397,7 +1577,7 @@ function renderGroups() {
       div.appendChild(createAvatar({ letter:(group.name || 'G')[0]?.toUpperCase() || 'G', color:'#5865f2' }, 'online', false));
       const info = document.createElement('div');
       info.className = 'userInfo';
-      info.innerHTML = `<div class="userName">${escapeHtml(group.name || ('Group ' + group.id))}</div><div class="userSub">${escapeHtml(String((group.members || []).length))} ${escapeHtml(t('membersShort'))}</div>`;
+      info.innerHTML = `<div class="userName">${escapeHtml(group.name || ('Group ' + group.id))}</div><div class="userSub">${escapeHtml(String((group.members || []).length))} участ.</div>`;
       div.appendChild(info);
       div.onclick = () => openGroup(group.id);
       groupsSidebar.appendChild(div);
@@ -1411,7 +1591,7 @@ function renderGroups() {
       main.appendChild(createAvatar({ letter:(group.name || 'G')[0]?.toUpperCase() || 'G', color:'#5865f2' }, 'online', false));
       const meta = document.createElement('div');
       meta.className = 'friendMeta';
-      meta.innerHTML = `<b>${escapeHtml(group.name || ('Group ' + group.id))}</b><span>${escapeHtml(String((group.members || []).length))} ${escapeHtml(t('membersShort'))}</span>`;
+      meta.innerHTML = `<b>${escapeHtml(group.name || ('Group ' + group.id))}</b><span>${escapeHtml(String((group.members || []).length))} участ.</span>`;
       main.appendChild(meta);
       main.onclick = () => openGroup(group.id);
       row.appendChild(main);
@@ -1419,7 +1599,7 @@ function renderGroups() {
       actions.className = 'groupEntryActions';
 
       const openBtn = document.createElement('button');
-      openBtn.textContent = t('open');
+      openBtn.textContent = 'Открыть';
       openBtn.onclick = () => openGroup(group.id);
       actions.appendChild(openBtn);
 
@@ -1427,37 +1607,37 @@ function renderGroups() {
       const isOwner = groupData.ownerLogin === login;
       if (isOwner) {
         const renameBtn = document.createElement('button');
-        renameBtn.textContent = t('configure');
+        renameBtn.textContent = 'Настроить';
         renameBtn.onclick = () => {
-          const newName = prompt(t('groupNamePrompt'), groupData.name || '');
-          if (newName && newName.trim()) sendWS({ type:'update_group', groupId:group.id, name:newName.trim() });
+          const newName = prompt('Название группы', groupData.name || '');
+          if (newName && newName.trim()) ws.send(JSON.stringify({ type:'update_group', groupId:group.id, name:newName.trim() }));
         };
         actions.appendChild(renameBtn);
 
         const addBtn = document.createElement('button');
-        addBtn.textContent = t('add');
+        addBtn.textContent = 'Добавить';
         addBtn.onclick = () => {
-          const val = prompt(t('loginsCommaPrompt'));
+          const val = prompt('Логины через запятую');
           const members = (val || '').split(',').map(v => v.trim()).filter(Boolean);
-          if (members.length) sendWS({ type:'add_group_members', groupId:group.id, members });
+          if (members.length) ws.send(JSON.stringify({ type:'add_group_members', groupId:group.id, members }));
         };
         actions.appendChild(addBtn);
 
         const removeBtn = document.createElement('button');
-        removeBtn.textContent = t('removeMember');
+        removeBtn.textContent = 'Удалить участника';
         removeBtn.onclick = () => {
           const current = findGroupData(group.id) || group;
           const names = (current.members || []).filter(m => m.login !== login).map(m => m.login).join(', ');
-          const target = prompt(`${t('whoRemovePrompt')} ${names}`);
-          if (target && target.trim()) sendWS({ type:'remove_group_member', groupId:group.id, userLogin:target.trim() });
+          const target = prompt(`Кого удалить? Доступно: ${names}`);
+          if (target && target.trim()) ws.send(JSON.stringify({ type:'remove_group_member', groupId:group.id, userLogin:target.trim() }));
         };
         actions.appendChild(removeBtn);
       }
 
       const leaveBtn = document.createElement('button');
-      leaveBtn.textContent = isOwner ? t('deleteGroup') : t('leave');
+      leaveBtn.textContent = isOwner ? 'Удалить группу' : 'Выйти';
       leaveBtn.onclick = () => {
-        if (confirm(isOwner ? t('deleteGroupConfirm') : t('leaveGroupConfirm'))) sendWS({ type:'leave_group', groupId:group.id });
+        if (confirm(isOwner ? 'Удалить группу целиком?' : 'Выйти из группы?')) ws.send(JSON.stringify({ type:'leave_group', groupId:group.id }));
       };
       actions.appendChild(leaveBtn);
       row.appendChild(actions);
@@ -1480,7 +1660,7 @@ function renderOnline() {
   });
 }
 
-function accept(u) { sendWS({ type:'friend_accept', from:u }); requests = requests.filter(r => r !== u); renderRequests(); }
+function accept(u) { ws.send(JSON.stringify({ type:'friend_accept', from:u })); requests = requests.filter(r => r !== u); renderRequests(); }
 function decline(u) { requests = requests.filter(r => r !== u); renderRequests(); }
 window.accept = accept; window.decline = decline; window.openUserProfileModal = openUserProfileModal;
 profileCard.onclick = (e) => {
@@ -1505,12 +1685,13 @@ profileSaveBtn.onclick = () => {
   newA.id = 'profileAvatar';
   syncProfileMiniCard();
   applyProfileUpdateLocal({ login, nickname, avatar: myAvatar, status: myStatus === 'invisible' ? 'offline' : myStatus });
-  sendWS({ type:'update_profile', nickname:newNickname, status:selectedProfileStatus });
+  ws.send(JSON.stringify({ type:'update_profile', nickname:newNickname, status:selectedProfileStatus }));
   closeProfileModal();
 };
 avatarUploadInput.onchange = () => {
-  const file = avatarUploadInput.files?.[0]; if (!file || !ws) return; const reader = new FileReader(); reader.onload = () => sendWS({ type:'update_avatar', image:reader.result }); reader.readAsDataURL(file);
+  const file = avatarUploadInput.files?.[0]; if (!file || !ws) return; const reader = new FileReader(); reader.onload = () => ws.send(JSON.stringify({ type:'update_avatar', image:reader.result })); reader.readAsDataURL(file);
 };
+window.addEventListener('beforeunload', () => { try { if (callState !== 'idle' && callPeer) ws.send(JSON.stringify({ type:'call_end', to:callPeer })); } catch {} });
 window.addEventListener('load', () => {
   applyLanguage();
   const savedToken = localStorage.getItem('messenger_token');

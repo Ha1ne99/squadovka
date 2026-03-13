@@ -251,6 +251,7 @@ async function initDb() {
 }
 
 const clients = new Map();
+const inCall = new Map();
 
 function send(ws, data) {
   if (ws.readyState === WebSocket.OPEN) {
@@ -528,6 +529,15 @@ async function broadcastOnlineFriends() {
   }
 }
 
+function isBusy(login) {
+  return inCall.has(login);
+}
+
+function clearCall(login) {
+  const peer = inCall.get(login);
+  inCall.delete(login);
+  if (peer && inCall.get(peer) === login) inCall.delete(peer);
+}
 
 server.on('upgrade', (req, socket, head) => {
   if (isProduction() && !isSecureRequest(req)) {
@@ -1125,6 +1135,36 @@ wss.on('connection', (ws, req) => {
         return;
       }
 
+      const callTypes = new Set(['call_offer','call_answer','call_ice','call_cancel','call_decline','call_end','call_busy']);
+      if (callTypes.has(data.type)) {
+        const to = data.to;
+        if (!to || to === userLogin) return;
+
+        const targetOnline = [...clients.values()].some(c => c.login === to);
+
+        if (data.type === 'call_offer') {
+          if (!targetOnline) {
+            send(ws, { type: 'error', message: 'Пользователь не в сети' });
+            return;
+          }
+          if (isBusy(userLogin) || isBusy(to)) {
+            sendToUser(userLogin, { type: 'call_busy' });
+            return;
+          }
+          inCall.set(userLogin, to);
+          inCall.set(to, userLogin);
+        }
+
+        if ((data.type === 'call_answer' || data.type === 'call_ice') && inCall.get(userLogin) !== to) return;
+
+        if (data.type === 'call_cancel' || data.type === 'call_decline' || data.type === 'call_end' || data.type === 'call_busy') {
+          clearCall(userLogin);
+          clearCall(to);
+        }
+
+        sendToUser(to, { ...data, from: userLogin, fromNick: me.nickname });
+        return;
+      }
     } catch (err) {
       console.error('WS message error:', err);
       send(ws, { type: 'error', message: 'Ошибка сервера' });
@@ -1134,6 +1174,12 @@ wss.on('connection', (ws, req) => {
   ws.on('close', async () => {
     const info = clients.get(ws);
     clients.delete(ws);
+
+    if (info?.login) {
+      const peer = inCall.get(info.login);
+      if (peer) sendToUser(peer, { type: 'call_end', from: info.login });
+      clearCall(info.login);
+    }
 
     try {
       await broadcastOnlineFriends();
