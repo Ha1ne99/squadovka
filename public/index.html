@@ -2,6 +2,7 @@
 <html lang="ru">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Squadovka</title>
 
 <style>
@@ -1393,7 +1394,7 @@ function handle(d) {
     myAvatar = d.avatar || { letter:(nickname || login || '?')[0]?.toUpperCase() || '?', color:'#5865f2' }; const avatarEl = createAvatar(myAvatar, myStatus, true); const old = document.getElementById('profileAvatar'); old.replaceWith(avatarEl); avatarEl.id = 'profileAvatar';
     profileModalLoginPreview.textContent = login;
     syncPresenceFromOnline();
-    renderFriends(); renderRequests(); renderOnline(); renderGroups(); applyLanguage(); return;
+    renderFriends(); renderRequests(); renderOnline(); renderGroups(); applyLanguage(); syncMobileLayout(); return;
   }
   if (d.type === 'online_friends') {
     onlineUsers = Array.isArray(d.users) ? d.users : [];
@@ -1527,6 +1528,8 @@ function handle(d) {
 }
 
 function openDM(l, n, avatar = null) {
+  friendsPanel.classList.remove('open');
+  friendsBtn.classList.remove('active');
   syncMobileLayout(true);
   currentChatType = 'dm';
   currentGroupId = null;
@@ -1536,6 +1539,8 @@ function openDM(l, n, avatar = null) {
 }
 
 function openGroup(groupId) {
+  friendsPanel.classList.remove('open');
+  friendsBtn.classList.remove('active');
   syncMobileLayout(true);
   currentChatType = 'group';
   currentGroupId = Number(groupId);
@@ -1607,7 +1612,7 @@ text.addEventListener('input', () => {
 messages.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.classList.contains('editInput')) { e.preventDefault(); saveEditMessage(e.target.dataset.messageId); } });
 
 function toggleFriendsPanel() { friendsPanel.classList.toggle('open'); friendsBtn.classList.toggle('active'); }
-mobileBackBtn.onclick = () => syncMobileLayout(false);
+mobileBackBtn.onclick = () => { friendsPanel.classList.remove('open'); friendsBtn.classList.remove('active'); syncMobileLayout(false); };
 friendsBtn.onclick = toggleFriendsPanel; headerFriendsBtn.onclick = toggleFriendsPanel;
 addFriendBtn.onclick = () => { const to = friendNick.value.trim(); if (!to) return; ws.send(JSON.stringify({ type:'friend_request', from:login, to })); friendNick.value = ''; };
 createGroupBtn.onclick = () => {
