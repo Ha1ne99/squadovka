@@ -1022,16 +1022,85 @@ document.querySelectorAll('.langBtn').forEach(btn => btn.onclick = () => setLang
 
 function getChatsStorageKey(userLogin) { return `messenger_chats_${userLogin}`; }
 function getUnreadStorageKey(userLogin) { return `messenger_unread_${userLogin}`; }
+const LOCAL_CHAT_LIMIT_PER_CHAT = 80;
+const LOCAL_TEXT_LIMIT = 4000;
+
+function sanitizeLocalMessage(message) {
+  if (!message || typeof message !== 'object') return null;
+  const safe = {
+    id: Number(message.id) || Date.now(),
+    from: typeof message.from === 'string' ? message.from : '',
+    to: typeof message.to === 'string' ? message.to : '',
+    text: typeof message.text === 'string' ? message.text.slice(0, LOCAL_TEXT_LIMIT) : '',
+    ts: Number(message.ts) || Date.now(),
+    edited: !!message.edited,
+    editedAt: Number(message.editedAt) || null,
+    deleted: !!message.deleted
+  };
+  if (message.groupId != null) safe.groupId = Number(message.groupId) || message.groupId;
+  return safe;
+}
+
+function sanitizeChatsForStorage(sourceChats) {
+  const out = {};
+  for (const [chatKey, arr] of Object.entries(sourceChats || {})) {
+    if (!Array.isArray(arr)) continue;
+    out[chatKey] = arr.slice(-LOCAL_CHAT_LIMIT_PER_CHAT).map(sanitizeLocalMessage).filter(Boolean);
+  }
+  return out;
+}
+
+function sanitizeUnreadForStorage(sourceUnread) {
+  const out = {};
+  for (const [chatKey, value] of Object.entries(sourceUnread || {})) out[chatKey] = Math.max(0, Number(value) || 0);
+  return out;
+}
+
+function persistLocalState(chatsData, unreadData) {
+  localStorage.setItem(getChatsStorageKey(login), JSON.stringify(chatsData));
+  localStorage.setItem(getUnreadStorageKey(login), JSON.stringify(unreadData));
+}
+
 function saveLocalChatState() {
   if (!login) return;
-  localStorage.setItem(getChatsStorageKey(login), JSON.stringify(chats));
-  localStorage.setItem(getUnreadStorageKey(login), JSON.stringify(unread));
+  const safeChats = sanitizeChatsForStorage(chats);
+  const safeUnread = sanitizeUnreadForStorage(unread);
+  try {
+    persistLocalState(safeChats, safeUnread);
+  } catch (err) {
+    console.warn('Local chat cache is full, trimming old messages', err);
+    try {
+      const tighterChats = {};
+      for (const [chatKey, arr] of Object.entries(safeChats)) tighterChats[chatKey] = (arr || []).slice(-30);
+      persistLocalState(tighterChats, safeUnread);
+      chats = { ...tighterChats };
+      unread = { ...safeUnread };
+    } catch (err2) {
+      console.warn('Local chat cache reset after quota error', err2);
+      try {
+        localStorage.removeItem(getChatsStorageKey(login));
+        localStorage.removeItem(getUnreadStorageKey(login));
+        persistLocalState({}, safeUnread);
+        chats = {};
+        unread = { ...safeUnread };
+      } catch {}
+    }
+  }
 }
 function loadLocalChatState(userLogin) {
   try {
-    chats = JSON.parse(localStorage.getItem(getChatsStorageKey(userLogin)) || '{}');
-    unread = JSON.parse(localStorage.getItem(getUnreadStorageKey(userLogin)) || '{}');
-  } catch { chats = {}; unread = {}; }
+    const parsedChats = JSON.parse(localStorage.getItem(getChatsStorageKey(userLogin)) || '{}');
+    const parsedUnread = JSON.parse(localStorage.getItem(getUnreadStorageKey(userLogin)) || '{}');
+    chats = sanitizeChatsForStorage(parsedChats);
+    unread = sanitizeUnreadForStorage(parsedUnread);
+  } catch {
+    chats = {};
+    unread = {};
+    try {
+      localStorage.removeItem(getChatsStorageKey(userLogin));
+      localStorage.removeItem(getUnreadStorageKey(userLogin));
+    } catch {}
+  }
 }
 
 let sctx = null, ringtoneTimer = null, ringtoneActive = false;
@@ -1249,7 +1318,14 @@ function updateMessageLocally(peer, id, patch) {
 function handle(d) {
   if (d.type === 'error') { alert(d.message || t('serverError')); return; }
   if (d.type === 'auth_expired') { clearSavedAuth(); alert(t('authExpired')); return; }
-  if (d.type === 'register_ok') { alert(t('accountCreated')); switchMode.onclick(); return; }
+  if (d.type === 'register_ok') {
+    alert((t('accountCreated') || 'Аккаунт создан') + '. ' + (t('login') || 'Войдите'));
+    isRegister = false;
+    applyLanguage();
+    passwordInput.value = '';
+    passwordInput.focus();
+    return;
+  }
   if (d.type === 'login_ok') {
     login = d.login; nickname = d.nickname; myStatus = normalizeClientStatus(d.status || 'online'); localStorage.setItem('login', login); authToken = typeof d.token === 'string' ? d.token : authToken; if (authToken) localStorage.setItem('messenger_token', authToken); localStorage.removeItem('password'); loadLocalChatState(login); friends = Array.isArray(d.friends) ? d.friends : friends; groups = Array.isArray(d.groups) ? d.groups : groups; unread = d.unread || unread || {};
     loginDiv.style.display = 'none'; appDiv.style.display = 'flex'; profileNick.textContent = nickname; profileLogin.textContent = login;
