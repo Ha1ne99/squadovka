@@ -532,7 +532,7 @@ input[type="range"]{ width:190px; }
     <div id="friendsBtn"><span id="friendsBtnLabel">👥 Друзья</span></div>
     <div class="sectionLabel" id="onlineSectionLabel">Друзья онлайн</div>
     <div id="online"></div>
-      <div class="sectionLabel">Группы</div>
+      <div class="sectionLabel" id="groupsSectionLabel">Группы</div>
       <div id="groupsSidebar"></div>
 
     <!-- PROFILE -->
@@ -616,7 +616,7 @@ input[type="range"]{ width:190px; }
   </div>
 
   <div class="friendSection">
-    <h3>Создать группу</h3>
+    <h3 id="createGroupTitle">Создать группу</h3>
     <input id="groupNameInput" class="addFriendInput" placeholder="Название группы">
     <input id="groupMembersInput" class="addFriendInput" placeholder="Логины друзей через запятую" style="margin-top:10px;">
     <button class="addFriendBtn" id="createGroupBtn">Создать группу</button>
@@ -628,7 +628,7 @@ input[type="range"]{ width:190px; }
   </div>
 
   <div class="friendSection">
-    <h3>Мои группы</h3>
+    <h3 id="myGroupsTitle">Мои группы</h3>
     <div id="groupsPanelList" class="emptyText">Групп пока нет</div>
   </div>
 </div>
@@ -689,13 +689,17 @@ input[type="range"]{ width:190px; }
     <div class="callBody">
       <div class="row">
         <div class="pill" id="micState">🎙️ Микрофон: включён</div>
-        <div class="pill">🔊 Громкость:
+        <div class="pill" id="deafenState">🎧 Наушники: включены</div>
+      </div>
+
+      <div class="row">
+        <div class="pill"><span id="volumeLabel">🔊 Громкость:</span>
           <input id="vol" type="range" min="0" max="1" step="0.01" value="1">
         </div>
       </div>
 
       <div class="row">
-        <div style="min-width:120px">Уровень голоса:</div>
+        <div id="voiceLevelLabel" style="min-width:120px">Уровень голоса:</div>
         <div class="level"><div id="levelFill"></div></div>
       </div>
 
@@ -708,6 +712,7 @@ input[type="range"]{ width:190px; }
       <button class="btn btnGreen" id="btnAccept">Принять</button>
       <button class="btn btnRed" id="btnDecline">Отклонить</button>
       <button class="btn btnBlue" id="btnMute">Mute</button>
+      <button class="btn btnGray" id="btnDeafen">Deafen</button>
       <button class="btn btnRed" id="btnHang">Сбросить</button>
       <button class="btn btnGray" id="btnClose">Закрыть</button>
     </div>
@@ -769,9 +774,11 @@ const callHint = document.getElementById('callHint');
 const btnAccept = document.getElementById('btnAccept');
 const btnDecline = document.getElementById('btnDecline');
 const btnMute = document.getElementById('btnMute');
+const btnDeafen = document.getElementById('btnDeafen');
 const btnHang = document.getElementById('btnHang');
 const btnClose = document.getElementById('btnClose');
 const micState = document.getElementById('micState');
+const deafenState = document.getElementById('deafenState');
 const vol = document.getElementById('vol');
 const levelFill = document.getElementById('levelFill');
 const callFlag = document.getElementById('callFlag');
@@ -822,7 +829,7 @@ const i18n = {
     messageNotFound:'Сообщение не найдено', edit:'Редактировать', save:'Сохранить', cancel:'Отмена', edited:'изменено', editOwnOnly:'Можно редактировать только свои сообщения',
     serverError:'Ошибка сервера', accountCreated:'Аккаунт создан, войдите', enterLoginPassword:'Введите логин и пароль', loginTaken:'Логин занят', badLogin:'Неверный логин или пароль',
     badAvatar:'Неверный формат аватара', bigAvatar:'Аватар слишком большой', userNotFound:'Пользователь не найден', alreadyFriends:'Вы уже друзья',
-    allowMic:'Разрешите доступ к микрофону для звонков', userOffline:'Пользователь не в сети', delete:'Удалить', typing:'печатает', profileSettings:'Настройка профиля', displayName:'Отображаемое имя', enterDisplayName:'Введите имя', status_online:'В сети', status_idle:'Не активен', status_dnd:'Не беспокоить', status_invisible:'Невидимка', status_offline:'Не в сети', viewProfile:'Профиль', removeFriend:'Удалить', profileViewTitle:'Профиль пользователя', removeFriendConfirm:'Удалить этого пользователя из друзей?', removedFromFriends:'Пользователь удалён из друзей'
+    allowMic:'Разрешите доступ к микрофону для звонков', userOffline:'Пользователь не в сети', delete:'Удалить', typing:'печатает', profileSettings:'Настройка профиля', displayName:'Отображаемое имя', enterDisplayName:'Введите имя', status_online:'В сети', status_idle:'Не активен', status_dnd:'Не беспокоить', status_invisible:'Невидимка', status_offline:'Не в сети', viewProfile:'Профиль', removeFriend:'Удалить', profileViewTitle:'Профиль пользователя', removeFriendConfirm:'Удалить этого пользователя из друзей?', removedFromFriends:'Пользователь удалён из друзей', groups:'Группы', createGroup:'Создать группу', groupNamePlaceholder:'Название группы', groupMembersPlaceholder:'Логины друзей через запятую', myGroups:'Мои группы', noGroups:'Групп пока нет', groupMembersCount:'участ.', groupOpen:'Открыть', groupSettings:'Настроить', groupAddMembers:'Добавить', groupRemoveMember:'Удалить участника', groupDelete:'Удалить группу', groupLeave:'Выйти', groupChat:'Групповой чат', groupMembersPrompt:'Логины через запятую', groupRenamePrompt:'Название группы', groupRemovePrompt:'Кого удалить? Доступно:', groupDeleteConfirm:'Удалить группу целиком?', groupLeaveConfirm:'Выйти из группы?', deafen:'Заглушить', undeafen:'Включить звук', deafenOn:'🎧 Наушники: включены', deafenOff:'🎧 Наушники: выключены'
   },
   uk: {
     loginBrandSubtitle:'Твій затишний месенджер для друзів', login:'Вхід', register:'Реєстрація', loginBtn:'Увійти', registerBtn:'Створити акаунт',
@@ -840,7 +847,7 @@ const i18n = {
     messageNotFound:'Повідомлення не знайдено', edit:'Редагувати', save:'Зберегти', cancel:'Скасування', edited:'змінено', editOwnOnly:'Можна редагувати лише свої повідомлення',
     serverError:'Помилка сервера', accountCreated:'Акаунт створено, увійди', enterLoginPassword:'Введи логін і пароль', loginTaken:'Логін зайнятий', badLogin:'Невірний логін або пароль',
     badAvatar:'Невірний формат аватара', bigAvatar:'Аватар занадто великий', userNotFound:'Користувача не знайдено', alreadyFriends:'Ви вже друзі',
-    allowMic:'Дозволь доступ до мікрофона для дзвінків', userOffline:'Користувач не в мережі', delete:'Видалити', typing:'друкує', profileSettings:'Налаштування профілю', displayName:'Відображуване ім’я', enterDisplayName:'Введи ім’я', status_online:'В мережі', status_idle:'Не активний', status_dnd:'Не турбувати', status_invisible:'Невидимка', status_offline:'Не в мережі'
+    allowMic:'Дозволь доступ до мікрофона для дзвінків', userOffline:'Користувач не в мережі', delete:'Видалити', typing:'друкує', profileSettings:'Налаштування профілю', displayName:'Відображуване ім’я', enterDisplayName:'Введи ім’я', status_online:'В мережі', status_idle:'Не активний', status_dnd:'Не турбувати', status_invisible:'Невидимка', status_offline:'Не в мережі', viewProfile:'Профіль', removeFriend:'Видалити', profileViewTitle:'Профіль користувача', removeFriendConfirm:'Видалити цього користувача з друзів?', removedFromFriends:'Користувача видалено з друзів', groups:'Групи', createGroup:'Створити групу', groupNamePlaceholder:'Назва групи', groupMembersPlaceholder:'Логіни друзів через кому', myGroups:'Мої групи', noGroups:'Груп поки немає', groupMembersCount:'учасн.', groupOpen:'Відкрити', groupSettings:'Налаштувати', groupAddMembers:'Додати', groupRemoveMember:'Видалити учасника', groupDelete:'Видалити групу', groupLeave:'Вийти', groupChat:'Груповий чат', groupMembersPrompt:'Логіни через кому', groupRenamePrompt:'Назва групи', groupRemovePrompt:'Кого видалити? Доступно:', groupDeleteConfirm:'Видалити групу повністю?', groupLeaveConfirm:'Вийти з групи?', deafen:'Заглушити', undeafen:'Увімкнути звук', deafenOn:'🎧 Навушники: увімкнені', deafenOff:'🎧 Навушники: вимкнені'
   },
   en: {
     loginBrandSubtitle:'Your cozy messenger for friends', login:'Login', register:'Register', loginBtn:'Sign in', registerBtn:'Create account',
@@ -858,7 +865,7 @@ const i18n = {
     messageNotFound:'Message not found', edit:'Edit', save:'Save', cancel:'Cancel', edited:'edited', editOwnOnly:'You can edit only your own messages',
     serverError:'Server error', accountCreated:'Account created, sign in', enterLoginPassword:'Enter login and password', loginTaken:'Login is already taken', badLogin:'Invalid login or password', authExpired:'Session expired. Sign in again.',
     badAvatar:'Invalid avatar format', bigAvatar:'Avatar is too large', userNotFound:'User not found', alreadyFriends:'You are already friends',
-    allowMic:'Allow microphone access for calls', userOffline:'User is offline', delete:'Delete', typing:'is typing', profileSettings:'Profile settings', displayName:'Display name', enterDisplayName:'Enter display name', status_online:'Online', status_idle:'Idle', status_dnd:'Do not disturb', status_invisible:'Invisible', status_offline:'Offline', viewProfile:'Profile', removeFriend:'Remove', profileViewTitle:'User profile', removeFriendConfirm:'Remove this user from friends?', removedFromFriends:'User removed from friends'
+    allowMic:'Allow microphone access for calls', userOffline:'User is offline', delete:'Delete', typing:'is typing', profileSettings:'Profile settings', displayName:'Display name', enterDisplayName:'Enter display name', status_online:'Online', status_idle:'Idle', status_dnd:'Do not disturb', status_invisible:'Invisible', status_offline:'Offline', viewProfile:'Profile', removeFriend:'Remove', profileViewTitle:'User profile', removeFriendConfirm:'Remove this user from friends?', removedFromFriends:'User removed from friends', groups:'Groups', createGroup:'Create group', groupNamePlaceholder:'Group name', groupMembersPlaceholder:'Friends logins separated by commas', myGroups:'My groups', noGroups:'No groups yet', groupMembersCount:'members', groupOpen:'Open', groupSettings:'Manage', groupAddMembers:'Add', groupRemoveMember:'Remove member', groupDelete:'Delete group', groupLeave:'Leave', groupChat:'Group chat', groupMembersPrompt:'Logins separated by commas', groupRenamePrompt:'Group name', groupRemovePrompt:'Who to remove? Available:', groupDeleteConfirm:'Delete the whole group?', groupLeaveConfirm:'Leave the group?', deafen:'Deafen', undeafen:'Undeafen', deafenOn:'🎧 Headphones: on', deafenOff:'🎧 Headphones: off'
   }
 };
 
@@ -962,6 +969,7 @@ function applyLanguage() {
   document.getElementById('friendsBtnLabel').textContent = '👥 ' + t('friends');
   document.getElementById('headerFriendsBtnLabel').textContent = t('friends');
   document.getElementById('onlineSectionLabel').textContent = t('onlineFriends');
+  document.getElementById('groupsSectionLabel').textContent = t('groups');
   document.getElementById('emptyTitle').textContent = t('welcome');
   document.getElementById('emptyTextLabel').textContent = t('welcomeText');
   text.placeholder = t('messagePlaceholder');
@@ -971,6 +979,11 @@ function applyLanguage() {
   addFriendBtn.textContent = t('sendRequest');
   document.getElementById('requestsTitle').textContent = t('requests');
   document.getElementById('friendsTitle').textContent = t('friendsTitle');
+  document.getElementById('createGroupTitle').textContent = t('createGroup');
+  groupNameInput.placeholder = t('groupNamePlaceholder');
+  groupMembersInput.placeholder = t('groupMembersPlaceholder');
+  createGroupBtn.textContent = t('createGroup');
+  document.getElementById('myGroupsTitle').textContent = t('myGroups');
   document.getElementById('callNatHint').textContent = t('natHint');
   profileSettingsTitle.textContent = profileModalMode === 'other' ? t('profileViewTitle') : t('profileSettings');
   profileReadonlyNote.textContent = t('profileViewTitle');
@@ -993,12 +1006,16 @@ function applyLanguage() {
   btnAccept.textContent = t('accept');
   if (callState === 'ringing') btnDecline.textContent = t('decline');
   btnHang.textContent = t('hang');
+  btnDeafen.textContent = isDeafened ? t('undeafen') : t('deafen');
+  document.getElementById('volumeLabel').textContent = t('volume');
+  document.getElementById('voiceLevelLabel').textContent = t('voiceLevel');
   btnClose.textContent = t('close');
   callFlagOpen.textContent = t('open');
   callFlagHang.textContent = t('hang');
   updateMicUI();
+  updateDeafenUI();
   updateChatHeader(currentDM, currentDMNick, currentDMAvatar);
-  renderOnline(); renderRequests(); renderFriends(); rerenderCurrentChat();
+  renderOnline(); renderRequests(); renderFriends(); renderGroups(); rerenderCurrentChat();
 }
 
 document.querySelectorAll('.langBtn').forEach(btn => btn.onclick = () => setLanguage(btn.dataset.lang));
@@ -1080,7 +1097,7 @@ function updateChatHeader(peerLogin = null, peerNick = null, avatar = null) {
     const groupName = group?.name || peerNick || `Group ${currentGroupId}`;
     chatTitle.textContent = groupName;
     const membersCount = Array.isArray(group?.members) ? group.members.length : 0;
-    chatStatus.textContent = membersCount ? `${membersCount} участ.` : 'Групповой чат';
+    chatStatus.textContent = membersCount ? `${membersCount} ${t('groupMembersCount')}` : t('groupChat');
     chatAvatar.textContent = (groupName || 'G')[0]?.toUpperCase() || 'G';
     chatAvatar.style.backgroundImage = '';
     chatAvatar.style.background = '#5865f2';
@@ -1140,7 +1157,7 @@ loginBtn.onclick = async () => {
 };
 
 const RTC_CONFIG = { iceServers: [{ urls:'stun:stun.l.google.com:19302' }] };
-let pc = null, localStream = null, remoteStream = null, remoteAudio = null, callPeer = null, callPeerNick = null, callState = 'idle', isMicMuted = false, analyser = null, audioCtx = null, levelRaf = null, pendingOffer = null;
+let pc = null, localStream = null, remoteStream = null, remoteAudio = null, callPeer = null, callPeerNick = null, callState = 'idle', isMicMuted = false, isDeafened = false, analyser = null, audioCtx = null, levelRaf = null, pendingOffer = null;
 
 function openCallUI({peer, nick, status, hint = ''}) {
   callOverlay.style.display = 'flex'; callName.textContent = nick ? `${t('callWith')} ${nick}` : t('call'); callStatus.textContent = status || ''; callHint.textContent = hint || '';
@@ -1154,7 +1171,8 @@ function setCallButtons(mode) {
   if (mode === 'ended') { btnAccept.style.display='none'; btnDecline.style.display='none'; btnMute.disabled=true; btnHang.disabled=true; }
 }
 function updateMicUI() { micState.textContent = isMicMuted ? t('micOff') : t('micOn'); btnMute.textContent = isMicMuted ? t('unmute') : t('mute'); }
-function attachRemoteAudio(stream) { if (!remoteAudio) { remoteAudio = new Audio(); remoteAudio.autoplay = true; } remoteAudio.srcObject = stream; remoteAudio.volume = Number(vol.value); remoteAudio.play().catch(()=>{}); }
+function updateDeafenUI() { deafenState.textContent = isDeafened ? t('deafenOff') : t('deafenOn'); btnDeafen.textContent = isDeafened ? t('undeafen') : t('deafen'); if (remoteAudio) remoteAudio.muted = !!isDeafened; vol.disabled = !!isDeafened; }
+function attachRemoteAudio(stream) { if (!remoteAudio) { remoteAudio = new Audio(); remoteAudio.autoplay = true; } remoteAudio.srcObject = stream; remoteAudio.volume = Number(vol.value); remoteAudio.muted = !!isDeafened; remoteAudio.play().catch(()=>{}); }
 vol.oninput = () => { if (remoteAudio) remoteAudio.volume = Number(vol.value); };
 async function ensureLocalAudio() { await unlockAudio(); if (localStream) return localStream; try { localStream = await navigator.mediaDevices.getUserMedia({audio:true}); } catch(e) { alert(t('allowMic')); throw e; } isMicMuted = false; updateMicUI(); startMicLevel(localStream); return localStream; }
 function stopLocalAudio() { if (localStream) { localStream.getTracks().forEach(t => t.stop()); localStream = null; } stopMicLevel(); }
@@ -1189,9 +1207,9 @@ function hangup() { if (!callPeer) return; stopRingtone(); ws.send(JSON.stringif
 function endCall(statusText=t('callEnded')) {
   stopRingtone(); if (callOverlay.style.display === 'flex') { openCallUI({peer:callPeer, nick:callPeerNick, status:statusText, hint:''}); setCallButtons('ended'); }
   if (pc) { try { pc.ontrack = null; pc.onicecandidate = null; pc.close(); } catch {} pc = null; }
-  if (remoteAudio) { try { remoteAudio.pause(); } catch {} remoteAudio.srcObject = null; }
+  if (remoteAudio) { try { remoteAudio.pause(); } catch {} remoteAudio.srcObject = null; remoteAudio.muted = false; }
   if (remoteStream) { try { remoteStream.getTracks().forEach(t => t.stop()); } catch {} remoteStream = null; }
-  stopLocalAudio(); callState = 'idle'; callPeer = null; callPeerNick = null; callBtn.disabled = false; hideCallFlag(); setTimeout(closeCallUI, 800);
+  stopLocalAudio(); isMicMuted = false; isDeafened = false; updateMicUI(); updateDeafenUI(); callState = 'idle'; callPeer = null; callPeerNick = null; callBtn.disabled = false; hideCallFlag(); setTimeout(closeCallUI, 800);
 }
 function startMicLevel(stream) {
   stopMicLevel(); try {
@@ -1211,6 +1229,7 @@ callFlagHang.onclick = e => { e.stopPropagation(); if (callState !== 'idle') han
 btnAccept.onclick = () => { if (pendingOffer) { const {offer, from, fromNick} = pendingOffer; pendingOffer = null; acceptIncomingCall(offer, from, fromNick); } };
 btnDecline.onclick = () => { if (callState === 'ringing') { declineIncomingCall(); return; } if (callState === 'calling') { cancelOutgoingCall(); return; } closeCallUI(); };
 btnMute.onclick = () => { if (!localStream) return; isMicMuted = !isMicMuted; localStream.getAudioTracks().forEach(t => t.enabled = !isMicMuted); updateMicUI(); };
+btnDeafen.onclick = () => { isDeafened = !isDeafened; updateDeafenUI(); };
 btnHang.onclick = () => { if (callState !== 'idle') hangup(); };
 btnClose.onclick = minimizeCallUI;
 callBtn.onclick = () => { if (currentChatType !== 'dm' || !currentDM) return; startOutgoingCall(currentDM, currentDMNick || currentDM); };
@@ -1565,8 +1584,8 @@ function renderGroups() {
   if (groupsPanelList) groupsPanelList.innerHTML = '';
   const list = Array.isArray(groups) ? groups : [];
   if (!list.length) {
-    if (groupsSidebar) groupsSidebar.innerHTML = '<div class="emptyText">Нет групп</div>';
-    if (groupsPanelList) groupsPanelList.textContent = 'Групп пока нет';
+    if (groupsSidebar) groupsSidebar.innerHTML = `<div class="emptyText">${escapeHtml(t('noGroups'))}</div>`;
+    if (groupsPanelList) groupsPanelList.textContent = t('noGroups');
     return;
   }
 
@@ -1577,7 +1596,7 @@ function renderGroups() {
       div.appendChild(createAvatar({ letter:(group.name || 'G')[0]?.toUpperCase() || 'G', color:'#5865f2' }, 'online', false));
       const info = document.createElement('div');
       info.className = 'userInfo';
-      info.innerHTML = `<div class="userName">${escapeHtml(group.name || ('Group ' + group.id))}</div><div class="userSub">${escapeHtml(String((group.members || []).length))} участ.</div>`;
+      info.innerHTML = `<div class="userName">${escapeHtml(group.name || ('Group ' + group.id))}</div><div class="userSub">${escapeHtml(String((group.members || []).length))} ${escapeHtml(t('groupMembersCount'))}</div>`;
       div.appendChild(info);
       div.onclick = () => openGroup(group.id);
       groupsSidebar.appendChild(div);
@@ -1591,7 +1610,7 @@ function renderGroups() {
       main.appendChild(createAvatar({ letter:(group.name || 'G')[0]?.toUpperCase() || 'G', color:'#5865f2' }, 'online', false));
       const meta = document.createElement('div');
       meta.className = 'friendMeta';
-      meta.innerHTML = `<b>${escapeHtml(group.name || ('Group ' + group.id))}</b><span>${escapeHtml(String((group.members || []).length))} участ.</span>`;
+      meta.innerHTML = `<b>${escapeHtml(group.name || ('Group ' + group.id))}</b><span>${escapeHtml(String((group.members || []).length))} ${escapeHtml(t('groupMembersCount'))}</span>`;
       main.appendChild(meta);
       main.onclick = () => openGroup(group.id);
       row.appendChild(main);
@@ -1599,7 +1618,7 @@ function renderGroups() {
       actions.className = 'groupEntryActions';
 
       const openBtn = document.createElement('button');
-      openBtn.textContent = 'Открыть';
+      openBtn.textContent = t('groupOpen');
       openBtn.onclick = () => openGroup(group.id);
       actions.appendChild(openBtn);
 
@@ -1607,37 +1626,37 @@ function renderGroups() {
       const isOwner = groupData.ownerLogin === login;
       if (isOwner) {
         const renameBtn = document.createElement('button');
-        renameBtn.textContent = 'Настроить';
+        renameBtn.textContent = t('groupSettings');
         renameBtn.onclick = () => {
-          const newName = prompt('Название группы', groupData.name || '');
+          const newName = prompt(t('groupRenamePrompt'), groupData.name || '');
           if (newName && newName.trim()) ws.send(JSON.stringify({ type:'update_group', groupId:group.id, name:newName.trim() }));
         };
         actions.appendChild(renameBtn);
 
         const addBtn = document.createElement('button');
-        addBtn.textContent = 'Добавить';
+        addBtn.textContent = t('groupAddMembers');
         addBtn.onclick = () => {
-          const val = prompt('Логины через запятую');
+          const val = prompt(t('groupMembersPrompt'));
           const members = (val || '').split(',').map(v => v.trim()).filter(Boolean);
           if (members.length) ws.send(JSON.stringify({ type:'add_group_members', groupId:group.id, members }));
         };
         actions.appendChild(addBtn);
 
         const removeBtn = document.createElement('button');
-        removeBtn.textContent = 'Удалить участника';
+        removeBtn.textContent = t('groupRemoveMember');
         removeBtn.onclick = () => {
           const current = findGroupData(group.id) || group;
           const names = (current.members || []).filter(m => m.login !== login).map(m => m.login).join(', ');
-          const target = prompt(`Кого удалить? Доступно: ${names}`);
+          const target = prompt(`${t('groupRemovePrompt')} ${names}`);
           if (target && target.trim()) ws.send(JSON.stringify({ type:'remove_group_member', groupId:group.id, userLogin:target.trim() }));
         };
         actions.appendChild(removeBtn);
       }
 
       const leaveBtn = document.createElement('button');
-      leaveBtn.textContent = isOwner ? 'Удалить группу' : 'Выйти';
+      leaveBtn.textContent = isOwner ? t('groupDelete') : t('groupLeave');
       leaveBtn.onclick = () => {
-        if (confirm(isOwner ? 'Удалить группу целиком?' : 'Выйти из группы?')) ws.send(JSON.stringify({ type:'leave_group', groupId:group.id }));
+        if (confirm(isOwner ? t('groupDeleteConfirm') : t('groupLeaveConfirm'))) ws.send(JSON.stringify({ type:'leave_group', groupId:group.id }));
       };
       actions.appendChild(leaveBtn);
       row.appendChild(actions);
