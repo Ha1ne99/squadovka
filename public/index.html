@@ -149,6 +149,7 @@ button:hover { transform: translateY(-1px); }
   flex-direction:column;
   gap:12px;
   backdrop-filter: blur(12px);
+  min-height:0;
 }
 .sidebarBrand {
   display:flex;
@@ -181,7 +182,7 @@ button:hover { transform: translateY(-1px); }
   font-weight:700;
 }
 #friendsBtn:hover, #friendsBtn.active { background:#1d2330; border-color: rgba(107,124,255,.45); }
-#online { margin-top:4px; display:flex; flex-direction:column; gap:8px; overflow:auto; padding:2px 4px 10px 2px; }
+#online { margin-top:4px; display:flex; flex-direction:column; gap:8px; overflow:auto; padding:2px 4px 10px 2px; flex:1; min-height:0; }
 .sectionLabel {
   font-size:12px;
   letter-spacing:.08em;
@@ -201,6 +202,8 @@ button:hover { transform: translateY(-1px); }
   box-sizing:border-box;
   overflow:hidden;
   background-clip:padding-box;
+  flex-shrink:0;
+  min-height:68px;
 }
 .user:hover { background:#1a202b; transform:none; border-color:rgba(107,124,255,.22); box-shadow:0 10px 22px rgba(0,0,0,.16); }
 .user.active {
@@ -560,6 +563,7 @@ button:hover { transform: translateY(-1px); }
     gap:12px;
     border-right:none;
     overflow:hidden;
+    min-height:0;
   }
   .sidebarBrand {
     padding:12px;
@@ -2213,10 +2217,10 @@ function handle(d) {
     }
     return;
   }
-  if (d.type === 'groups_list') { groups = Array.isArray(d.groups) ? d.groups : []; renderGroups(); if (currentChatType === 'group' && currentGroupId && !findGroupData(currentGroupId)) { currentGroupId = null; currentChatType = 'dm'; emptyChat.style.display = 'flex'; messages.style.display = 'none'; updateChatHeader(); } return; }
-  if (d.type === 'group_created') { if (d.group && !groups.some(g => Number(g.id) === Number(d.group.id))) groups.unshift(d.group); renderGroups(); return; }
-  if (d.type === 'group_updated') { if (d.group) { groups = (groups || []).filter(g => Number(g.id) !== Number(d.group.id)); groups.unshift(d.group); renderGroups(); if (currentChatType === 'group' && Number(currentGroupId) === Number(d.group.id)) { updateChatHeader(); scheduleRenderCurrentChat(); } } return; }
-  if (d.type === 'group_left') { groups = (groups || []).filter(g => Number(g.id) !== Number(d.groupId)); delete chats[getGroupChatKey(d.groupId)]; saveLocalChatState(); if (currentChatType === 'group' && Number(currentGroupId) === Number(d.groupId)) { currentGroupId = null; currentChatType = 'dm'; emptyChat.style.display = 'flex'; messages.style.display = 'none'; updateChatHeader(); } renderGroups(); return; }
+  if (d.type === 'groups_list') { groups = Array.isArray(d.groups) ? d.groups : []; renderGroups(); renderOnline(); if (currentChatType === 'group' && currentGroupId && !findGroupData(currentGroupId)) { currentGroupId = null; currentChatType = 'dm'; emptyChat.style.display = 'flex'; messages.style.display = 'none'; updateChatHeader(); } return; }
+  if (d.type === 'group_created') { if (d.group) { groups = [d.group, ...(groups || []).filter(g => Number(g.id) !== Number(d.group.id))]; renderGroups(); renderOnline(); if (login && d.group.ownerLogin === login) openGroup(d.group.id); } return; }
+  if (d.type === 'group_updated') { if (d.group) { groups = (groups || []).filter(g => Number(g.id) !== Number(d.group.id)); groups.unshift(d.group); renderGroups(); renderOnline(); if (currentChatType === 'group' && Number(currentGroupId) === Number(d.group.id)) { updateChatHeader(); scheduleRenderCurrentChat(); } } return; }
+  if (d.type === 'group_left') { groups = (groups || []).filter(g => Number(g.id) !== Number(d.groupId)); delete chats[getGroupChatKey(d.groupId)]; saveLocalChatState(); if (currentChatType === 'group' && Number(currentGroupId) === Number(d.groupId)) { currentGroupId = null; currentChatType = 'dm'; emptyChat.style.display = 'flex'; messages.style.display = 'none'; updateChatHeader(); } renderGroups(); renderOnline(); return; }
   if (d.type === 'group_message') { upsertGroupMessage(d.groupId, d); saveLocalChatState(); if (currentChatType === 'group' && Number(currentGroupId) === Number(d.groupId)) scheduleRenderCurrentChat(true); return; }
   if (d.type === 'group_message_edited') { updateGroupMessageLocally(d.groupId, d.id, { text:d.text, edited:d.edited, editedAt:d.editedAt }); saveLocalChatState(); if (currentChatType === 'group' && Number(currentGroupId) === Number(d.groupId)) scheduleRenderCurrentChat(); return; }
   if (d.type === 'group_message_deleted') { removeGroupMessageLocally(d.groupId, d.id); saveLocalChatState(); if (currentChatType === 'group' && Number(currentGroupId) === Number(d.groupId)) scheduleRenderCurrentChat(); return; }
