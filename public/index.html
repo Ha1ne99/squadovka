@@ -340,6 +340,12 @@ button:hover { transform: translateY(-1px); }
 }
 .messageReceipt.read { color: var(--accent-2); }
 .messageText { line-height:1.4; word-break:break-word; white-space:pre-wrap; }
+.messageAttachmentWrap { margin-top:10px; display:flex; flex-direction:column; gap:8px; }
+.messageAttachmentImage { max-width:min(320px, 100%); max-height:340px; border-radius:14px; display:block; border:1px solid rgba(255,255,255,.08); }
+.messageAttachmentLink { display:inline-flex; align-items:center; gap:8px; width:max-content; max-width:100%; padding:10px 12px; border-radius:12px; background:#101520; border:1px solid var(--line); color:#eef2fb; text-decoration:none; overflow:hidden; }
+.messageAttachmentMeta { display:flex; flex-direction:column; min-width:0; }
+.messageAttachmentName { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.messageAttachmentSize { color:var(--muted); font-size:12px; }
 #typingIndicator {
   min-height: 24px;
   display:flex;
@@ -354,6 +360,7 @@ button:hover { transform: translateY(-1px); }
 @keyframes blink { 0%, 80%, 100% { opacity:.25; } 40% { opacity:1; } }
 #input {
   display:flex;
+  flex-wrap:wrap;
   border-top:1px solid var(--line);
   gap:10px;
   padding:14px 18px 18px;
@@ -383,6 +390,13 @@ button:hover { transform: translateY(-1px); }
   box-shadow:0 10px 24px rgba(107,124,255,.22);
 }
 #input button:hover { box-shadow:0 14px 30px rgba(107,124,255,.3); }
+.composerAttachmentPreview { width:100%; display:flex; align-items:center; justify-content:space-between; gap:10px; padding:10px 12px; border-radius:14px; background:#101520; border:1px solid var(--line); }
+.composerAttachmentInfo { display:flex; align-items:center; gap:10px; min-width:0; }
+.composerAttachmentThumb { width:44px; height:44px; border-radius:12px; object-fit:cover; border:1px solid rgba(255,255,255,.08); background:#171b23; }
+.composerAttachmentMeta { min-width:0; }
+.composerAttachmentMeta b, .composerAttachmentMeta span { display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.composerAttachmentMeta span { color:var(--muted); font-size:12px; }
+.fileAttachBtn { background:#171b23 !important; border:1px solid var(--line) !important; box-shadow:none !important; }
 #friendsPanel {
   width:390px;
   max-width:100vw;
@@ -773,6 +787,7 @@ button:hover { transform: translateY(-1px); }
     border-radius:15px;
   }
   .messageText { font-size:14px; }
+  .messageAttachmentImage { max-width:100%; }
   #input {
     gap:6px;
     padding:8px 8px calc(8px + env(safe-area-inset-bottom));
@@ -946,7 +961,10 @@ button:hover { transform: translateY(-1px); }
     <div id="typingIndicator"></div>
 
     <div id="input">
-            <input id="text" placeholder="Сообщение...">
+      <div id="composerAttachmentPreview" class="composerAttachmentPreview hidden"></div>
+      <input type="file" id="fileUploadInput" hidden>
+      <button id="attachFileBtn" class="fileAttachBtn" title="Файл">📎</button>
+      <input id="text" placeholder="Сообщение...">
       <button id="sendBtn" title="Отправить">▶</button>
     </div>
   </div>
@@ -1097,6 +1115,9 @@ const messages = document.getElementById('messages');
 const typingIndicator = document.getElementById('typingIndicator');
 const text = document.getElementById('text');
 const sendBtn = document.getElementById('sendBtn');
+const fileUploadInput = document.getElementById('fileUploadInput');
+const attachFileBtn = document.getElementById('attachFileBtn');
+const composerAttachmentPreview = document.getElementById('composerAttachmentPreview');
 const friendsBtn = document.getElementById('friendsBtn');
 const friendsPanel = document.getElementById('friendsPanel');
 const closeFriendsPanelBtn = document.getElementById('closeFriendsPanelBtn');
@@ -1171,8 +1192,10 @@ let editingMessageId = null;
 let typingUsers = {};
 let typingSendTimer = null;
 let typingStopTimer = null;
+let pendingAttachment = null;
 const MAX_RENDERED_MESSAGES = 200;
 const MAX_STORED_MESSAGES = 500;
+const MAX_ATTACHMENT_SIZE_BYTES = 10 * 1024 * 1024;
 let renderChatRaf = null;
 const mobileMediaQuery = window.matchMedia('(max-width: 900px)');
 
@@ -1205,7 +1228,7 @@ const i18n = {
     messageNotFound:'Сообщение не найдено', edit:'Редактировать', save:'Сохранить', cancel:'Отмена', edited:'изменено', editOwnOnly:'Можно редактировать только свои сообщения',
     serverError:'Ошибка сервера', accountCreated:'Аккаунт создан, войдите', enterLoginPassword:'Введите логин и пароль', loginTaken:'Логин занят', badLogin:'Неверный логин или пароль', authExpired:'Сессия истекла. Войди снова.',
     badAvatar:'Неверный формат аватара', bigAvatar:'Аватар слишком большой', badBanner:'Неверный формат баннера', bigBanner:'Баннер слишком большой', userNotFound:'Пользователь не найден', alreadyFriends:'Вы уже друзья',
-    allowMic:'Разрешите доступ к микрофону для звонков', userOffline:'Пользователь не в сети', delete:'Удалить', typing:'печатает', profileSettings:'Настройка профиля', displayName:'Отображаемое имя', enterDisplayName:'Введите имя', status_online:'В сети', status_idle:'Не активен', status_dnd:'Не беспокоить', status_invisible:'Невидимка', status_offline:'Не в сети', viewProfile:'Профиль', removeFriend:'Удалить', profileViewTitle:'Профиль пользователя', removeFriendConfirm:'Удалить этого пользователя из друзей?', removedFromFriends:'Пользователь удалён из друзей', logout:'Выйти из аккаунта'
+    allowMic:'Разрешите доступ к микрофону для звонков', userOffline:'Пользователь не в сети', delete:'Удалить', typing:'печатает', profileSettings:'Настройка профиля', displayName:'Отображаемое имя', enterDisplayName:'Введите имя', status_online:'В сети', status_idle:'Не активен', status_dnd:'Не беспокоить', status_invisible:'Невидимка', status_offline:'Не в сети', viewProfile:'Профиль', removeFriend:'Удалить', profileViewTitle:'Профиль пользователя', removeFriendConfirm:'Удалить этого пользователя из друзей?', removedFromFriends:'Пользователь удалён из друзей', logout:'Выйти из аккаунта', attach:'Файл', uploadingFile:'Загружаю файл…', fileTooLarge:'Файл больше 10 МБ', badFileUpload:'Не удалось загрузить файл', attachedImage:'Изображение', attachedFile:'Файл', removeAttachment:'Убрать файл'
   },
   uk: {
     loginBrandSubtitle:'Твій затишний месенджер для друзів', login:'Вхід', register:'Реєстрація', loginBtn:'Увійти', registerBtn:'Створити акаунт',
@@ -1223,7 +1246,7 @@ const i18n = {
     messageNotFound:'Повідомлення не знайдено', edit:'Редагувати', save:'Зберегти', cancel:'Скасування', edited:'змінено', editOwnOnly:'Можна редагувати лише свої повідомлення',
     serverError:'Помилка сервера', accountCreated:'Акаунт створено, увійди', enterLoginPassword:'Введи логін і пароль', loginTaken:'Логін зайнятий', badLogin:'Невірний логін або пароль', authExpired:'Сесію завершено. Увійди знову.',
     badAvatar:'Невірний формат аватара', bigAvatar:'Аватар занадто великий', userNotFound:'Користувача не знайдено', alreadyFriends:'Ви вже друзі',
-    allowMic:'Дозволь доступ до мікрофона для дзвінків', userOffline:'Користувач не в мережі', delete:'Видалити', typing:'друкує', profileSettings:'Налаштування профілю', displayName:'Відображуване ім’я', enterDisplayName:'Введи ім’я', status_online:'В мережі', status_idle:'Не активний', status_dnd:'Не турбувати', status_invisible:'Невидимка', status_offline:'Не в мережі', logout:'Вийти з акаунта'
+    allowMic:'Дозволь доступ до мікрофона для дзвінків', userOffline:'Користувач не в мережі', delete:'Видалити', typing:'друкує', profileSettings:'Налаштування профілю', displayName:'Відображуване ім’я', enterDisplayName:'Введи ім’я', status_online:'В мережі', status_idle:'Не активний', status_dnd:'Не турбувати', status_invisible:'Невидимка', status_offline:'Не в мережі', logout:'Вийти з акаунта', attach:'Файл', uploadingFile:'Завантажую файл…', fileTooLarge:'Файл більший за 10 МБ', badFileUpload:'Не вдалося завантажити файл', attachedImage:'Зображення', attachedFile:'Файл', removeAttachment:'Прибрати файл'
   },
   en: {
     loginBrandSubtitle:'Your cozy messenger for friends', login:'Login', register:'Register', loginBtn:'Sign in', registerBtn:'Create account',
@@ -1241,7 +1264,7 @@ const i18n = {
     messageNotFound:'Message not found', edit:'Edit', save:'Save', cancel:'Cancel', edited:'edited', editOwnOnly:'You can edit only your own messages',
     serverError:'Server error', accountCreated:'Account created, sign in', enterLoginPassword:'Enter login and password', loginTaken:'Login is already taken', badLogin:'Invalid login or password', authExpired:'Session expired. Sign in again.',
     badAvatar:'Invalid avatar format', bigAvatar:'Avatar is too large', badBanner:'Invalid banner format', bigBanner:'Banner is too large', userNotFound:'User not found', alreadyFriends:'You are already friends',
-    allowMic:'Allow microphone access for calls', userOffline:'User is offline', delete:'Delete', typing:'is typing', profileSettings:'Profile settings', displayName:'Display name', enterDisplayName:'Enter display name', status_online:'Online', status_idle:'Idle', status_dnd:'Do not disturb', status_invisible:'Invisible', status_offline:'Offline', viewProfile:'Profile', removeFriend:'Remove', profileViewTitle:'User profile', removeFriendConfirm:'Remove this user from friends?', removedFromFriends:'User removed from friends', logout:'Log out'
+    allowMic:'Allow microphone access for calls', userOffline:'User is offline', delete:'Delete', typing:'is typing', profileSettings:'Profile settings', displayName:'Display name', enterDisplayName:'Enter display name', status_online:'Online', status_idle:'Idle', status_dnd:'Do not disturb', status_invisible:'Invisible', status_offline:'Offline', viewProfile:'Profile', removeFriend:'Remove', profileViewTitle:'User profile', removeFriendConfirm:'Remove this user from friends?', removedFromFriends:'User removed from friends', logout:'Log out', attach:'File', uploadingFile:'Uploading file…', fileTooLarge:'File is larger than 10 MB', badFileUpload:'Failed to upload file', attachedImage:'Image', attachedFile:'File', removeAttachment:'Remove file'
   }
 };
 
@@ -1679,6 +1702,7 @@ function applyLanguage() {
   addFriendBtn.textContent = t('sendRequest');
   document.getElementById('requestsTitle').textContent = t('requests');
   document.getElementById('friendsTitle').textContent = t('friendsTitle');
+  if (attachFileBtn) { attachFileBtn.title = t('attach'); attachFileBtn.setAttribute('aria-label', t('attach')); }
   profileSettingsTitle.textContent = profileModalMode === 'other' ? t('profileViewTitle') : t('profileSettings');
   profileReadonlyNote.textContent = t('profileViewTitle');
   profileNameLabel.textContent = t('displayName');
@@ -1729,6 +1753,7 @@ function compactStoredMessage(message) {
     receiptStatus: message.receiptStatus || null,
     fromNick: message.fromNick || null
   };
+  if (message.attachment) compact.attachment = message.attachment;
   if (message.groupId != null) compact.groupId = message.groupId;
   return compact;
 }
@@ -1794,6 +1819,63 @@ function createAvatar(user, status = 'online', showPresence = true) {
 }
 function escapeHtml(s) { return String(s ?? '').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'", '&#39;'); }
 function formatMessageTime(ts) { if (!ts) return ''; const d = new Date(Number(ts)); if (Number.isNaN(d.getTime())) return ''; return d.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}); }
+
+function formatBytes(bytes) {
+  const value = Number(bytes || 0);
+  if (!value) return '0 B';
+  const units = ['B', 'KB', 'MB', 'GB'];
+  let size = value;
+  let unitIndex = 0;
+  while (size >= 1024 && unitIndex < units.length - 1) { size /= 1024; unitIndex += 1; }
+  return `${size >= 10 || unitIndex === 0 ? Math.round(size) : size.toFixed(1)} ${units[unitIndex]}`;
+}
+function isImageAttachment(attachment) { return !!attachment && typeof attachment.type === 'string' && attachment.type.startsWith('image/'); }
+function getAttachmentUrl(attachment) {
+  if (!attachment?.id) return '#';
+  const token = encodeURIComponent(authToken || '');
+  return `/api/attachments/${encodeURIComponent(attachment.id)}?token=${token}`;
+}
+function renderComposerAttachmentPreview() {
+  if (!composerAttachmentPreview) return;
+  if (!pendingAttachment) { composerAttachmentPreview.classList.add('hidden'); composerAttachmentPreview.innerHTML = ''; return; }
+  const thumb = pendingAttachment.previewUrl ? `<img class="composerAttachmentThumb" src="${pendingAttachment.previewUrl}" alt="">` : `<div class="composerAttachmentThumb" style="display:flex;align-items:center;justify-content:center;">📎</div>`;
+  composerAttachmentPreview.classList.remove('hidden');
+  composerAttachmentPreview.innerHTML = `<div class="composerAttachmentInfo">${thumb}<div class="composerAttachmentMeta"><b>${escapeHtml(pendingAttachment.name)}</b><span>${escapeHtml(formatBytes(pendingAttachment.size))}</span></div></div><button type="button" class="messageActionBtn" onclick="clearPendingAttachment()">${escapeHtml(t('removeAttachment'))}</button>`;
+}
+function clearPendingAttachment() {
+  if (pendingAttachment?.previewUrl) { try { URL.revokeObjectURL(pendingAttachment.previewUrl); } catch {} }
+  pendingAttachment = null;
+  if (fileUploadInput) fileUploadInput.value = '';
+  renderComposerAttachmentPreview();
+}
+window.clearPendingAttachment = clearPendingAttachment;
+async function uploadAttachment(file) {
+  if (!file) return null;
+  if (file.size > MAX_ATTACHMENT_SIZE_BYTES) { alert(t('fileTooLarge')); return null; }
+  const dataUrl = await new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(new Error('read_failed'));
+    reader.readAsDataURL(file);
+  });
+  const response = await fetch('/api/upload', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken || ''}` },
+    body: JSON.stringify({ name: file.name, type: file.type || 'application/octet-stream', dataUrl })
+  });
+  let payload = null;
+  try { payload = await response.json(); } catch {}
+  if (!response.ok || !payload?.attachment) throw new Error(payload?.error || 'upload_failed');
+  return payload.attachment;
+}
+function buildAttachmentHtml(attachment) {
+  if (!attachment?.id) return '';
+  const url = getAttachmentUrl(attachment);
+  if (isImageAttachment(attachment)) {
+    return `<div class="messageAttachmentWrap"><a href="${url}" target="_blank" rel="noopener noreferrer"><img class="messageAttachmentImage" src="${url}" alt="${escapeHtml(attachment.name || t('attachedImage'))}"></a><a class="messageAttachmentLink" href="${url}" target="_blank" rel="noopener noreferrer"><span>🖼️</span><span class="messageAttachmentMeta"><span class="messageAttachmentName">${escapeHtml(attachment.name || t('attachedImage'))}</span><span class="messageAttachmentSize">${escapeHtml(formatBytes(attachment.size))}</span></span></a></div>`;
+  }
+  return `<div class="messageAttachmentWrap"><a class="messageAttachmentLink" href="${url}" target="_blank" rel="noopener noreferrer" download="${escapeHtml(attachment.name || 'file')}"><span>📎</span><span class="messageAttachmentMeta"><span class="messageAttachmentName">${escapeHtml(attachment.name || t('attachedFile'))}</span><span class="messageAttachmentSize">${escapeHtml(formatBytes(attachment.size))}</span></span></a></div>`;
+}
 
 function normalizeReceiptStatus(status) { return ['pending', 'sent', 'read'].includes(status) ? status : 'pending'; }
 function getReceiptStatus(message) {
@@ -1935,6 +2017,7 @@ function resetUiToLoggedOut() {
   messages.innerHTML = '';
   typingIndicator.innerHTML = '';
   text.value = '';
+  clearPendingAttachment();
   loginInput.value = '';
   passwordInput.value = '';
   loginDiv.style.display = 'flex';
@@ -2267,6 +2350,32 @@ function deleteMessage(messageId) {
 }
 window.beginEditMessage = beginEditMessage; window.cancelEditMessage = cancelEditMessage; window.saveEditMessage = saveEditMessage; window.deleteMessage = deleteMessage;
 
+async function sendCurrentMessage() {
+  await unlockAudio();
+  const message = text.value.trim();
+  if (!message && !pendingAttachment) return;
+  let attachment = null;
+  if (pendingAttachment?.file) {
+    try {
+      attachment = await uploadAttachment(pendingAttachment.file);
+    } catch (error) {
+      console.error(error);
+      alert(t('badFileUpload'));
+      return;
+    }
+  }
+  const payload = attachment ? { text: message, attachmentId: attachment.id } : { text: message };
+  if (currentChatType === 'group' && currentGroupId) {
+    ws.send(JSON.stringify({ type:'group_message', groupId:currentGroupId, ...payload }));
+  } else {
+    if (!currentDM) return;
+    ws.send(JSON.stringify({ type:'message', from:login, to:currentDM, ...payload }));
+    sendTyping(false);
+  }
+  text.value = '';
+  clearPendingAttachment();
+}
+
 function renderMessage(message) {
   const m = document.createElement('div'); m.className = 'message'; m.dataset.id = message.id;
   m.appendChild(createAvatar(message.avatar || { letter:String(message.from || '?').charAt(0).toUpperCase(), color:'#5865f2' }, 'offline', false));
@@ -2275,11 +2384,14 @@ function renderMessage(message) {
   const isOwn = message.from === login;
   const receiptStatus = isOwn ? getReceiptStatus(message) : '';
   const receiptHtml = isOwn ? `<span class="messageReceipt ${receiptStatus}" title="${escapeHtml(getReceiptTitle(receiptStatus))}">${getReceiptIcon(receiptStatus)}</span>` : '';
+  const attachmentHtml = buildAttachmentHtml(message.attachment);
   let inner = `<div class="messageHeader"><b>${escapeHtml(message.fromNick || message.from)}</b><span class="messageTime">${escapeHtml(formatMessageTime(message.time))}</span>${editedLabel}${receiptHtml}</div>`;
   if (editingMessageId === Number(message.id) && message.from === login) {
-    inner += `<div class="editBox"><input class="editInput" data-message-id="${message.id}" value="${escapeHtml(message.text)}"><button class="messageActionBtn" onclick="saveEditMessage(${message.id})">${escapeHtml(t('save'))}</button><button class="messageActionBtn" onclick="cancelEditMessage()">${escapeHtml(t('cancel'))}</button></div>`;
+    inner += `<div class="editBox"><input class="editInput" data-message-id="${message.id}" value="${escapeHtml(message.text || '')}"><button class="messageActionBtn" onclick="saveEditMessage(${message.id})">${escapeHtml(t('save'))}</button><button class="messageActionBtn" onclick="cancelEditMessage()">${escapeHtml(t('cancel'))}</button></div>`;
+    if (attachmentHtml) inner += attachmentHtml;
   } else {
-    inner += `<div class="messageText">${escapeHtml(message.text)}</div>`;
+    if (message.text) inner += `<div class="messageText">${escapeHtml(message.text)}</div>`;
+    if (attachmentHtml) inner += attachmentHtml;
     if (message.from === login) inner += `<div class="messageActions"><button class="messageActionBtn" onclick="beginEditMessage(${message.id})">${escapeHtml(t('edit'))}</button><button class="messageActionBtn" onclick="deleteMessage(${message.id})">${escapeHtml(t('delete'))}</button></div>`;
   }
   c.innerHTML = inner;
@@ -2288,13 +2400,13 @@ function renderMessage(message) {
 }
 
 sendBtn.onclick = async () => {
-  await unlockAudio(); const message = text.value.trim(); if (!message) return; if (currentChatType === 'group' && currentGroupId) { ws.send(JSON.stringify({ type:'group_message', groupId:currentGroupId, text:message })); text.value = ''; return; } if (!currentDM) return; ws.send(JSON.stringify({ type:'message', from:login, to:currentDM, text:message })); text.value = ''; sendTyping(false);
+  await sendCurrentMessage();
 };
 text.addEventListener('keydown', async e => {
   if (e.key === 'Enter') {
     const active = document.activeElement;
     if (active && active.classList.contains('editInput')) return;
-    e.preventDefault(); const message = text.value.trim(); if (!message) return; await unlockAudio(); if (currentChatType === 'group' && currentGroupId) { ws.send(JSON.stringify({ type:'group_message', groupId:currentGroupId, text:message })); text.value = ''; return; } if (!currentDM) return; ws.send(JSON.stringify({ type:'message', from:login, to:currentDM, text:message })); text.value = ''; sendTyping(false);
+    e.preventDefault(); await sendCurrentMessage();
   }
 });
 text.addEventListener('input', () => {
@@ -2611,6 +2723,16 @@ avatarUploadInput.onchange = () => {
 };
 bannerUploadInput.onchange = () => {
   const file = bannerUploadInput.files?.[0]; if (!file || !ws) return; const reader = new FileReader(); reader.onload = () => { setProfileBanner(reader.result); ws.send(JSON.stringify({ type:'update_banner', image:reader.result })); }; reader.readAsDataURL(file); bannerUploadInput.value = '';
+};
+
+attachFileBtn.onclick = e => { e.preventDefault(); fileUploadInput?.click(); };
+fileUploadInput.onchange = () => {
+  const file = fileUploadInput.files?.[0];
+  if (!file) return;
+  if (file.size > MAX_ATTACHMENT_SIZE_BYTES) { alert(t('fileTooLarge')); fileUploadInput.value = ''; return; }
+  clearPendingAttachment();
+  pendingAttachment = { file, name:file.name, size:file.size, type:file.type || 'application/octet-stream', previewUrl: file.type?.startsWith('image/') ? URL.createObjectURL(file) : '' };
+  renderComposerAttachmentPreview();
 };
 
 callBtn.onclick = async () => {
