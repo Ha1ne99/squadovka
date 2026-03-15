@@ -247,9 +247,13 @@ function sanitizeAttachmentName(value) {
 }
 
 function buildAttachmentPublic(row) {
-  if (!row || !row.id) return null;
+  if (!row) return null;
+
+  const attachmentId = row.attachmentid || row.attachmentId || null;
+  if (!attachmentId) return null;
+
   return {
-    id: row.id,
+    id: attachmentId,
     name: row.originalname || 'file',
     type: row.mimetype || 'application/octet-stream',
     size: Number(row.sizebytes || 0)
