@@ -1394,6 +1394,17 @@ function resetUiToLoggedOut() {
   syncMobileLayout(false);
 }
 
+function showLoginScreen(clearFields = true) {
+  isRegister = false;
+  if (clearFields) {
+    loginInput.value = '';
+    passwordInput.value = '';
+  }
+  loginDiv.style.display = 'flex';
+  appDiv.style.display = 'none';
+  applyLanguage();
+}
+
 function performLogout() {
   try {
     if (ws && ws.readyState === WebSocket.OPEN) {
@@ -1449,7 +1460,12 @@ function updateMessageLocally(peer, id, patch) {
 function handle(d) {
   if (d.type === 'error') { alert(d.message || t('serverError')); return; }
   if (d.type === 'auth_expired') { clearSavedAuth(); resetUiToLoggedOut(); alert(t('authExpired')); return; }
-  if (d.type === 'register_ok') { alert(t('accountCreated')); switchMode.onclick(); return; }
+  if (d.type === 'register_ok') {
+    clearSavedAuth();
+    showLoginScreen(true);
+    alert(t('accountCreated'));
+    return;
+  }
   if (d.type === 'logged_out') { resetUiToLoggedOut(); return; }
   if (d.type === 'login_ok') {
     login = d.login; nickname = d.nickname; myStatus = normalizeClientStatus(d.status || 'online'); localStorage.setItem('login', login); authToken = typeof d.token === 'string' ? d.token : authToken; if (authToken) localStorage.setItem('messenger_token', authToken); localStorage.removeItem('password'); loadLocalChatState(login); friends = Array.isArray(d.friends) ? d.friends : friends; groups = Array.isArray(d.groups) ? d.groups : groups; unread = d.unread || unread || {};
