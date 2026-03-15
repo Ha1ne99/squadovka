@@ -6,6 +6,7 @@ const { Pool } = require('pg');
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 const fs = require('fs');
+const fsp = fs.promises;
 
 const app = express();
 const server = http.createServer(app);
@@ -14,7 +15,9 @@ const wss = new WebSocket.Server({ server, maxPayload: 2 * 1024 * 1024 });
 const publicDir = path.join(__dirname, 'public');
 const rootIndex = path.join(__dirname, 'index.html');
 const publicIndex = path.join(publicDir, 'index.html');
+const uploadsDir = path.join(__dirname, 'uploads');
 
+if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
 
 app.set('trust proxy', 1);
 
@@ -49,6 +52,8 @@ const ACTION_LIMITS = {
   call_end: 60
 };
 const MAX_MESSAGE_LENGTH = 4000;
+const MAX_FILE_SIZE = 10 * 1024 * 1024;
+const MAX_FILENAME_LENGTH = 180;
 const MAX_GROUP_NAME_LENGTH = 48;
 const CHAT_HISTORY_LIMIT = 200;
 const MAX_NICKNAME_LENGTH = 32;
@@ -209,6 +214,64 @@ function sanitizeName(value, maxLen) {
   return value.trim().replace(/\s+/g, ' ').slice(0, maxLen);
 }
 
+function sanitizeFilename(filename) {
+  const raw = typeof filename === 'string' ? filename : 'file';
+  const cleaned = raw.normalize('NFKC').replace(/[\\\/?%*:|"<>]/g, '_').replace(/\s+/g, ' ').trim().slice(0, MAX_FILENAME_LENGTH);
+  return cleaned || 'file';
+}
+
+function getExtension(filename) {
+  return path.extname(filename || '').toLowerCase().slice(0, 16);
+}
+
+function isImageMime(mimeType = '') {
+  return /^image\//i.test(String(mimeType || ''));
+}
+
+function normalizeMimeType(mimeType, filename = '') {
+  const type = String(mimeType || '').trim().toLowerCase();
+  if (type) return type.slice(0, 120);
+  const ext = getExtension(filename);
+  if (['.jpg', '.jpeg'].includes(ext)) return 'image/jpeg';
+  if (ext === '.png') return 'image/png';
+  if (ext === '.gif') return 'image/gif';
+  if (ext === '.webp') return 'image/webp';
+  if (ext === '.svg') return 'image/svg+xml';
+  return 'application/octet-stream';
+}
+
+function sanitizeAttachmentPayload(attachment) {
+  if (!attachment || typeof attachment !== 'object') return null;
+  const name = sanitizeFilename(attachment.name || attachment.originalName || attachment.filename || 'file');
+  const url = typeof attachment.url === 'string' ? attachment.url.trim() : '';
+  const size = Number(attachment.size);
+  const mimeType = normalizeMimeType(attachment.mimeType || attachment.type, name);
+  if (!url.startsWith('/uploads/') || !Number.isFinite(size) || size <= 0 || size > MAX_FILE_SIZE) return null;
+  return { name, url, size, mimeType, isImage: isImageMime(mimeType) };
+}
+
+async function readRequestBody(req, maxBytes = MAX_FILE_SIZE) {
+  const chunks = [];
+  let total = 0;
+  for await (const chunk of req) {
+    total += chunk.length;
+    if (total > maxBytes) {
+      const err = new Error('FILE_TOO_LARGE');
+      err.code = 'FILE_TOO_LARGE';
+      throw err;
+    }
+    chunks.push(chunk);
+  }
+  return Buffer.concat(chunks, total);
+}
+
+async function requireAuthFromRequest(req) {
+  const authHeader = typeof req.headers.authorization === 'string' ? req.headers.authorization.trim() : '';
+  const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : '';
+  if (!token) return null;
+  return verifySessionToken(token);
+}
+
 function isSecureRequest(req) {
   return req.secure || req.headers['x-forwarded-proto'] === 'https';
 }
@@ -226,8 +289,59 @@ app.use((req, res, next) => {
 });
 
 
+app.use('/uploads', express.static(uploadsDir, { maxAge: '7d' }));
 app.use(express.static(publicDir));
 app.use(express.static(__dirname));
+
+app.post('/api/upload', async (req, res) => {
+  try {
+    const auth = await requireAuthFromRequest(req);
+    if (!auth?.login) return res.status(401).json({ error: 'UNAUTHORIZED' });
+
+    const userLogin = auth.login;
+    const chatType = String(req.query.chatType || 'dm').trim();
+    const to = sanitizeLogin(req.query.to);
+    const groupId = Number(req.query.groupId);
+
+    if (chatType === 'dm') {
+      if (!to || to === userLogin) return res.status(400).json({ error: 'BAD_TARGET' });
+      if (!(await areFriends(userLogin, to))) return res.status(403).json({ error: 'FORBIDDEN' });
+    } else if (chatType === 'group') {
+      if (!Number.isFinite(groupId) || groupId <= 0) return res.status(400).json({ error: 'BAD_GROUP' });
+      if (!(await isGroupMember(groupId, userLogin))) return res.status(403).json({ error: 'FORBIDDEN' });
+    } else {
+      return res.status(400).json({ error: 'BAD_CHAT_TYPE' });
+    }
+
+    const rawHeaderName = typeof req.headers['x-file-name'] === 'string' ? req.headers['x-file-name'] : 'file';
+    const originalName = sanitizeFilename(decodeURIComponent(rawHeaderName));
+    const mimeType = normalizeMimeType(req.headers['content-type'], originalName);
+    const contentLength = Number(req.headers['content-length'] || 0);
+    if (Number.isFinite(contentLength) && contentLength > MAX_FILE_SIZE) {
+      return res.status(413).json({ error: 'FILE_TOO_LARGE' });
+    }
+
+    const fileBuffer = await readRequestBody(req, MAX_FILE_SIZE);
+    if (!fileBuffer.length) return res.status(400).json({ error: 'EMPTY_FILE' });
+
+    const ext = getExtension(originalName);
+    const diskName = `${Date.now()}_${crypto.randomBytes(8).toString('hex')}${ext}`;
+    await fsp.writeFile(path.join(uploadsDir, diskName), fileBuffer);
+
+    const attachment = sanitizeAttachmentPayload({
+      name: originalName,
+      url: `/uploads/${diskName}`,
+      size: fileBuffer.length,
+      mimeType
+    });
+
+    res.json({ ok: true, attachment });
+  } catch (error) {
+    if (error?.code === 'FILE_TOO_LARGE') return res.status(413).json({ error: 'FILE_TOO_LARGE' });
+    console.error('Upload failed:', error);
+    res.status(500).json({ error: 'UPLOAD_FAILED' });
+  }
+});
 
 app.get('/', (req, res) => {
   if (fs.existsSync(publicIndex)) {
@@ -279,7 +393,8 @@ async function initDb() {
       text TEXT NOT NULL,
       time BIGINT NOT NULL,
       edited BOOLEAN NOT NULL DEFAULT FALSE,
-      editedAt BIGINT
+      editedAt BIGINT,
+      attachment JSONB
     )
   `);
 
@@ -287,6 +402,7 @@ async function initDb() {
   await pool.query(`ALTER TABLE messages ADD COLUMN IF NOT EXISTS editedAt BIGINT`);
   await pool.query(`ALTER TABLE messages ADD COLUMN IF NOT EXISTS deliveredAt BIGINT`);
   await pool.query(`ALTER TABLE messages ADD COLUMN IF NOT EXISTS readAt BIGINT`);
+  await pool.query(`ALTER TABLE messages ADD COLUMN IF NOT EXISTS attachment JSONB`);
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS friends (
@@ -340,12 +456,14 @@ async function initDb() {
       text TEXT NOT NULL,
       time BIGINT NOT NULL,
       edited BOOLEAN NOT NULL DEFAULT FALSE,
-      editedAt BIGINT
+      editedAt BIGINT,
+      attachment JSONB
     )
   `);
 
   await pool.query(`ALTER TABLE group_messages ADD COLUMN IF NOT EXISTS edited BOOLEAN NOT NULL DEFAULT FALSE`);
   await pool.query(`ALTER TABLE group_messages ADD COLUMN IF NOT EXISTS editedAt BIGINT`);
+  await pool.query(`ALTER TABLE group_messages ADD COLUMN IF NOT EXISTS attachment JSONB`);
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS sessions (
@@ -553,9 +671,9 @@ async function getUnreadMap(login) {
 
 async function getChatHistory(userA, userB) {
   const result = await pool.query(`
-    SELECT id, fromUser, toUser, text, time, edited, editedAt, deliveredAt, readAt
+    SELECT id, fromUser, toUser, text, time, edited, editedAt, deliveredAt, readAt, attachment
     FROM (
-      SELECT id, fromUser, toUser, text, time, edited, editedAt, deliveredAt, readAt
+      SELECT id, fromUser, toUser, text, time, edited, editedAt, deliveredAt, readAt, attachment
       FROM messages
       WHERE (fromUser = $1 AND toUser = $2)
          OR (fromUser = $2 AND toUser = $1)
@@ -585,6 +703,7 @@ async function getChatHistory(userA, userB) {
       deliveredAt: row.deliveredat ? Number(row.deliveredat) : null,
       readAt: row.readat ? Number(row.readat) : null,
       receiptStatus: getMessageReceiptStatus(row),
+      attachment: sanitizeAttachmentPayload(row.attachment),
       avatar: sender?.avatar || buildAvatar(row.fromuser, row.fromuser)
     });
   }
@@ -656,9 +775,9 @@ async function getGroupsForUser(login) {
 
 async function getGroupHistory(groupId, viewerLogin = null) {
   const result = await pool.query(`
-    SELECT id, groupId, fromUser, text, time, edited, editedAt
+    SELECT id, groupId, fromUser, text, time, edited, editedAt, attachment
     FROM (
-      SELECT id, groupId, fromUser, text, time, edited, editedAt
+      SELECT id, groupId, fromUser, text, time, edited, editedAt, attachment
       FROM group_messages
       WHERE groupId = $1
       ORDER BY time DESC, id DESC
@@ -684,6 +803,7 @@ async function getGroupHistory(groupId, viewerLogin = null) {
       edited: Boolean(row.edited),
       editedAt: row.editedat ? Number(row.editedat) : null,
       fromNick: sender?.nickname || row.fromuser,
+      attachment: sanitizeAttachmentPayload(row.attachment),
       avatar: sender?.avatar || buildAvatar(row.fromuser, row.fromuser)
     });
   }
@@ -1077,16 +1197,17 @@ wss.on('connection', (ws, req) => {
       if (data.type === 'group_message') {
         if (!requireActionAllowed(ws, clientIp, 'group_message')) return;
         const groupId = Number(data.groupId);
-        if (!Number.isFinite(groupId) || !(await isGroupMember(groupId, userLogin))) return;
         const messageText = sanitizeText(data.text);
-        if (!messageText) return;
+        const attachment = sanitizeAttachmentPayload(data.attachment);
+        if (!groupId || (!messageText && !attachment)) return;
+        if (!(await isGroupMember(groupId, userLogin))) return;
 
         const messageTime = Date.now();
         const insertResult = await pool.query(`
-          INSERT INTO group_messages (groupId, fromUser, text, time, edited, editedAt)
-          VALUES ($1, $2, $3, $4, FALSE, NULL)
+          INSERT INTO group_messages (groupId, fromUser, text, time, edited, editedAt, attachment)
+          VALUES ($1, $2, $3, $4, FALSE, NULL, $5::jsonb)
           RETURNING id
-        `, [groupId, userLogin, messageText, messageTime]);
+        `, [groupId, userLogin, messageText, messageTime, attachment ? JSON.stringify(attachment) : null]);
 
         const msgData = {
           type: 'group_message',
@@ -1097,9 +1218,11 @@ wss.on('connection', (ws, req) => {
           time: messageTime,
           edited: false,
           editedAt: null,
+          attachment,
           fromNick: me.nickname,
           avatar: buildAvatar(userLogin, me.nickname, me.avatarImage)
         };
+
         await sendGroupToMembers(groupId, msgData);
         return;
       }
@@ -1422,7 +1545,8 @@ wss.on('connection', (ws, req) => {
         if (!requireActionAllowed(ws, clientIp, 'message')) return;
         const targetLogin = sanitizeLogin(data.to);
         const messageText = sanitizeText(data.text);
-        if (!targetLogin || !messageText) return;
+        const attachment = sanitizeAttachmentPayload(data.attachment);
+        if (!targetLogin || (!messageText && !attachment)) return;
         if (!(await userExists(targetLogin))) return;
         if (!(await areFriends(userLogin, targetLogin))) {
           send(ws, { type: 'error', message: 'Личные сообщения доступны только друзьям' });
@@ -1431,10 +1555,10 @@ wss.on('connection', (ws, req) => {
 
         const messageTime = Date.now();
         const insertResult = await pool.query(`
-          INSERT INTO messages (fromUser, toUser, text, time, edited, editedAt, deliveredAt, readAt)
-          VALUES ($1, $2, $3, $4, FALSE, NULL, NULL, NULL)
+          INSERT INTO messages (fromUser, toUser, text, time, edited, editedAt, deliveredAt, readAt, attachment)
+          VALUES ($1, $2, $3, $4, FALSE, NULL, NULL, NULL, $5::jsonb)
           RETURNING id
-        `, [userLogin, targetLogin, messageText, messageTime]);
+        `, [userLogin, targetLogin, messageText, messageTime, attachment ? JSON.stringify(attachment) : null]);
 
         await pool.query(`
           INSERT INTO unread (fromUser, toUser, count)
@@ -1460,6 +1584,7 @@ wss.on('connection', (ws, req) => {
           deliveredAt: null,
           readAt: null,
           receiptStatus: 'pending',
+          attachment,
           fromNick: me.nickname,
           avatar: buildAvatar(userLogin, me.nickname, me.avatarImage),
           unread: unreadCount,

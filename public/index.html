@@ -340,6 +340,13 @@ button:hover { transform: translateY(-1px); }
 }
 .messageReceipt.read { color: var(--accent-2); }
 .messageText { line-height:1.4; word-break:break-word; white-space:pre-wrap; }
+.messageAttachment { margin-top:10px; }
+.messageAttachment img { display:block; max-width:min(320px, 100%); max-height:320px; width:auto; height:auto; border-radius:14px; border:1px solid rgba(255,255,255,.08); cursor:pointer; }
+.messageFileCard { display:flex; align-items:center; gap:12px; padding:10px 12px; border-radius:14px; background:#111622; border:1px solid rgba(255,255,255,.08); color:#fff; text-decoration:none; }
+.messageFileIcon { width:38px; height:38px; border-radius:12px; display:flex; align-items:center; justify-content:center; background:#202633; flex:0 0 38px; }
+.messageFileMeta { min-width:0; }
+.messageFileName { font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.messageFileSize { font-size:12px; color:var(--muted); }
 #typingIndicator {
   min-height: 24px;
   display:flex;
@@ -946,7 +953,9 @@ button:hover { transform: translateY(-1px); }
     <div id="typingIndicator"></div>
 
     <div id="input">
-            <input id="text" placeholder="Сообщение...">
+      <input type="file" id="chatFileInput" hidden>
+      <button id="attachBtn" title="Файл">📎</button>
+      <input id="text" placeholder="Сообщение...">
       <button id="sendBtn" title="Отправить">▶</button>
     </div>
   </div>
@@ -1097,6 +1106,8 @@ const messages = document.getElementById('messages');
 const typingIndicator = document.getElementById('typingIndicator');
 const text = document.getElementById('text');
 const sendBtn = document.getElementById('sendBtn');
+const attachBtn = document.getElementById('attachBtn');
+const chatFileInput = document.getElementById('chatFileInput');
 const friendsBtn = document.getElementById('friendsBtn');
 const friendsPanel = document.getElementById('friendsPanel');
 const closeFriendsPanelBtn = document.getElementById('closeFriendsPanelBtn');
@@ -1173,6 +1184,7 @@ let typingSendTimer = null;
 let typingStopTimer = null;
 const MAX_RENDERED_MESSAGES = 200;
 const MAX_STORED_MESSAGES = 500;
+const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
 let renderChatRaf = null;
 const mobileMediaQuery = window.matchMedia('(max-width: 900px)');
 
@@ -1194,7 +1206,7 @@ const i18n = {
     haveNoAccount:'Нет аккаунта? Зарегистрироваться', haveAccount:'Уже есть аккаунт? Войти', loginPlaceholder:'Логин', passwordPlaceholder:'Пароль',
     sidebarSubtitle:'На связи с друзьями', friends:'Друзья', onlineFriends:'Друзья онлайн', dialogs:'Личные сообщения', avatar:'Аватар', banner:'Баннер', chooseFriend:'Выбери друга слева, чтобы открыть переписку',
     personalDialog:'Личный диалог', welcome:'Добро пожаловать в Squadovka', welcomeText:'Выбери друга слева или открой панель друзей, чтобы отправить заявку и начать переписку.',
-    messagePlaceholder:'Сообщение...', addFriendTitle:'Добавить друга (по логину)', addFriendPlaceholder:'Логин пользователя', sendRequest:'Отправить заявку',
+    messagePlaceholder:'Сообщение...', attach:'Файл', uploading:'Загрузка файла...', fileTooBig:'Файл больше 10 МБ', fileUploadFailed:'Не удалось загрузить файл', addFriendTitle:'Добавить друга (по логину)', addFriendPlaceholder:'Логин пользователя', sendRequest:'Отправить заявку',
     requests:'Заявки', noRequests:'Нет входящих заявок', friendsTitle:'Друзья', noFriends:'Список друзей пуст', call:'Звонок', open:'Открыть', hang:'Сбросить',
     accept:'Принять', decline:'Отклонить', close:'Закрыть', mute:'Выключить микрофон', unmute:'Включить микрофон', speakerMute:'Выключить звук', speakerUnmute:'Включить звук', micOn:'🎙️ Микрофон: включён', micOff:'🎙️ Микрофон: выключён', soundOn:'🔊 Звук: включён', soundOff:'🔇 Звук: выключён',
     volume:'🔊 Громкость:', groupLabel:'Группа', voiceLevel:'Уровень голоса:', natHint:'Если не соединяется у кого-то — это NAT. Для “всегда работает” нужен TURN-сервер.',
@@ -1212,7 +1224,7 @@ const i18n = {
     haveNoAccount:'Немає акаунта? Зареєструватися', haveAccount:'Уже є акаунт? Увійти', loginPlaceholder:'Логін', passwordPlaceholder:'Пароль',
     sidebarSubtitle:'На звʼязку з друзями', friends:'Друзі', onlineFriends:'Друзі онлайн', dialogs:'Особисті повідомлення', avatar:'Аватар', banner:'Банер', chooseFriend:'Обери друга зліва, щоб відкрити листування',
     personalDialog:'Особистий діалог', welcome:'Ласкаво просимо до Squadovka', welcomeText:'Обери друга зліва або відкрий панель друзів, щоб надіслати запит і почати листування.',
-    messagePlaceholder:'Повідомлення...', addFriendTitle:'Додати друга (за логіном)', addFriendPlaceholder:'Логін користувача', sendRequest:'Надіслати запит',
+    messagePlaceholder:'Повідомлення...', attach:'Файл', uploading:'Завантаження файлу...', fileTooBig:'Файл більший за 10 МБ', fileUploadFailed:'Не вдалося завантажити файл', addFriendTitle:'Додати друга (за логіном)', addFriendPlaceholder:'Логін користувача', sendRequest:'Надіслати запит',
     requests:'Запити', noRequests:'Немає вхідних запитів', friendsTitle:'Друзі', noFriends:'Список друзів порожній', call:'Дзвінок', open:'Відкрити', hang:'Скинути',
     accept:'Прийняти', decline:'Відхилити', close:'Закрити', mute:'Вимкнути мікрофон', unmute:'Увімкнути мікрофон', speakerMute:'Вимкнути звук', speakerUnmute:'Увімкнути звук', micOn:'🎙️ Мікрофон: увімкнений', micOff:'🎙️ Мікрофон: вимкнений', soundOn:'🔊 Звук: увімкнений', soundOff:'🔇 Звук: вимкнений',
     volume:'🔊 Гучність:', groupLabel:'Група', voiceLevel:'Рівень голосу:', natHint:'Якщо в когось не з’єднується — це NAT. Щоб працювало завжди, потрібен TURN-сервер.',
@@ -1230,7 +1242,7 @@ const i18n = {
     haveNoAccount:'No account? Register', haveAccount:'Already have an account? Sign in', loginPlaceholder:'Login', passwordPlaceholder:'Password',
     sidebarSubtitle:'Stay connected with friends', friends:'Friends', onlineFriends:'Friends online', dialogs:'Direct messages', avatar:'Avatar', banner:'Banner', chooseFriend:'Choose a friend on the left to open the chat',
     personalDialog:'Direct message', welcome:'Welcome to Squadovka', welcomeText:'Choose a friend on the left or open the friends panel to send a request and start chatting.',
-    messagePlaceholder:'Message...', addFriendTitle:'Add friend (by login)', addFriendPlaceholder:'User login', sendRequest:'Send request',
+    messagePlaceholder:'Message...', attach:'File', uploading:'Uploading file...', fileTooBig:'File is larger than 10 MB', fileUploadFailed:'Failed to upload file', addFriendTitle:'Add friend (by login)', addFriendPlaceholder:'User login', sendRequest:'Send request',
     requests:'Requests', noRequests:'No incoming requests', friendsTitle:'Friends', noFriends:'Friends list is empty', call:'Call', open:'Open', hang:'Hang up',
     accept:'Accept', decline:'Decline', close:'Close', mute:'Mute', unmute:'Unmute', micOn:'🎙️ Microphone: on', micOff:'🎙️ Microphone: off',
     volume:'🔊 Volume:', voiceLevel:'Voice level:', natHint:'If it does not connect for someone, that is NAT. For “always works” you need a TURN server.',
@@ -1673,6 +1685,7 @@ function applyLanguage() {
   document.getElementById('emptyTitle').textContent = t('welcome');
   document.getElementById('emptyTextLabel').textContent = t('welcomeText');
   text.placeholder = t('messagePlaceholder');
+  if (attachBtn) attachBtn.title = t('attach');
   sendBtn.title = t('save');
   document.getElementById('addFriendTitle').textContent = t('addFriendTitle');
   friendNick.placeholder = t('addFriendPlaceholder');
@@ -1727,7 +1740,8 @@ function compactStoredMessage(message) {
     deliveredAt: message.deliveredAt || null,
     readAt: message.readAt || null,
     receiptStatus: message.receiptStatus || null,
-    fromNick: message.fromNick || null
+    fromNick: message.fromNick || null,
+    attachment: message.attachment || null
   };
   if (message.groupId != null) compact.groupId = message.groupId;
   return compact;
@@ -1794,6 +1808,77 @@ function createAvatar(user, status = 'online', showPresence = true) {
 }
 function escapeHtml(s) { return String(s ?? '').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'", '&#39;'); }
 function formatMessageTime(ts) { if (!ts) return ''; const d = new Date(Number(ts)); if (Number.isNaN(d.getTime())) return ''; return d.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}); }
+
+function formatFileSize(bytes) {
+  const value = Number(bytes) || 0;
+  if (value < 1024) return `${value} B`;
+  if (value < 1024 * 1024) return `${(value / 1024).toFixed(1).replace(/\.0$/, '')} KB`;
+  return `${(value / (1024 * 1024)).toFixed(1).replace(/\.0$/, '')} MB`;
+}
+function normalizeAttachment(att) {
+  if (!att || typeof att !== 'object') return null;
+  const url = typeof att.url === 'string' ? att.url : '';
+  const name = typeof att.name === 'string' ? att.name : 'file';
+  const size = Number(att.size);
+  const mimeType = typeof att.mimeType === 'string' ? att.mimeType : 'application/octet-stream';
+  if (!url) return null;
+  return { name, url, size:Number.isFinite(size) ? size : 0, mimeType, isImage: !!att.isImage || /^image\//i.test(mimeType) };
+}
+function renderAttachmentHtml(attachment) {
+  const att = normalizeAttachment(attachment);
+  if (!att) return '';
+  if (att.isImage) {
+    return `<div class="messageAttachment"><a href="${escapeHtml(att.url)}" target="_blank" rel="noopener noreferrer"><img src="${escapeHtml(att.url)}" alt="${escapeHtml(att.name)}" loading="lazy"></a></div>`;
+  }
+  return `<div class="messageAttachment"><a class="messageFileCard" href="${escapeHtml(att.url)}" target="_blank" rel="noopener noreferrer" download="${escapeHtml(att.name)}"><div class="messageFileIcon">📄</div><div class="messageFileMeta"><div class="messageFileName">${escapeHtml(att.name)}</div><div class="messageFileSize">${escapeHtml(formatFileSize(att.size))}</div></div></a></div>`;
+}
+async function uploadCurrentFile(file) {
+  if (!file) return;
+  if (!authToken) { alert(t('authExpired')); return; }
+  if (file.size > MAX_UPLOAD_BYTES) { alert(t('fileTooBig')); return; }
+  const prevText = text.value;
+  try {
+    attachBtn.disabled = true;
+    attachBtn.textContent = '⏳';
+    const params = new URLSearchParams();
+    if (currentChatType === 'group' && currentGroupId) {
+      params.set('chatType', 'group');
+      params.set('groupId', String(currentGroupId));
+    } else {
+      if (!currentDM) return;
+      params.set('chatType', 'dm');
+      params.set('to', currentDM);
+    }
+    const response = await fetch(`/api/upload?${params.toString()}`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${authToken}`,
+        'Content-Type': file.type || 'application/octet-stream',
+        'X-File-Name': encodeURIComponent(file.name || 'file')
+      },
+      body: file
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok || !result?.attachment) {
+      if (result?.error === 'FILE_TOO_LARGE') throw new Error('FILE_TOO_LARGE');
+      throw new Error(result?.error || 'UPLOAD_FAILED');
+    }
+    const attachment = normalizeAttachment(result.attachment);
+    const caption = text.value.trim();
+    if (currentChatType === 'group' && currentGroupId) ws.send(JSON.stringify({ type:'group_message', groupId:currentGroupId, text:caption, attachment }));
+    else if (currentDM) ws.send(JSON.stringify({ type:'message', from:login, to:currentDM, text:caption, attachment }));
+    text.value = '';
+    sendTyping(false);
+  } catch (err) {
+    console.error('Upload failed:', err);
+    alert(err?.message === 'FILE_TOO_LARGE' ? t('fileTooBig') : t('fileUploadFailed'));
+    text.value = prevText;
+  } finally {
+    attachBtn.disabled = false;
+    attachBtn.textContent = '📎';
+    chatFileInput.value = '';
+  }
+}
 
 function normalizeReceiptStatus(status) { return ['pending', 'sent', 'read'].includes(status) ? status : 'pending'; }
 function getReceiptStatus(message) {
@@ -2039,6 +2124,7 @@ function handle(d) {
   if (d.type === 'message') {
     const peer = d.from === login ? d.to : d.from;
     setTypingState(peer, '', false);
+    if (d.attachment) d.attachment = normalizeAttachment(d.attachment);
     upsertMessage(peer, d);
     const isIncoming = d.from !== login;
     unread[peer] = peer !== currentDM ? (d.unread || unread[peer] || 0) : 0;
@@ -2086,7 +2172,7 @@ function handle(d) {
   }
   if (d.type === 'chat_history') {
     if (!d.with) return;
-    replaceChatHistory(d.with, d.messages);
+    replaceChatHistory(d.with, (d.messages || []).map(msg => ({ ...msg, attachment: normalizeAttachment(msg.attachment) })));
     saveLocalChatState();
     if (currentDM === d.with) scheduleRenderCurrentChat(true);
     return;
@@ -2221,10 +2307,10 @@ function handle(d) {
   if (d.type === 'group_created') { if (d.group) { groups = [d.group, ...(groups || []).filter(g => Number(g.id) !== Number(d.group.id))]; renderGroups(); renderOnline(); if (login && d.group.ownerLogin === login) openGroup(d.group.id); } return; }
   if (d.type === 'group_updated') { if (d.group) { groups = (groups || []).filter(g => Number(g.id) !== Number(d.group.id)); groups.unshift(d.group); renderGroups(); renderOnline(); if (currentChatType === 'group' && Number(currentGroupId) === Number(d.group.id)) { updateChatHeader(); scheduleRenderCurrentChat(); } } return; }
   if (d.type === 'group_left') { groups = (groups || []).filter(g => Number(g.id) !== Number(d.groupId)); delete chats[getGroupChatKey(d.groupId)]; saveLocalChatState(); if (currentChatType === 'group' && Number(currentGroupId) === Number(d.groupId)) { currentGroupId = null; currentChatType = 'dm'; emptyChat.style.display = 'flex'; messages.style.display = 'none'; updateChatHeader(); } renderGroups(); renderOnline(); return; }
-  if (d.type === 'group_message') { upsertGroupMessage(d.groupId, d); saveLocalChatState(); if (currentChatType === 'group' && Number(currentGroupId) === Number(d.groupId)) scheduleRenderCurrentChat(true); return; }
+  if (d.type === 'group_message') { if (d.attachment) d.attachment = normalizeAttachment(d.attachment); upsertGroupMessage(d.groupId, d); saveLocalChatState(); if (currentChatType === 'group' && Number(currentGroupId) === Number(d.groupId)) scheduleRenderCurrentChat(true); return; }
   if (d.type === 'group_message_edited') { updateGroupMessageLocally(d.groupId, d.id, { text:d.text, edited:d.edited, editedAt:d.editedAt }); saveLocalChatState(); if (currentChatType === 'group' && Number(currentGroupId) === Number(d.groupId)) scheduleRenderCurrentChat(); return; }
   if (d.type === 'group_message_deleted') { removeGroupMessageLocally(d.groupId, d.id); saveLocalChatState(); if (currentChatType === 'group' && Number(currentGroupId) === Number(d.groupId)) scheduleRenderCurrentChat(); return; }
-  if (d.type === 'group_history') { replaceChatHistory(getGroupChatKey(d.groupId), d.messages); saveLocalChatState(); if (currentChatType === 'group' && Number(currentGroupId) === Number(d.groupId)) scheduleRenderCurrentChat(true); return; }
+  if (d.type === 'group_history') { replaceChatHistory(getGroupChatKey(d.groupId), (d.messages || []).map(msg => ({ ...msg, attachment: normalizeAttachment(msg.attachment) }))); saveLocalChatState(); if (currentChatType === 'group' && Number(currentGroupId) === Number(d.groupId)) scheduleRenderCurrentChat(true); return; }
 }
 
 function openDM(l, n, avatar = null) {
@@ -2275,17 +2361,28 @@ function renderMessage(message) {
   const isOwn = message.from === login;
   const receiptStatus = isOwn ? getReceiptStatus(message) : '';
   const receiptHtml = isOwn ? `<span class="messageReceipt ${receiptStatus}" title="${escapeHtml(getReceiptTitle(receiptStatus))}">${getReceiptIcon(receiptStatus)}</span>` : '';
+  const attachmentHtml = renderAttachmentHtml(message.attachment);
   let inner = `<div class="messageHeader"><b>${escapeHtml(message.fromNick || message.from)}</b><span class="messageTime">${escapeHtml(formatMessageTime(message.time))}</span>${editedLabel}${receiptHtml}</div>`;
   if (editingMessageId === Number(message.id) && message.from === login) {
-    inner += `<div class="editBox"><input class="editInput" data-message-id="${message.id}" value="${escapeHtml(message.text)}"><button class="messageActionBtn" onclick="saveEditMessage(${message.id})">${escapeHtml(t('save'))}</button><button class="messageActionBtn" onclick="cancelEditMessage()">${escapeHtml(t('cancel'))}</button></div>`;
+    inner += `<div class="editBox"><input class="editInput" data-message-id="${message.id}" value="${escapeHtml(message.text || '')}"><button class="messageActionBtn" onclick="saveEditMessage(${message.id})">${escapeHtml(t('save'))}</button><button class="messageActionBtn" onclick="cancelEditMessage()">${escapeHtml(t('cancel'))}</button></div>`;
   } else {
-    inner += `<div class="messageText">${escapeHtml(message.text)}</div>`;
+    if (message.text) inner += `<div class="messageText">${escapeHtml(message.text)}</div>`;
+    inner += attachmentHtml;
     if (message.from === login) inner += `<div class="messageActions"><button class="messageActionBtn" onclick="beginEditMessage(${message.id})">${escapeHtml(t('edit'))}</button><button class="messageActionBtn" onclick="deleteMessage(${message.id})">${escapeHtml(t('delete'))}</button></div>`;
   }
   c.innerHTML = inner;
   m.appendChild(c);
   return m;
 }
+
+attachBtn.onclick = () => {
+  if ((currentChatType === 'group' && currentGroupId) || currentDM) chatFileInput.click();
+};
+chatFileInput.addEventListener('change', async () => {
+  const file = chatFileInput.files?.[0];
+  if (!file) return;
+  await uploadCurrentFile(file);
+});
 
 sendBtn.onclick = async () => {
   await unlockAudio(); const message = text.value.trim(); if (!message) return; if (currentChatType === 'group' && currentGroupId) { ws.send(JSON.stringify({ type:'group_message', groupId:currentGroupId, text:message })); text.value = ''; return; } if (!currentDM) return; ws.send(JSON.stringify({ type:'message', from:login, to:currentDM, text:message })); text.value = ''; sendTyping(false);
