@@ -750,10 +750,10 @@ server.on('upgrade', (req, socket, head) => {
       }
     } catch {
       const allowedDesktopOrigin =
+        origin === 'null' ||
         origin.startsWith('file://') ||
         origin.startsWith('app://') ||
-        origin.startsWith('electron://') ||
-        origin === 'null';
+        origin.startsWith('electron://');
 
       if (!allowedDesktopOrigin) {
         socket.write('HTTP/1.1 403 Forbidden\r\n\r\n');
