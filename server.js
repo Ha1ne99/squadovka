@@ -1246,6 +1246,21 @@ wss.on('connection', (ws, req) => {
         return;
       }
 
+
+      if (data.type === 'get_user_profile') {
+        const targetLogin = sanitizeLogin(data.login);
+        if (!targetLogin) return;
+        const isSelf = targetLogin === userLogin;
+        const allowed = isSelf || await areFriends(userLogin, targetLogin);
+        if (!allowed) {
+          send(ws, { type: 'error', message: 'Профиль недоступен' });
+          return;
+        }
+        const profile = await getUserPublic(targetLogin, userLogin);
+        if (profile) send(ws, { type: 'user_profile', user: profile });
+        return;
+      }
+
       if (data.type === 'remove_friend') {
         const otherLogin = typeof data.with === 'string' ? data.with.trim() : '';
         if (!otherLogin || otherLogin === userLogin) return;

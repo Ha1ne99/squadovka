@@ -1100,9 +1100,11 @@ function openProfileModal() {
   profileModalOverlay.style.display = 'flex';
 }
 
-function openUserProfileModal(userLogin) {
-  const user = typeof userLogin === 'string' ? findFriendData(userLogin) : userLogin;
-  if (!user || !user.login) return;
+function openUserProfileModal(userLogin, fetchFresh = true) {
+  const incoming = typeof userLogin === 'string' ? { login:userLogin } : (userLogin || {});
+  const resolved = findFriendData(incoming.login) || incoming;
+  if (!resolved || !resolved.login) return;
+  const user = { ...incoming, ...resolved };
   viewedProfile = { ...user };
   setProfileModalMode('other');
   profileModalNickPreview.textContent = user.nickname || user.login || 'User';
@@ -1115,6 +1117,9 @@ function openUserProfileModal(userLogin) {
   if (oldModalAvatar) oldModalAvatar.replaceWith(modalAvatarNode);
   modalAvatarNode.id = 'profileModalAvatar';
   profileModalOverlay.style.display = 'flex';
+  if (fetchFresh && ws && ws.readyState === WebSocket.OPEN && user.login) {
+    ws.send(JSON.stringify({ type:'get_user_profile', login:user.login }));
+  }
 }
 
 function closeProfileModal() { viewedProfile = null; profileModalOverlay.style.display = 'none'; }
@@ -1584,11 +1589,20 @@ function handle(d) {
     friends = friends.map(f => { const obj = typeof f === 'string' ? { login:f, nickname:f, avatar:null, status:'offline' } : f; return obj.login === d.login ? { ...obj, nickname:d.nickname, avatar:d.avatar } : obj; });
     renderOnline(); renderFriends(); if (currentDM === d.login) updateChatHeader(d.login, d.nickname, d.avatar); return;
   }
+  if (d.type === 'user_profile') {
+    if (!d.user?.login) return;
+    applyProfileUpdateLocal(d.user);
+    if (viewedProfile && d.user.login === viewedProfile.login && profileModalMode === 'other') {
+      viewedProfile = { ...viewedProfile, ...d.user };
+      openUserProfileModal(viewedProfile, false);
+    }
+    return;
+  }
   if (d.type === 'profile_updated') {
     applyProfileUpdateLocal(d.user);
     if (viewedProfile && d.user?.login === viewedProfile.login && profileModalMode === 'other') {
       viewedProfile = { ...viewedProfile, ...d.user };
-      openUserProfileModal(viewedProfile);
+      openUserProfileModal(viewedProfile, false);
     }
     return;
   }
