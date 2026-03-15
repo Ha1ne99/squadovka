@@ -1056,10 +1056,6 @@ button:hover { transform: translateY(-1px); }
       <button id="callCloseBtn" class="callActionBtn">Закрыть</button>
     </div>
     <audio id="remoteAudio" autoplay playsinline></audio>
-    <audio id="messageSound" preload="auto" src="sounds/message.mp3"></audio>
-    <audio id="callSound" preload="auto" src="sounds/call.mp3" loop></audio>
-    <audio id="acceptSound" preload="auto" src="sounds/accept.mp3"></audio>
-    <audio id="declineSound" preload="auto" src="sounds/decline.mp3"></audio>
   </div>
 </div>
 
@@ -1136,10 +1132,6 @@ const callVolumeSlider = document.getElementById('callVolumeSlider');
 const callHangupBtn = document.getElementById('callHangupBtn');
 const callCloseBtn = document.getElementById('callCloseBtn');
 const remoteAudio = document.getElementById('remoteAudio');
-const messageSound = document.getElementById('messageSound');
-const callSound = document.getElementById('callSound');
-const acceptSound = document.getElementById('acceptSound');
-const declineSound = document.getElementById('declineSound');
 
 let ws;
 let authToken = localStorage.getItem('messenger_token') || '';
@@ -1783,39 +1775,8 @@ function loadLocalChatState(userLogin) {
   } catch { chats = {}; unread = {}; }
 }
 
-async function unlockAudio() {
-  const sounds = [messageSound, callSound, acceptSound, declineSound, remoteAudio].filter(Boolean);
-  for (const audio of sounds) {
-    try {
-      audio.muted = true;
-      audio.currentTime = 0;
-      await audio.play();
-      audio.pause();
-      audio.currentTime = 0;
-      audio.muted = false;
-    } catch {}
-  }
-}
-function safePlay(audio, { reset = true } = {}) {
-  if (!audio) return;
-  try {
-    if (reset) audio.currentTime = 0;
-    const playPromise = audio.play();
-    if (playPromise && typeof playPromise.catch === 'function') playPromise.catch(() => {});
-  } catch {}
-}
-function safePause(audio, reset = false) {
-  if (!audio) return;
-  try {
-    audio.pause();
-    if (reset) audio.currentTime = 0;
-  } catch {}
-}
-function soundMessage() { safePlay(messageSound); }
-function soundIncomingCall() { safePlay(callSound); }
-function stopIncomingCallSound() { safePause(callSound, true); }
-function soundAcceptCall() { safePlay(acceptSound); }
-function soundDeclineCall() { safePlay(declineSound); }
+async function unlockAudio() {}
+function soundMessage() {}
 
 
 function createAvatar(user, status = 'online', showPresence = true) {
@@ -2215,7 +2176,6 @@ function handle(d) {
     callPeerLogin = d.from;
     callPeerData = pendingIncomingCall;
     callState = 'incoming';
-    soundIncomingCall();
     showCallOverlay();
     updateCallUi();
     return;
@@ -2226,8 +2186,6 @@ function handle(d) {
     return;
   }
   if (d.type === 'call_joined') {
-    stopIncomingCallSound();
-    soundAcceptCall();
     callPeerLogin = d.with;
     callPeerData = findFriendData(d.with) || callPeerData || { login:d.with, nickname:d.with };
     callState = 'connecting';
@@ -2236,8 +2194,6 @@ function handle(d) {
     return;
   }
   if (d.type === 'call_accepted') {
-    stopIncomingCallSound();
-    soundAcceptCall();
     callPeerLogin = d.by;
     callPeerData = findFriendData(d.by) || callPeerData || { login:d.by, nickname:d.by };
     callState = 'connecting';
@@ -2253,8 +2209,6 @@ function handle(d) {
   if (d.type === 'call_ended') {
     const reason = d.reason;
     const shouldAlert = callState !== 'idle';
-    stopIncomingCallSound();
-    if (reason === 'declined' || reason === 'cancelled') soundDeclineCall();
     resetCallState();
     if (shouldAlert) {
       if (reason === 'declined') alert(t('callDeclined'));
@@ -2666,35 +2620,13 @@ callBtn.onclick = async () => {
   if ((user.status || 'offline') === 'offline') { alert(t('userOffline')); return; }
   await startCall(user);
 };
-callAcceptBtn.onclick = () => {
-  stopIncomingCallSound();
-  soundAcceptCall();
-  acceptIncomingCall().catch(() => {
-    alert(t('allowMic'));
-    resetCallState();
-  });
-};
-callDeclineBtn.onclick = () => {
-  stopIncomingCallSound();
-  soundDeclineCall();
-  declineIncomingCall();
-};
-callHangupBtn.onclick = () => {
-  stopIncomingCallSound();
-  endCurrentCall(true);
-};
+callAcceptBtn.onclick = () => { acceptIncomingCall().catch(() => { alert(t('allowMic')); resetCallState(); }); };
+callDeclineBtn.onclick = declineIncomingCall;
+callHangupBtn.onclick = () => endCurrentCall(true);
 callMuteBtn.onclick = toggleMuteCall;
 callSpeakerBtn.onclick = toggleSpeakerMute;
 callVolumeSlider.oninput = () => setOpponentVolume(callVolumeSlider.value);
-callCloseBtn.onclick = () => {
-  if (callState === 'incoming') {
-    stopIncomingCallSound();
-    soundDeclineCall();
-    declineIncomingCall();
-  } else {
-    hideCallOverlay();
-  }
-};
+callCloseBtn.onclick = () => { if (callState === 'incoming') declineIncomingCall(); else hideCallOverlay(); };
 callOverlay.addEventListener('click', e => { if (e.target === callOverlay && callState === 'idle') hideCallOverlay(); });
 
 window.addEventListener('load', () => {

@@ -737,29 +737,18 @@ server.on('upgrade', (req, socket, head) => {
 
   const origin = req.headers.origin;
   const host = req.headers.host;
-
   if (origin && host) {
     try {
       const originUrl = new URL(origin);
-      const desktopProtocols = new Set(['file:', 'app:', 'electron:']);
-
-      if (!desktopProtocols.has(originUrl.protocol) && originUrl.host !== host) {
+      if (originUrl.host !== host) {
         socket.write('HTTP/1.1 403 Forbidden\r\n\r\n');
         socket.destroy();
         return;
       }
     } catch {
-      const allowedDesktopOrigin =
-        origin.startsWith('file://') ||
-        origin.startsWith('app://') ||
-        origin.startsWith('electron://') ||
-        origin === 'null';
-
-      if (!allowedDesktopOrigin) {
-        socket.write('HTTP/1.1 403 Forbidden\r\n\r\n');
-        socket.destroy();
-        return;
-      }
+      socket.write('HTTP/1.1 403 Forbidden\r\n\r\n');
+      socket.destroy();
+      return;
     }
   }
 });
