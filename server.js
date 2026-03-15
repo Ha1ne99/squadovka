@@ -18,16 +18,47 @@ const publicIndex = path.join(publicDir, 'index.html');
 
 app.set('trust proxy', 1);
 
-const SESSION_SECRET = process.env.SESSION_SECRET || 'change-this-session-secret-on-render';
+const SESSION_SECRET = process.env.SESSION_SECRET || '';
 const SESSION_TTL_MS = 1000 * 60 * 60 * 24 * 30;
 const AUTH_WINDOW_MS = 1000 * 60 * 10;
 const AUTH_MAX_ATTEMPTS = 10;
+const ACTION_WINDOW_MS = 1000 * 30;
+const ACTION_LIMITS = {
+  update_avatar: 6,
+  update_profile: 20,
+  create_group: 8,
+  friend_request: 20,
+  get_messages: 90,
+  message: 120,
+  typing: 240,
+  read: 120,
+  edit_message: 40,
+  delete_message: 40,
+  get_group_messages: 90,
+  group_message: 120,
+  edit_group_message: 40,
+  delete_group_message: 40,
+  update_group: 20,
+  add_group_members: 20,
+  remove_group_member: 20,
+  leave_group: 20
+};
 const MAX_MESSAGE_LENGTH = 4000;
 const MAX_GROUP_NAME_LENGTH = 48;
 const CHAT_HISTORY_LIMIT = 200;
 const MAX_NICKNAME_LENGTH = 32;
 const LOGIN_RE = /^[a-zA-Z0-9_\-.]{3,32}$/;
 const authAttempts = new Map();
+const actionAttempts = new Map();
+
+if (!SESSION_SECRET && isProduction()) {
+  console.error('SESSION_SECRET not found in environment variables');
+  process.exit(1);
+}
+if (!SESSION_SECRET) {
+  console.warn('SESSION_SECRET not set. Using development-only fallback secret.');
+}
+const EFFECTIVE_SESSION_SECRET = SESSION_SECRET || 'dev-only-session-secret-change-me';
 
 function getClientIp(req) {
   return (req.headers['x-forwarded-for'] || '').split(',')[0].trim() || req.socket?.remoteAddress || 'unknown';
@@ -45,31 +76,52 @@ function hmacSafeEqual(a, b) {
 }
 
 function signSessionPayload(payload) {
-  return crypto.createHmac('sha256', SESSION_SECRET).update(payload).digest('base64url');
+  return crypto.createHmac('sha256', EFFECTIVE_SESSION_SECRET).update(payload).digest('base64url');
 }
 
-function issueSessionToken(login) {
+function hashSessionId(sessionId) {
+  return crypto.createHash('sha256').update(String(sessionId)).digest('base64url');
+}
+
+async function issueSessionToken(login) {
   const now = Date.now();
   const expiresAt = now + SESSION_TTL_MS;
+  const sessionId = crypto.randomBytes(24).toString('base64url');
   const nonce = crypto.randomBytes(16).toString('base64url');
-  const payload = `${login}.${expiresAt}.${nonce}`;
+  const payload = `${login}.${expiresAt}.${sessionId}.${nonce}`;
   const signature = signSessionPayload(payload);
+
+  await pool.query(`
+    INSERT INTO sessions (id, login, sessionHash, createdAt, expiresAt, revoked)
+    VALUES ($1, $2, $3, $4, $5, FALSE)
+  `, [sessionId, login, hashSessionId(sessionId), now, expiresAt]);
+
   return `${payload}.${signature}`;
 }
 
-function verifySessionToken(token) {
+async function verifySessionToken(token) {
   if (typeof token !== 'string' || !token) return null;
   const parts = token.split('.');
-  if (parts.length < 4) return null;
+  if (parts.length < 5) return null;
   const signature = parts.pop();
   const nonce = parts.pop();
+  const sessionId = parts.pop();
   const expiresAt = Number(parts.pop());
   const login = parts.join('.');
-  if (!login || !Number.isFinite(expiresAt) || !nonce) return null;
-  const payload = `${login}.${expiresAt}.${nonce}`;
+  if (!login || !Number.isFinite(expiresAt) || !sessionId || !nonce) return null;
+  const payload = `${login}.${expiresAt}.${sessionId}.${nonce}`;
   const expected = signSessionPayload(payload);
   if (!hmacSafeEqual(signature, expected) || expiresAt < Date.now()) return null;
-  return { login, expiresAt };
+
+  const result = await pool.query(`
+    SELECT id, login, expiresAt, revoked
+    FROM sessions
+    WHERE id = $1 AND login = $2 AND sessionHash = $3
+    LIMIT 1
+  `, [sessionId, login, hashSessionId(sessionId)]);
+  const session = result.rows[0];
+  if (!session || session.revoked || Number(session.expiresat) < Date.now()) return null;
+  return { login, expiresAt, sessionId };
 }
 
 function cleanupOldAuthAttempts(now = Date.now()) {
@@ -99,6 +151,28 @@ function isRateLimited(ip) {
   cleanupOldAuthAttempts();
   const entry = authAttempts.get(ip);
   return Boolean(entry && entry.count >= AUTH_MAX_ATTEMPTS && Date.now() - entry.firstSeenAt <= AUTH_WINDOW_MS);
+}
+
+function cleanupActionAttempts(now = Date.now()) {
+  for (const [key, data] of actionAttempts) {
+    if (!data || now - data.firstSeenAt > ACTION_WINDOW_MS) actionAttempts.delete(key);
+  }
+}
+
+function recordActionAttempt(ip, action) {
+  const now = Date.now();
+  cleanupActionAttempts(now);
+  const limit = ACTION_LIMITS[action];
+  if (!limit) return false;
+  const key = `${ip}:${action}`;
+  const current = actionAttempts.get(key);
+  if (!current || now - current.firstSeenAt > ACTION_WINDOW_MS) {
+    actionAttempts.set(key, { count: 1, firstSeenAt: now });
+    return false;
+  }
+  current.count += 1;
+  actionAttempts.set(key, current);
+  return current.count > limit;
 }
 
 function sanitizeLogin(value) {
@@ -251,6 +325,23 @@ async function initDb() {
 
   await pool.query(`ALTER TABLE group_messages ADD COLUMN IF NOT EXISTS edited BOOLEAN NOT NULL DEFAULT FALSE`);
   await pool.query(`ALTER TABLE group_messages ADD COLUMN IF NOT EXISTS editedAt BIGINT`);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS sessions (
+      id TEXT PRIMARY KEY,
+      login TEXT NOT NULL,
+      sessionHash TEXT NOT NULL,
+      createdAt BIGINT NOT NULL,
+      expiresAt BIGINT NOT NULL,
+      revoked BOOLEAN NOT NULL DEFAULT FALSE
+    )
+  `);
+  await pool.query(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS sessionHash TEXT`);
+  await pool.query(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS createdAt BIGINT NOT NULL DEFAULT 0`);
+  await pool.query(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS expiresAt BIGINT NOT NULL DEFAULT 0`);
+  await pool.query(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS revoked BOOLEAN NOT NULL DEFAULT FALSE`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS sessions_login_idx ON sessions(login)`);
+  await pool.query(`DELETE FROM sessions WHERE revoked = TRUE OR expiresAt < $1`, [Date.now()]);
 }
 
 const clients = new Map();
@@ -291,13 +382,15 @@ async function notifyReceiptUpdate(senderLogin, peerLogin, ids, status) {
 
 async function loginSocket(ws, user) {
   const normalizedStatus = normalizeStatus(user.status);
-  const token = issueSessionToken(user.login);
+  const token = await issueSessionToken(user.login);
+  const verifiedToken = await verifySessionToken(token);
 
   clients.set(ws, {
     login: user.login,
     nickname: user.nickname,
     avatarImage: user.avatarimage,
-    status: normalizedStatus
+    status: normalizedStatus,
+    sessionId: verifiedToken?.sessionId || null
   });
 
   send(ws, {
@@ -324,6 +417,21 @@ async function userExists(login) {
   return Boolean(result.rows.length);
 }
 
+async function areFriends(userA, userB) {
+  if (!userA || !userB || userA === userB) return false;
+  const result = await pool.query(`
+    SELECT 1 FROM friends
+    WHERE (user1 = $1 AND user2 = $2) OR (user1 = $2 AND user2 = $1)
+    LIMIT 1
+  `, [userA, userB]);
+  return Boolean(result.rows.length);
+}
+
+function requireActionAllowed(ws, ip, action) {
+  if (!recordActionAttempt(ip, action)) return true;
+  send(ws, { type: 'error', message: 'Слишком много действий. Попробуй чуть позже.' });
+  return false;
+}
 
 function avatarColor(str) {
   let hash = 0;
@@ -570,6 +678,23 @@ server.on('upgrade', (req, socket, head) => {
     socket.destroy();
     return;
   }
+
+  const origin = req.headers.origin;
+  const host = req.headers.host;
+  if (origin && host) {
+    try {
+      const originUrl = new URL(origin);
+      if (originUrl.host !== host) {
+        socket.write('HTTP/1.1 403 Forbidden\r\n\r\n');
+        socket.destroy();
+        return;
+      }
+    } catch {
+      socket.write('HTTP/1.1 403 Forbidden\r\n\r\n');
+      socket.destroy();
+      return;
+    }
+  }
 });
 
 wss.on('connection', (ws, req) => {
@@ -659,7 +784,7 @@ wss.on('connection', (ws, req) => {
       }
 
       if (data.type === 'auth_token') {
-        const verified = verifySessionToken(typeof data.token === 'string' ? data.token : '');
+        const verified = await verifySessionToken(typeof data.token === 'string' ? data.token : '');
         if (!verified) {
           send(ws, { type: 'auth_expired' });
           return;
@@ -679,16 +804,31 @@ wss.on('connection', (ws, req) => {
       }
 
       if (!userLogin) return;
+      if (data.type === 'logout') {
+        const sessionId = clients.get(ws)?.sessionId || null;
+        if (sessionId) {
+          await pool.query(`UPDATE sessions SET revoked = TRUE WHERE id = $1`, [sessionId]);
+        }
+        send(ws, { type: 'logged_out' });
+        try { ws.close(); } catch {}
+        return;
+      }
       const me = clients.get(ws);
       if (!me) return;
 
       if (data.type === 'update_avatar') {
+        if (!requireActionAllowed(ws, clientIp, 'update_avatar')) return;
         const image = typeof data.image === 'string' ? data.image : '';
-        if (!image.startsWith('data:image/')) {
+        if (!/^data:image\/(png|jpeg|jpg|webp|gif);base64,/i.test(image)) {
           send(ws, { type: 'error', message: 'Неверный формат аватара' });
           return;
         }
         if (image.length > 1400000) {
+          send(ws, { type: 'error', message: 'Аватар слишком большой' });
+          return;
+        }
+        const rawSizeEstimate = Math.floor((image.split(',')[1]?.length || 0) * 0.75);
+        if (rawSizeEstimate > 1024 * 1024) {
           send(ws, { type: 'error', message: 'Аватар слишком большой' });
           return;
         }
@@ -723,6 +863,7 @@ wss.on('connection', (ws, req) => {
       }
 
       if (data.type === 'update_profile') {
+        if (!requireActionAllowed(ws, clientIp, 'update_profile')) return;
         const newNickname = sanitizeName(data.nickname, MAX_NICKNAME_LENGTH);
         const newStatus = normalizeStatus(typeof data.status === 'string' ? data.status : 'online');
         if (!newNickname) {
@@ -757,8 +898,13 @@ wss.on('connection', (ws, req) => {
       }
 
       if (data.type === 'get_messages') {
+        if (!requireActionAllowed(ws, clientIp, 'get_messages')) return;
         const peerLogin = sanitizeLogin(data.with);
         if (!peerLogin) return;
+        if (!(await areFriends(userLogin, peerLogin))) {
+          send(ws, { type: 'error', message: 'Личные сообщения доступны только друзьям' });
+          return;
+        }
 
         const deliveredAt = Date.now();
         const deliveredResult = await pool.query(`
@@ -777,6 +923,7 @@ wss.on('connection', (ws, req) => {
       }
 
       if (data.type === 'create_group') {
+        if (!requireActionAllowed(ws, clientIp, 'create_group')) return;
         const name = sanitizeName(data.name, MAX_GROUP_NAME_LENGTH);
         const memberLogins = Array.isArray(data.members) ? data.members.map(sanitizeLogin).filter(Boolean) : [];
         if (!name) {
@@ -813,6 +960,7 @@ wss.on('connection', (ws, req) => {
       }
 
       if (data.type === 'get_group_messages') {
+        if (!requireActionAllowed(ws, clientIp, 'get_group_messages')) return;
         const groupId = Number(data.groupId);
         if (!Number.isFinite(groupId) || !(await isGroupMember(groupId, userLogin))) return;
         send(ws, { type: 'group_history', groupId, messages: await getGroupHistory(groupId, userLogin) });
@@ -820,6 +968,7 @@ wss.on('connection', (ws, req) => {
       }
 
       if (data.type === 'group_message') {
+        if (!requireActionAllowed(ws, clientIp, 'group_message')) return;
         const groupId = Number(data.groupId);
         if (!Number.isFinite(groupId) || !(await isGroupMember(groupId, userLogin))) return;
         const messageText = sanitizeText(data.text);
@@ -849,6 +998,7 @@ wss.on('connection', (ws, req) => {
       }
 
       if (data.type === 'edit_group_message') {
+        if (!requireActionAllowed(ws, clientIp, 'edit_group_message')) return;
         const messageId = Number(data.id);
         const newText = sanitizeText(data.text);
         if (!messageId || !newText) return;
@@ -876,6 +1026,7 @@ wss.on('connection', (ws, req) => {
       }
 
       if (data.type === 'delete_group_message') {
+        if (!requireActionAllowed(ws, clientIp, 'delete_group_message')) return;
         const messageId = Number(data.id);
         if (!Number.isFinite(messageId)) return;
 
@@ -896,6 +1047,7 @@ wss.on('connection', (ws, req) => {
       }
 
       if (data.type === 'update_group') {
+        if (!requireActionAllowed(ws, clientIp, 'update_group')) return;
         const groupId = Number(data.groupId);
         const name = sanitizeName(data.name, MAX_GROUP_NAME_LENGTH);
         if (!Number.isFinite(groupId) || !name) return;
@@ -913,6 +1065,7 @@ wss.on('connection', (ws, req) => {
       }
 
       if (data.type === 'add_group_members') {
+        if (!requireActionAllowed(ws, clientIp, 'add_group_members')) return;
         const groupId = Number(data.groupId);
         const members = Array.isArray(data.members) ? data.members.map(sanitizeLogin).filter(Boolean) : [];
         if (!Number.isFinite(groupId) || !members.length) return;
@@ -937,6 +1090,7 @@ wss.on('connection', (ws, req) => {
       }
 
       if (data.type === 'remove_group_member') {
+        if (!requireActionAllowed(ws, clientIp, 'remove_group_member')) return;
         const groupId = Number(data.groupId);
         const targetLogin = sanitizeLogin(data.userLogin);
         if (!Number.isFinite(groupId) || !targetLogin) return;
@@ -958,6 +1112,7 @@ wss.on('connection', (ws, req) => {
       }
 
       if (data.type === 'leave_group') {
+        if (!requireActionAllowed(ws, clientIp, 'leave_group')) return;
         const groupId = Number(data.groupId);
         if (!Number.isFinite(groupId) || !(await isGroupMember(groupId, userLogin))) return;
 
@@ -983,6 +1138,7 @@ wss.on('connection', (ws, req) => {
 
 
       if (data.type === 'friend_request') {
+        if (!requireActionAllowed(ws, clientIp, 'friend_request')) return;
         const targetLogin = sanitizeLogin(data.to);
         if (!targetLogin || targetLogin === userLogin) return;
 
@@ -1052,10 +1208,15 @@ wss.on('connection', (ws, req) => {
 
 
       if (data.type === 'message') {
+        if (!requireActionAllowed(ws, clientIp, 'message')) return;
         const targetLogin = sanitizeLogin(data.to);
         const messageText = sanitizeText(data.text);
         if (!targetLogin || !messageText) return;
         if (!(await userExists(targetLogin))) return;
+        if (!(await areFriends(userLogin, targetLogin))) {
+          send(ws, { type: 'error', message: 'Личные сообщения доступны только друзьям' });
+          return;
+        }
 
         const messageTime = Date.now();
         const insertResult = await pool.query(`
@@ -1111,6 +1272,7 @@ wss.on('connection', (ws, req) => {
       }
 
       if (data.type === 'delete_message') {
+        if (!requireActionAllowed(ws, clientIp, 'delete_message')) return;
         const id = Number(data.id);
         if (!Number.isFinite(id)) return;
 
@@ -1139,7 +1301,9 @@ wss.on('connection', (ws, req) => {
       }
 
       if (data.type === 'typing') {
+        if (!requireActionAllowed(ws, clientIp, 'typing')) return;
         if (!data.to || data.to === userLogin) return;
+        if (!(await areFriends(userLogin, sanitizeLogin(data.to)))) return;
         sendToUser(data.to, {
           type: 'typing',
           from: userLogin,
@@ -1150,6 +1314,7 @@ wss.on('connection', (ws, req) => {
       }
 
       if (data.type === 'edit_message') {
+        if (!requireActionAllowed(ws, clientIp, 'edit_message')) return;
         const messageId = Number(data.id);
         const newText = sanitizeText(data.text);
         if (!messageId || !newText) return;
@@ -1184,8 +1349,10 @@ wss.on('connection', (ws, req) => {
       }
 
       if (data.type === 'read') {
+        if (!requireActionAllowed(ws, clientIp, 'read')) return;
         const peerLogin = sanitizeLogin(data.from);
         if (!peerLogin) return;
+        if (!(await areFriends(userLogin, peerLogin))) return;
 
         const now = Date.now();
         const readResult = await pool.query(`
@@ -1215,8 +1382,8 @@ wss.on('connection', (ws, req) => {
     const info = clients.get(ws);
     clients.delete(ws);
 
-    if (info?.login) {
-      // no call cleanup needed
+    if (info?.sessionId && userLogin) {
+      await pool.query(`DELETE FROM sessions WHERE id = $1 AND login = $2 AND revoked = TRUE`, [info.sessionId, userLogin]).catch(() => {});
     }
 
     try {

@@ -989,7 +989,7 @@ const i18n = {
     incomingCallHint:'Нажми «Принять» или «Отклонить»', callEnded:'Звонок завершён', callDeclined:'Звонок отклонён', callCancelled:'Звонок отменён', userBusy:'Пользователь занят',
     joinedCall:'✅ В звонке:', outgoingFlag:'📞 Звоним:', incomingFlag:'📲 Входящий:', tapToOpen:'Нажми чтобы открыть', tapToOpenCall:'Нажми чтобы открыть окно звонка',
     messageNotFound:'Сообщение не найдено', edit:'Редактировать', save:'Сохранить', cancel:'Отмена', edited:'изменено', editOwnOnly:'Можно редактировать только свои сообщения',
-    serverError:'Ошибка сервера', accountCreated:'Аккаунт создан, войдите', enterLoginPassword:'Введите логин и пароль', loginTaken:'Логин занят', badLogin:'Неверный логин или пароль',
+    serverError:'Ошибка сервера', accountCreated:'Аккаунт создан, войдите', enterLoginPassword:'Введите логин и пароль', loginTaken:'Логин занят', badLogin:'Неверный логин или пароль', authExpired:'Сессия истекла. Войди снова.',
     badAvatar:'Неверный формат аватара', bigAvatar:'Аватар слишком большой', userNotFound:'Пользователь не найден', alreadyFriends:'Вы уже друзья',
     allowMic:'Разрешите доступ к микрофону для звонков', userOffline:'Пользователь не в сети', delete:'Удалить', typing:'печатает', profileSettings:'Настройка профиля', displayName:'Отображаемое имя', enterDisplayName:'Введите имя', status_online:'В сети', status_idle:'Не активен', status_dnd:'Не беспокоить', status_invisible:'Невидимка', status_offline:'Не в сети', viewProfile:'Профиль', removeFriend:'Удалить', profileViewTitle:'Профиль пользователя', removeFriendConfirm:'Удалить этого пользователя из друзей?', removedFromFriends:'Пользователь удалён из друзей', logout:'Выйти из аккаунта'
   },
@@ -1007,7 +1007,7 @@ const i18n = {
     incomingCallHint:'Натисни «Прийняти» або «Відхилити»', callEnded:'Дзвінок завершено', callDeclined:'Дзвінок відхилено', callCancelled:'Дзвінок скасовано', userBusy:'Користувач зайнятий',
     joinedCall:'✅ У дзвінку:', outgoingFlag:'📞 Дзвонимо:', incomingFlag:'📲 Вхідний:', tapToOpen:'Натисни, щоб відкрити', tapToOpenCall:'Натисни, щоб відкрити вікно дзвінка',
     messageNotFound:'Повідомлення не знайдено', edit:'Редагувати', save:'Зберегти', cancel:'Скасування', edited:'змінено', editOwnOnly:'Можна редагувати лише свої повідомлення',
-    serverError:'Помилка сервера', accountCreated:'Акаунт створено, увійди', enterLoginPassword:'Введи логін і пароль', loginTaken:'Логін зайнятий', badLogin:'Невірний логін або пароль',
+    serverError:'Помилка сервера', accountCreated:'Акаунт створено, увійди', enterLoginPassword:'Введи логін і пароль', loginTaken:'Логін зайнятий', badLogin:'Невірний логін або пароль', authExpired:'Сесію завершено. Увійди знову.',
     badAvatar:'Невірний формат аватара', bigAvatar:'Аватар занадто великий', userNotFound:'Користувача не знайдено', alreadyFriends:'Ви вже друзі',
     allowMic:'Дозволь доступ до мікрофона для дзвінків', userOffline:'Користувач не в мережі', delete:'Видалити', typing:'друкує', profileSettings:'Налаштування профілю', displayName:'Відображуване ім’я', enterDisplayName:'Введи ім’я', status_online:'В мережі', status_idle:'Не активний', status_dnd:'Не турбувати', status_invisible:'Невидимка', status_offline:'Не в мережі', logout:'Вийти з акаунта'
   },
@@ -1395,6 +1395,11 @@ function resetUiToLoggedOut() {
 }
 
 function performLogout() {
+  try {
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type:'logout' }));
+    }
+  } catch {}
   resetUiToLoggedOut();
 }
 
@@ -1443,8 +1448,9 @@ function updateMessageLocally(peer, id, patch) {
 
 function handle(d) {
   if (d.type === 'error') { alert(d.message || t('serverError')); return; }
-  if (d.type === 'auth_expired') { clearSavedAuth(); alert(t('authExpired')); return; }
+  if (d.type === 'auth_expired') { clearSavedAuth(); resetUiToLoggedOut(); alert(t('authExpired')); return; }
   if (d.type === 'register_ok') { alert(t('accountCreated')); switchMode.onclick(); return; }
+  if (d.type === 'logged_out') { resetUiToLoggedOut(); return; }
   if (d.type === 'login_ok') {
     login = d.login; nickname = d.nickname; myStatus = normalizeClientStatus(d.status || 'online'); localStorage.setItem('login', login); authToken = typeof d.token === 'string' ? d.token : authToken; if (authToken) localStorage.setItem('messenger_token', authToken); localStorage.removeItem('password'); loadLocalChatState(login); friends = Array.isArray(d.friends) ? d.friends : friends; groups = Array.isArray(d.groups) ? d.groups : groups; unread = d.unread || unread || {};
     loginDiv.style.display = 'none'; appDiv.style.display = 'flex'; profileNick.textContent = nickname; profileLogin.textContent = login;
