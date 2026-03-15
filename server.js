@@ -249,14 +249,21 @@ function sanitizeAttachmentName(value) {
 function buildAttachmentPublic(row) {
   if (!row) return null;
 
-  const attachmentId = row.attachmentid || row.attachmentId || null;
-  if (!attachmentId) return null;
+  const originalName = row.originalname || row.originalName || null;
+  const mimeType = row.mimetype || row.mimeType || 'application/octet-stream';
+  const sizeBytes = row.sizebytes ?? row.sizeBytes ?? 0;
+  const attachmentId =
+    row.attachmentid ||
+    row.attachmentId ||
+    (originalName ? row.id : null);
+
+  if (!attachmentId || !originalName) return null;
 
   return {
     id: attachmentId,
-    name: row.originalname || 'file',
-    type: row.mimetype || 'application/octet-stream',
-    size: Number(row.sizebytes || 0)
+    name: originalName,
+    type: mimeType,
+    size: Number(sizeBytes || 0)
   };
 }
 
