@@ -436,7 +436,9 @@ button:hover { transform: translateY(-1px); }
 .profileInput { width:100%; padding:12px 14px; border-radius:12px; background:#0f1420; border:1px solid var(--line); color:#fff; }
 .profileActions { display:flex; justify-content:flex-end; gap:10px; margin-top:16px; }
 .profileActionBtn { padding:11px 16px; border-radius:12px; border:1px solid var(--line); background:#1a2030; color:#fff; cursor:pointer; }
-.profileActionBtn.primary { background:linear-gradient(135deg,var(--accent),var(--accent2)); border:none; }
+.profileActionBtn.primary { background:linear-gradient(135deg,var(--accent),var(--accent2)); border:1px solid rgba(255,255,255,.22); box-shadow:0 0 0 1px rgba(107,124,255,.28) inset; }
+.profileActionBtn.primary:hover { box-shadow:0 0 0 1px rgba(255,255,255,.18) inset, 0 0 0 1px rgba(107,124,255,.38); }
+.profileActionBtn.primary:focus-visible { outline:none; box-shadow:0 0 0 2px rgba(255,255,255,.18) inset, 0 0 0 3px rgba(107,124,255,.45); }
 .hidden { display:none !important; }
 .friendMeta .statusText { text-transform:none; }
 #avatarUploadInput { display:none; }

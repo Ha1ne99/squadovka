@@ -667,7 +667,8 @@ async function broadcastOnlineFriends() {
           login: other.login,
           nickname: other.nickname,
           status: effectiveStatus,
-          avatar: buildAvatar(other.login, other.nickname, other.avatarImage)
+          avatar: buildAvatar(other.login, other.nickname, other.avatarImage),
+          banner: other.bannerImage || null
         });
       }
     }
