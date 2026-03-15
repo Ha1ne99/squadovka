@@ -355,6 +355,63 @@ button:hover { transform: translateY(-1px); }
   color: var(--muted);
   font-size: 13px;
 }
+#attachmentPreview {
+  display:none;
+  padding: 0 18px 10px;
+}
+.attachmentPreviewCard {
+  display:flex;
+  align-items:center;
+  gap:12px;
+  max-width:min(460px, 100%);
+  background:#171b23;
+  border:1px solid rgba(255,255,255,.08);
+  border-radius:14px;
+  padding:10px 12px;
+}
+.attachmentPreviewThumb {
+  width:52px;
+  height:52px;
+  border-radius:12px;
+  background:#202633;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  overflow:hidden;
+  flex:0 0 52px;
+  font-size:22px;
+}
+.attachmentPreviewThumb img {
+  width:100%;
+  height:100%;
+  object-fit:cover;
+  display:block;
+}
+.attachmentPreviewMeta {
+  min-width:0;
+  flex:1;
+}
+.attachmentPreviewName {
+  font-weight:700;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+.attachmentPreviewSize {
+  font-size:12px;
+  color:var(--muted);
+  margin-top:2px;
+}
+.attachmentPreviewRemove {
+  border:none;
+  border-radius:10px;
+  background:#202633;
+  color:#fff;
+  width:34px;
+  height:34px;
+  cursor:pointer;
+  flex:0 0 34px;
+}
 .typingDot { animation: blink 1.2s infinite; }
 .typingDot:nth-child(2) { animation-delay: .2s; }
 .typingDot:nth-child(3) { animation-delay: .4s; }
@@ -951,6 +1008,7 @@ button:hover { transform: translateY(-1px); }
     <div id="messages"></div>
 
     <div id="typingIndicator"></div>
+    <div id="attachmentPreview"></div>
 
     <div id="input">
       <input type="file" id="chatFileInput" hidden>
@@ -1108,6 +1166,7 @@ const text = document.getElementById('text');
 const sendBtn = document.getElementById('sendBtn');
 const attachBtn = document.getElementById('attachBtn');
 const chatFileInput = document.getElementById('chatFileInput');
+const attachmentPreview = document.getElementById('attachmentPreview');
 const friendsBtn = document.getElementById('friendsBtn');
 const friendsPanel = document.getElementById('friendsPanel');
 const closeFriendsPanelBtn = document.getElementById('closeFriendsPanelBtn');
@@ -1824,6 +1883,9 @@ function normalizeAttachment(att) {
   if (!url) return null;
   return { name, url, size:Number.isFinite(size) ? size : 0, mimeType, isImage: !!att.isImage || /^image\//i.test(mimeType) };
 }
+let pendingUploadFile = null;
+let pendingUploadPreviewUrl = '';
+
 function renderAttachmentHtml(attachment) {
   const att = normalizeAttachment(attachment);
   if (!att) return '';
@@ -1832,20 +1894,55 @@ function renderAttachmentHtml(attachment) {
   }
   return `<div class="messageAttachment"><a class="messageFileCard" href="${escapeHtml(att.url)}" target="_blank" rel="noopener noreferrer" download="${escapeHtml(att.name)}"><div class="messageFileIcon">📄</div><div class="messageFileMeta"><div class="messageFileName">${escapeHtml(att.name)}</div><div class="messageFileSize">${escapeHtml(formatFileSize(att.size))}</div></div></a></div>`;
 }
-async function uploadCurrentFile(file) {
-  if (!file) return;
-  if (!authToken) { alert(t('authExpired')); return; }
-  if (file.size > MAX_UPLOAD_BYTES) { alert(t('fileTooBig')); return; }
-  const prevText = text.value;
+function clearPendingAttachment() {
+  pendingUploadFile = null;
+  if (pendingUploadPreviewUrl) {
+    try { URL.revokeObjectURL(pendingUploadPreviewUrl); } catch {}
+    pendingUploadPreviewUrl = '';
+  }
+  chatFileInput.value = '';
+  renderPendingAttachmentPreview();
+}
+
+function renderPendingAttachmentPreview() {
+  if (!attachmentPreview) return;
+  if (!pendingUploadFile) {
+    attachmentPreview.style.display = 'none';
+    attachmentPreview.innerHTML = '';
+    return;
+  }
+  const isImage = /^image\//i.test(pendingUploadFile.type || '');
+  if (isImage && !pendingUploadPreviewUrl) {
+    try { pendingUploadPreviewUrl = URL.createObjectURL(pendingUploadFile); } catch {}
+  }
+  attachmentPreview.style.display = 'block';
+  attachmentPreview.innerHTML = `
+    <div class="attachmentPreviewCard">
+      <div class="attachmentPreviewThumb">${isImage && pendingUploadPreviewUrl ? `<img src="${escapeHtml(pendingUploadPreviewUrl)}" alt="${escapeHtml(pendingUploadFile.name || 'image')}">` : '📎'}</div>
+      <div class="attachmentPreviewMeta">
+        <div class="attachmentPreviewName">${escapeHtml(pendingUploadFile.name || 'file')}</div>
+        <div class="attachmentPreviewSize">${escapeHtml(formatFileSize(pendingUploadFile.size || 0))}</div>
+      </div>
+      <button type="button" class="attachmentPreviewRemove" onclick="clearPendingAttachment()" title="Удалить">✕</button>
+    </div>
+  `;
+}
+window.clearPendingAttachment = clearPendingAttachment;
+
+async function uploadCurrentFile(file, caption = '') {
+  if (!file) return false;
+  if (!authToken) { alert(t('authExpired')); return false; }
+  if (file.size > MAX_UPLOAD_BYTES) { alert(t('fileTooBig')); return false; }
   try {
     attachBtn.disabled = true;
+    sendBtn.disabled = true;
     attachBtn.textContent = '⏳';
     const params = new URLSearchParams();
     if (currentChatType === 'group' && currentGroupId) {
       params.set('chatType', 'group');
       params.set('groupId', String(currentGroupId));
     } else {
-      if (!currentDM) return;
+      if (!currentDM) return false;
       params.set('chatType', 'dm');
       params.set('to', currentDM);
     }
@@ -1864,19 +1961,21 @@ async function uploadCurrentFile(file) {
       throw new Error(result?.error || 'UPLOAD_FAILED');
     }
     const attachment = normalizeAttachment(result.attachment);
-    const caption = text.value.trim();
-    if (currentChatType === 'group' && currentGroupId) ws.send(JSON.stringify({ type:'group_message', groupId:currentGroupId, text:caption, attachment }));
-    else if (currentDM) ws.send(JSON.stringify({ type:'message', from:login, to:currentDM, text:caption, attachment }));
+    const messageText = String(caption || '').trim();
+    if (currentChatType === 'group' && currentGroupId) ws.send(JSON.stringify({ type:'group_message', groupId:currentGroupId, text:messageText, attachment }));
+    else if (currentDM) ws.send(JSON.stringify({ type:'message', from:login, to:currentDM, text:messageText, attachment }));
+    clearPendingAttachment();
     text.value = '';
     sendTyping(false);
+    return true;
   } catch (err) {
     console.error('Upload failed:', err);
     alert(err?.message === 'FILE_TOO_LARGE' ? t('fileTooBig') : t('fileUploadFailed'));
-    text.value = prevText;
+    return false;
   } finally {
     attachBtn.disabled = false;
+    sendBtn.disabled = false;
     attachBtn.textContent = '📎';
-    chatFileInput.value = '';
   }
 }
 
@@ -2378,20 +2477,48 @@ function renderMessage(message) {
 attachBtn.onclick = () => {
   if ((currentChatType === 'group' && currentGroupId) || currentDM) chatFileInput.click();
 };
-chatFileInput.addEventListener('change', async () => {
+chatFileInput.addEventListener('change', () => {
   const file = chatFileInput.files?.[0];
   if (!file) return;
-  await uploadCurrentFile(file);
+  if (file.size > MAX_UPLOAD_BYTES) {
+    chatFileInput.value = '';
+    alert(t('fileTooBig'));
+    return;
+  }
+  if (pendingUploadPreviewUrl) {
+    try { URL.revokeObjectURL(pendingUploadPreviewUrl); } catch {}
+    pendingUploadPreviewUrl = '';
+  }
+  pendingUploadFile = file;
+  renderPendingAttachmentPreview();
 });
 
-sendBtn.onclick = async () => {
-  await unlockAudio(); const message = text.value.trim(); if (!message) return; if (currentChatType === 'group' && currentGroupId) { ws.send(JSON.stringify({ type:'group_message', groupId:currentGroupId, text:message })); text.value = ''; return; } if (!currentDM) return; ws.send(JSON.stringify({ type:'message', from:login, to:currentDM, text:message })); text.value = ''; sendTyping(false);
-};
+async function sendCurrentMessage() {
+  await unlockAudio();
+  const message = text.value.trim();
+  if (!message && !pendingUploadFile) return;
+  if (pendingUploadFile) {
+    await uploadCurrentFile(pendingUploadFile, message);
+    return;
+  }
+  if (currentChatType === 'group' && currentGroupId) {
+    ws.send(JSON.stringify({ type:'group_message', groupId:currentGroupId, text:message }));
+    text.value = '';
+    return;
+  }
+  if (!currentDM) return;
+  ws.send(JSON.stringify({ type:'message', from:login, to:currentDM, text:message }));
+  text.value = '';
+  sendTyping(false);
+}
+
+sendBtn.onclick = sendCurrentMessage;
 text.addEventListener('keydown', async e => {
   if (e.key === 'Enter') {
     const active = document.activeElement;
     if (active && active.classList.contains('editInput')) return;
-    e.preventDefault(); const message = text.value.trim(); if (!message) return; await unlockAudio(); if (currentChatType === 'group' && currentGroupId) { ws.send(JSON.stringify({ type:'group_message', groupId:currentGroupId, text:message })); text.value = ''; return; } if (!currentDM) return; ws.send(JSON.stringify({ type:'message', from:login, to:currentDM, text:message })); text.value = ''; sendTyping(false);
+    e.preventDefault();
+    await sendCurrentMessage();
   }
 });
 text.addEventListener('input', () => {
