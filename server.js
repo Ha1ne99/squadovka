@@ -762,10 +762,6 @@ server.on('upgrade', (req, socket, head) => {
       }
     }
   }
-
-  wss.handleUpgrade(req, socket, head, upgradedWs => {
-    wss.emit('connection', upgradedWs, req);
-  });
 });
 
 wss.on('connection', (ws, req) => {
