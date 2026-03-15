@@ -791,6 +791,38 @@ button:hover { transform: translateY(-1px); }
 
 #callBtn { display:none; }
 #callBtn.activeCall { border-color: rgba(65,194,114,.5); box-shadow: 0 0 0 1px rgba(65,194,114,.2) inset; }
+#remoteScreenWrap {
+  display:none;
+  margin-top:14px;
+  border:1px solid var(--line);
+  border-radius:16px;
+  overflow:hidden;
+  background:#090b10;
+}
+#remoteScreenVideo {
+  width:100%;
+  max-height:320px;
+  display:block;
+  background:#000;
+}
+#remoteScreenLabel {
+  padding:8px 10px;
+  font-size:12px;
+  color:var(--muted);
+  border-top:1px solid var(--line);
+  background:rgba(255,255,255,.03);
+}
+#localScreenBadge {
+  display:none;
+  margin-top:10px;
+  padding:8px 10px;
+  border-radius:12px;
+  background:rgba(107,124,255,.12);
+  border:1px solid rgba(107,124,255,.28);
+  color:#dfe4ff;
+  font-size:12px;
+}
+
 #callOverlay {
   position: fixed;
   inset: 0;
@@ -1051,9 +1083,15 @@ button:hover { transform: translateY(-1px); }
     <div class="callRow" id="callMainActions">
       <button id="callMuteBtn" class="callActionBtn">🎙️ Микрофон</button>
       <button id="callSpeakerBtn" class="callActionBtn">🔊 Звук</button>
+      <button id="callScreenBtn" class="callActionBtn">🖥️ Демонстрация экрана</button>
       <label class="callVolumeControl"><span id="callVolumeLabel">Громкость</span><input id="callVolumeSlider" type="range" min="0" max="150" step="1" value="100"></label>
       <button id="callHangupBtn" class="callActionBtn danger">Сбросить</button>
       <button id="callCloseBtn" class="callActionBtn">Закрыть</button>
+    </div>
+    <div id="localScreenBadge">🖥️ Вы показываете экран</div>
+    <div id="remoteScreenWrap">
+      <video id="remoteScreenVideo" autoplay playsinline></video>
+      <div id="remoteScreenLabel">Экран собеседника</div>
     </div>
     <audio id="remoteAudio" autoplay playsinline></audio>
   </div>
@@ -1127,7 +1165,12 @@ const callDeclineBtn = document.getElementById('callDeclineBtn');
 const callMainActions = document.getElementById('callMainActions');
 const callMuteBtn = document.getElementById('callMuteBtn');
 const callSpeakerBtn = document.getElementById('callSpeakerBtn');
+const callScreenBtn = document.getElementById('callScreenBtn');
 const callVolumeLabel = document.getElementById('callVolumeLabel');
+const localScreenBadge = document.getElementById('localScreenBadge');
+const remoteScreenWrap = document.getElementById('remoteScreenWrap');
+const remoteScreenVideo = document.getElementById('remoteScreenVideo');
+const remoteScreenLabel = document.getElementById('remoteScreenLabel');
 const callVolumeSlider = document.getElementById('callVolumeSlider');
 const callHangupBtn = document.getElementById('callHangupBtn');
 const callCloseBtn = document.getElementById('callCloseBtn');
@@ -1163,6 +1206,10 @@ let remoteCallStream = null;
 let isMicMuted = false;
 let isSpeakerMuted = false;
 let opponentVolume = 100;
+let localScreenStream = null;
+let remoteScreenStream = null;
+let screenSender = null;
+let isScreenSharing = false;
 let callVoiceMeterTimer = null;
 let callDisconnectTimer = null;
 let pendingRemoteCandidates = [];
@@ -1197,7 +1244,7 @@ const i18n = {
     messagePlaceholder:'Сообщение...', addFriendTitle:'Добавить друга (по логину)', addFriendPlaceholder:'Логин пользователя', sendRequest:'Отправить заявку',
     requests:'Заявки', noRequests:'Нет входящих заявок', friendsTitle:'Друзья', noFriends:'Список друзей пуст', call:'Звонок', open:'Открыть', hang:'Сбросить',
     accept:'Принять', decline:'Отклонить', close:'Закрыть', mute:'Выключить микрофон', unmute:'Включить микрофон', speakerMute:'Выключить звук', speakerUnmute:'Включить звук', micOn:'🎙️ Микрофон: включён', micOff:'🎙️ Микрофон: выключён', soundOn:'🔊 Звук: включён', soundOff:'🔇 Звук: выключён',
-    volume:'🔊 Громкость:', groupLabel:'Группа', voiceLevel:'Уровень голоса:', natHint:'Если не соединяется у кого-то — это NAT. Для “всегда работает” нужен TURN-сервер.',
+    volume:'🔊 Громкость:', screenShare:'Демонстрация экрана', stopScreenShare:'Остановить показ', sharingScreen:'🖥️ Вы показываете экран', peerScreen:'Экран собеседника', groupLabel:'Группа', voiceLevel:'Уровень голоса:', natHint:'Если не соединяется у кого-то — это NAT. Для “всегда работает” нужен TURN-сервер.',
     online:'онлайн', incomingRequest:'Входящая заявка', friend:'Друг', nobodyOnline:'Пока никто из друзей не в сети',
     callWith:'Звонок с', calling:'📞 Звоним…', waitingAnswer:'Ожидаем ответ', connecting:'🔄 Подключаем…', connected:'✅ Соединено', incomingCall:'📲 Входящий звонок',
     incomingCallHint:'Нажми «Принять» или «Отклонить»', callEnded:'Звонок завершён', callDeclined:'Звонок отклонён', callCancelled:'Звонок отменён', userBusy:'Пользователь занят',
@@ -1215,7 +1262,7 @@ const i18n = {
     messagePlaceholder:'Повідомлення...', addFriendTitle:'Додати друга (за логіном)', addFriendPlaceholder:'Логін користувача', sendRequest:'Надіслати запит',
     requests:'Запити', noRequests:'Немає вхідних запитів', friendsTitle:'Друзі', noFriends:'Список друзів порожній', call:'Дзвінок', open:'Відкрити', hang:'Скинути',
     accept:'Прийняти', decline:'Відхилити', close:'Закрити', mute:'Вимкнути мікрофон', unmute:'Увімкнути мікрофон', speakerMute:'Вимкнути звук', speakerUnmute:'Увімкнути звук', micOn:'🎙️ Мікрофон: увімкнений', micOff:'🎙️ Мікрофон: вимкнений', soundOn:'🔊 Звук: увімкнений', soundOff:'🔇 Звук: вимкнений',
-    volume:'🔊 Гучність:', groupLabel:'Група', voiceLevel:'Рівень голосу:', natHint:'Якщо в когось не з’єднується — це NAT. Щоб працювало завжди, потрібен TURN-сервер.',
+    volume:'🔊 Гучність:', screenShare:'Демонстрація екрана', stopScreenShare:'Зупинити показ', sharingScreen:'🖥️ Ви показуєте екран', peerScreen:'Екран співрозмовника', groupLabel:'Група', voiceLevel:'Рівень голосу:', natHint:'Якщо в когось не з’єднується — це NAT. Щоб працювало завжди, потрібен TURN-сервер.',
     online:'онлайн', incomingRequest:'Вхідний запит', friend:'Друг', nobodyOnline:'Поки ніхто з друзів не онлайн',
     callWith:'Дзвінок з', calling:'📞 Дзвонимо…', waitingAnswer:'Очікуємо відповідь', connecting:'🔄 Підключаємо…', connected:'✅ З’єднано', incomingCall:'📲 Вхідний дзвінок',
     incomingCallHint:'Натисни «Прийняти» або «Відхилити»', callEnded:'Дзвінок завершено', callDeclined:'Дзвінок відхилено', callCancelled:'Дзвінок скасовано', userBusy:'Користувач зайнятий',
@@ -1233,7 +1280,7 @@ const i18n = {
     messagePlaceholder:'Message...', addFriendTitle:'Add friend (by login)', addFriendPlaceholder:'User login', sendRequest:'Send request',
     requests:'Requests', noRequests:'No incoming requests', friendsTitle:'Friends', noFriends:'Friends list is empty', call:'Call', open:'Open', hang:'Hang up',
     accept:'Accept', decline:'Decline', close:'Close', mute:'Mute', unmute:'Unmute', micOn:'🎙️ Microphone: on', micOff:'🎙️ Microphone: off',
-    volume:'🔊 Volume:', voiceLevel:'Voice level:', natHint:'If it does not connect for someone, that is NAT. For “always works” you need a TURN server.',
+    volume:'🔊 Volume:', screenShare:'Share screen', stopScreenShare:'Stop sharing', sharingScreen:'🖥️ You are sharing your screen', peerScreen:'Peer screen', voiceLevel:'Voice level:', natHint:'If it does not connect for someone, that is NAT. For “always works” you need a TURN server.',
     online:'online', incomingRequest:'Incoming request', friend:'Friend', nobodyOnline:'No friends online yet',
     callWith:'Call with', calling:'📞 Calling…', waitingAnswer:'Waiting for answer', connecting:'🔄 Connecting…', connected:'✅ Connected', incomingCall:'📲 Incoming call',
     incomingCallHint:'Press “Accept” or “Decline”', callEnded:'Call ended', callDeclined:'Call declined', callCancelled:'Call cancelled', userBusy:'User is busy',
@@ -1382,6 +1429,7 @@ function updateCallUi() {
   callInfoPill.textContent = callState === 'connected' ? ((isMicMuted ? t('micOff') : t('micOn')) + ' · ' + (isSpeakerMuted ? t('soundOff') : t('soundOn'))) : t('natHint');
   callMuteBtn.textContent = isMicMuted ? '🎙️ ' + t('unmute') : '🎙️ ' + t('mute');
   if (callSpeakerBtn) callSpeakerBtn.textContent = isSpeakerMuted ? '🔇 ' + t('speakerUnmute') : '🔊 ' + t('speakerMute');
+  updateScreenShareUi();
   if (callVolumeLabel) callVolumeLabel.textContent = t('volume');
   if (callVolumeSlider) callVolumeSlider.value = String(opponentVolume);
   callIncomingActions.style.display = callState === 'incoming' ? 'flex' : 'none';
@@ -1490,6 +1538,28 @@ async function createCallPeerConnection() {
     }
   };
   pc.ontrack = ev => {
+    if (ev.track?.kind === 'video') {
+      if (!remoteScreenStream) remoteScreenStream = new MediaStream();
+      const incomingStream = ev.streams?.[0];
+      const videoTracks = incomingStream ? incomingStream.getVideoTracks() : (ev.track ? [ev.track] : []);
+      videoTracks.forEach(track => {
+        if (!remoteScreenStream.getTracks().some(existing => existing.id === track.id)) remoteScreenStream.addTrack(track);
+      });
+      if (remoteScreenVideo && remoteScreenStream) {
+        remoteScreenVideo.srcObject = remoteScreenStream;
+        remoteScreenVideo.play().catch(() => {});
+        setRemoteScreenVisible(true);
+      }
+      if (ev.track) {
+        ev.track.onended = () => {
+          if (remoteScreenStream) {
+            remoteScreenStream.getTracks().forEach(track => remoteScreenStream.removeTrack(track));
+          }
+          setRemoteScreenVisible(false);
+        };
+      }
+      return;
+    }
     if (!remoteCallStream) remoteCallStream = new MediaStream();
     const incomingStream = ev.streams?.[0];
     if (incomingStream) {
@@ -1650,10 +1720,75 @@ function toggleSpeakerMute() {
   applyRemoteAudioSettings();
   updateCallUi();
 }
-function setOpponentVolume(value) {
-  opponentVolume = Math.max(0, Math.min(150, Number(value) || 0));
-  applyRemoteAudioSettings();
-  updateCallUi();
+function setRemoteScreenVisible(visible) {
+  if (remoteScreenWrap) remoteScreenWrap.style.display = visible ? 'block' : 'none';
+  if (!visible && remoteScreenVideo) {
+    remoteScreenVideo.pause?.();
+    remoteScreenVideo.srcObject = null;
+  }
+}
+function updateScreenShareUi() {
+  if (callScreenBtn) callScreenBtn.textContent = isScreenSharing ? '🖥️ ' + t('stopScreenShare') : '🖥️ ' + t('screenShare');
+  if (localScreenBadge) {
+    localScreenBadge.textContent = t('sharingScreen');
+    localScreenBadge.style.display = isScreenSharing ? 'block' : 'none';
+  }
+  if (remoteScreenLabel) remoteScreenLabel.textContent = t('peerScreen');
+}
+async function renegotiateCallPeer() {
+  if (!callPeerConnection || !callPeerLogin || !ws || ws.readyState !== WebSocket.OPEN) return;
+  const offer = await callPeerConnection.createOffer({ offerToReceiveAudio:true, offerToReceiveVideo:true });
+  await callPeerConnection.setLocalDescription(offer);
+  ws.send(JSON.stringify({ type:'call_signal', to:callPeerLogin, signal:{ type:'offer', sdp:offer.sdp } }));
+}
+async function stopScreenShare(sendOffer = true) {
+  if (localScreenStream) {
+    localScreenStream.getTracks().forEach(track => track.stop());
+    localScreenStream = null;
+  }
+  isScreenSharing = false;
+  if (callPeerConnection && screenSender) {
+    try { callPeerConnection.removeTrack(screenSender); } catch {}
+  }
+  screenSender = null;
+  updateScreenShareUi();
+  if (sendOffer && callPeerConnection && callState !== 'idle') {
+    try { await renegotiateCallPeer(); } catch {}
+  }
+}
+async function startScreenShare() {
+  if (!callPeerConnection || !callPeerLogin || callState === 'idle') return;
+  if (!navigator.mediaDevices?.getDisplayMedia) {
+    alert('Screen sharing is not supported in this browser');
+    return;
+  }
+  try {
+    const stream = await navigator.mediaDevices.getDisplayMedia({ video:true, audio:false });
+    const track = stream.getVideoTracks()[0];
+    if (!track) {
+      stream.getTracks().forEach(t => t.stop());
+      return;
+    }
+    if (localScreenStream) {
+      try { localScreenStream.getTracks().forEach(t => t.stop()); } catch {}
+    }
+    localScreenStream = stream;
+    if (screenSender && callPeerConnection) {
+      try { callPeerConnection.removeTrack(screenSender); } catch {}
+      screenSender = null;
+    }
+    screenSender = callPeerConnection.addTrack(track, stream);
+    isScreenSharing = true;
+    track.onended = () => { stopScreenShare(true); };
+    updateScreenShareUi();
+    await renegotiateCallPeer();
+  } catch (e) {
+    console.warn('Screen share cancelled/failed', e);
+  }
+}
+async function toggleScreenShare() {
+  if (isScreenSharing) await stopScreenShare(true);
+  else await startScreenShare();
 }
 
 function applyLanguage() {
@@ -1694,6 +1829,7 @@ function applyLanguage() {
   if (callMuteBtn) callMuteBtn.textContent = isMicMuted ? '🎙️ ' + t('unmute') : '🎙️ ' + t('mute');
   if (callSpeakerBtn) callSpeakerBtn.textContent = isSpeakerMuted ? '🔇 ' + t('speakerUnmute') : '🔊 ' + t('speakerMute');
   if (callVolumeLabel) callVolumeLabel.textContent = t('volume');
+  updateScreenShareUi();
   if (callHangupBtn) callHangupBtn.textContent = t('hang');
   if (callCloseBtn) callCloseBtn.textContent = t('close');
   document.getElementById('statusOnlineLabel').textContent = t('status_online');
@@ -2627,6 +2763,7 @@ callMuteBtn.onclick = toggleMuteCall;
 callSpeakerBtn.onclick = toggleSpeakerMute;
 callVolumeSlider.oninput = () => setOpponentVolume(callVolumeSlider.value);
 callCloseBtn.onclick = () => { if (callState === 'incoming') declineIncomingCall(); else hideCallOverlay(); };
+if (callScreenBtn) callScreenBtn.addEventListener('click', () => { toggleScreenShare(); });
 callOverlay.addEventListener('click', e => { if (e.target === callOverlay && callState === 'idle') hideCallOverlay(); });
 
 window.addEventListener('load', () => {
