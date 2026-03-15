@@ -413,7 +413,9 @@ button:hover { transform: translateY(-1px); }
   width:min(92vw, 520px); background:linear-gradient(180deg,#23283a,#171b27); border:1px solid var(--line);
   border-radius:22px; box-shadow:0 24px 80px rgba(0,0,0,.45); overflow:hidden;
 }
-.profileBanner { height:110px; background:linear-gradient(135deg,#8792c7,#9ba2bf); }
+.profileBanner { height:110px; background:linear-gradient(135deg,#8792c7,#9ba2bf); background-size:cover; background-position:center; position:relative; overflow:hidden; }
+.profileBanner::after { content:''; position:absolute; inset:0; background:linear-gradient(180deg, rgba(0,0,0,.08), rgba(0,0,0,.24)); pointer-events:none; }
+.profileBannerTools { position:absolute; right:12px; bottom:12px; z-index:1; display:flex; gap:8px; }
 .profileModalBody { padding:0 18px 18px; }
 .profileHero { display:flex; align-items:flex-end; justify-content:space-between; margin-top:-42px; gap:12px; }
 .profileHeroLeft { display:flex; align-items:flex-end; gap:14px; }
@@ -438,6 +440,7 @@ button:hover { transform: translateY(-1px); }
 .hidden { display:none !important; }
 .friendMeta .statusText { text-transform:none; }
 #avatarUploadInput { display:none; }
+#bannerUploadInput { display:none; }
 #avatarUploadBtn { padding:9px 10px; min-width:auto; height:auto; font-size:13px; }
 
 .langSwitcher { display:flex; gap:6px; flex-wrap:wrap; }
@@ -767,6 +770,7 @@ button:hover { transform: translateY(-1px); }
         <button id="profileSettingsBtn" class="profileSettingsBtn" title="Профиль">⚙</button>
       </div>
       <input type="file" id="avatarUploadInput" accept="image/*">
+<input type="file" id="bannerUploadInput" accept="image/*">
     </div>
   </div>
 
@@ -848,7 +852,7 @@ button:hover { transform: translateY(-1px); }
 <!-- PROFILE MODAL -->
 <div id="profileModalOverlay">
   <div id="profileModal">
-    <div class="profileBanner"></div>
+    <div class="profileBanner" id="profileBannerPreview"><div class="profileBannerTools"><button id="profileBannerBtn" class="profileActionBtn">Баннер</button></div></div>
     <div class="profileModalBody">
       <div class="profileHero">
         <div class="profileHeroLeft">
@@ -902,7 +906,9 @@ const profileModalOverlay = document.getElementById('profileModalOverlay');
 const profileModalNickPreview = document.getElementById('profileModalNickPreview');
 const profileModalLoginPreview = document.getElementById('profileModalLoginPreview');
 const profileModalAvatar = document.getElementById('profileModalAvatar');
+const profileBannerPreview = document.getElementById('profileBannerPreview');
 const profileAvatarBtn = document.getElementById('profileAvatarBtn');
+const profileBannerBtn = document.getElementById('profileBannerBtn');
 const profileSettingsTitle = document.getElementById('profileSettingsTitle');
 const profileReadonlyNote = document.getElementById('profileReadonlyNote');
 const profileNameLabel = document.getElementById('profileNameLabel');
@@ -933,6 +939,7 @@ const groupMembersInput = document.getElementById('groupMembersInput');
 const createGroupBtn = document.getElementById('createGroupBtn');
 const groupsPanelList = document.getElementById('groupsPanelList');
 const avatarUploadInput = document.getElementById('avatarUploadInput');
+const bannerUploadInput = document.getElementById('bannerUploadInput');
 
 let ws;
 let authToken = localStorage.getItem('messenger_token') || '';
@@ -943,6 +950,7 @@ let selectedProfileStatus = 'online';
 let viewedProfile = null;
 let profileModalMode = 'self';
 let myAvatar = null;
+let myBanner = null;
 let currentDM = null;
 let currentDMNick = null;
 let currentDMAvatar = null;
@@ -978,7 +986,7 @@ const i18n = {
   ru: {
     loginBrandSubtitle:'Твой уютный мессенджер для друзей', login:'Вход', register:'Регистрация', loginBtn:'Войти', registerBtn:'Создать аккаунт',
     haveNoAccount:'Нет аккаунта? Зарегистрироваться', haveAccount:'Уже есть аккаунт? Войти', loginPlaceholder:'Логин', passwordPlaceholder:'Пароль',
-    sidebarSubtitle:'На связи с друзьями', friends:'Друзья', onlineFriends:'Друзья онлайн', avatar:'Аватар', chooseFriend:'Выбери друга слева, чтобы открыть переписку',
+    sidebarSubtitle:'На связи с друзьями', friends:'Друзья', onlineFriends:'Друзья онлайн', avatar:'Аватар', banner:'Баннер', chooseFriend:'Выбери друга слева, чтобы открыть переписку',
     personalDialog:'Личный диалог', welcome:'Добро пожаловать в Squadovka', welcomeText:'Выбери друга слева или открой панель друзей, чтобы отправить заявку и начать переписку.',
     messagePlaceholder:'Сообщение...', addFriendTitle:'Добавить друга (по логину)', addFriendPlaceholder:'Логин пользователя', sendRequest:'Отправить заявку',
     requests:'Заявки', noRequests:'Нет входящих заявок', friendsTitle:'Друзья', noFriends:'Список друзей пуст', call:'Звонок', open:'Открыть', hang:'Сбросить',
@@ -990,13 +998,13 @@ const i18n = {
     joinedCall:'✅ В звонке:', outgoingFlag:'📞 Звоним:', incomingFlag:'📲 Входящий:', tapToOpen:'Нажми чтобы открыть', tapToOpenCall:'Нажми чтобы открыть окно звонка',
     messageNotFound:'Сообщение не найдено', edit:'Редактировать', save:'Сохранить', cancel:'Отмена', edited:'изменено', editOwnOnly:'Можно редактировать только свои сообщения',
     serverError:'Ошибка сервера', accountCreated:'Аккаунт создан, войдите', enterLoginPassword:'Введите логин и пароль', loginTaken:'Логин занят', badLogin:'Неверный логин или пароль', authExpired:'Сессия истекла. Войди снова.',
-    badAvatar:'Неверный формат аватара', bigAvatar:'Аватар слишком большой', userNotFound:'Пользователь не найден', alreadyFriends:'Вы уже друзья',
+    badAvatar:'Неверный формат аватара', bigAvatar:'Аватар слишком большой', badBanner:'Неверный формат баннера', bigBanner:'Баннер слишком большой', userNotFound:'Пользователь не найден', alreadyFriends:'Вы уже друзья',
     allowMic:'Разрешите доступ к микрофону для звонков', userOffline:'Пользователь не в сети', delete:'Удалить', typing:'печатает', profileSettings:'Настройка профиля', displayName:'Отображаемое имя', enterDisplayName:'Введите имя', status_online:'В сети', status_idle:'Не активен', status_dnd:'Не беспокоить', status_invisible:'Невидимка', status_offline:'Не в сети', viewProfile:'Профиль', removeFriend:'Удалить', profileViewTitle:'Профиль пользователя', removeFriendConfirm:'Удалить этого пользователя из друзей?', removedFromFriends:'Пользователь удалён из друзей', logout:'Выйти из аккаунта'
   },
   uk: {
     loginBrandSubtitle:'Твій затишний месенджер для друзів', login:'Вхід', register:'Реєстрація', loginBtn:'Увійти', registerBtn:'Створити акаунт',
     haveNoAccount:'Немає акаунта? Зареєструватися', haveAccount:'Уже є акаунт? Увійти', loginPlaceholder:'Логін', passwordPlaceholder:'Пароль',
-    sidebarSubtitle:'На звʼязку з друзями', friends:'Друзі', onlineFriends:'Друзі онлайн', avatar:'Аватар', chooseFriend:'Обери друга зліва, щоб відкрити листування',
+    sidebarSubtitle:'На звʼязку з друзями', friends:'Друзі', onlineFriends:'Друзі онлайн', avatar:'Аватар', banner:'Банер', chooseFriend:'Обери друга зліва, щоб відкрити листування',
     personalDialog:'Особистий діалог', welcome:'Ласкаво просимо до Squadovka', welcomeText:'Обери друга зліва або відкрий панель друзів, щоб надіслати запит і почати листування.',
     messagePlaceholder:'Повідомлення...', addFriendTitle:'Додати друга (за логіном)', addFriendPlaceholder:'Логін користувача', sendRequest:'Надіслати запит',
     requests:'Запити', noRequests:'Немає вхідних запитів', friendsTitle:'Друзі', noFriends:'Список друзів порожній', call:'Дзвінок', open:'Відкрити', hang:'Скинути',
@@ -1014,7 +1022,7 @@ const i18n = {
   en: {
     loginBrandSubtitle:'Your cozy messenger for friends', login:'Login', register:'Register', loginBtn:'Sign in', registerBtn:'Create account',
     haveNoAccount:'No account? Register', haveAccount:'Already have an account? Sign in', loginPlaceholder:'Login', passwordPlaceholder:'Password',
-    sidebarSubtitle:'Stay connected with friends', friends:'Friends', onlineFriends:'Friends online', avatar:'Avatar', chooseFriend:'Choose a friend on the left to open the chat',
+    sidebarSubtitle:'Stay connected with friends', friends:'Friends', onlineFriends:'Friends online', avatar:'Avatar', banner:'Banner', chooseFriend:'Choose a friend on the left to open the chat',
     personalDialog:'Direct message', welcome:'Welcome to Squadovka', welcomeText:'Choose a friend on the left or open the friends panel to send a request and start chatting.',
     messagePlaceholder:'Message...', addFriendTitle:'Add friend (by login)', addFriendPlaceholder:'User login', sendRequest:'Send request',
     requests:'Requests', noRequests:'No incoming requests', friendsTitle:'Friends', noFriends:'Friends list is empty', call:'Call', open:'Open', hang:'Hang up',
@@ -1026,7 +1034,7 @@ const i18n = {
     joinedCall:'✅ In call:', outgoingFlag:'📞 Calling:', incomingFlag:'📲 Incoming:', tapToOpen:'Tap to open', tapToOpenCall:'Tap to open the call window',
     messageNotFound:'Message not found', edit:'Edit', save:'Save', cancel:'Cancel', edited:'edited', editOwnOnly:'You can edit only your own messages',
     serverError:'Server error', accountCreated:'Account created, sign in', enterLoginPassword:'Enter login and password', loginTaken:'Login is already taken', badLogin:'Invalid login or password', authExpired:'Session expired. Sign in again.',
-    badAvatar:'Invalid avatar format', bigAvatar:'Avatar is too large', userNotFound:'User not found', alreadyFriends:'You are already friends',
+    badAvatar:'Invalid avatar format', bigAvatar:'Avatar is too large', badBanner:'Invalid banner format', bigBanner:'Banner is too large', userNotFound:'User not found', alreadyFriends:'You are already friends',
     allowMic:'Allow microphone access for calls', userOffline:'User is offline', delete:'Delete', typing:'is typing', profileSettings:'Profile settings', displayName:'Display name', enterDisplayName:'Enter display name', status_online:'Online', status_idle:'Idle', status_dnd:'Do not disturb', status_invisible:'Invisible', status_offline:'Offline', viewProfile:'Profile', removeFriend:'Remove', profileViewTitle:'User profile', removeFriendConfirm:'Remove this user from friends?', removedFromFriends:'User removed from friends', logout:'Log out'
   }
 };
@@ -1040,6 +1048,14 @@ function statusText(status, isSelf = false) {
 function normalizeClientStatus(status) {
   return ['online','idle','dnd','invisible','offline'].includes(status) ? status : 'online';
 }
+function defaultProfileBannerStyle() {
+  return 'linear-gradient(135deg,#8792c7,#9ba2bf)';
+}
+function setProfileBanner(image) {
+  if (!profileBannerPreview) return;
+  profileBannerPreview.style.backgroundImage = image ? `url(${image.replace(/"/g, '&quot;')})` : defaultProfileBannerStyle();
+}
+
 function findFriendData(userLogin) {
   return (friends || []).find(f => (typeof f === 'string' ? f : f.login) === userLogin) || (onlineUsers || []).find(f => f.login === userLogin) || null;
 }
@@ -1053,6 +1069,7 @@ function setProfileModalMode(mode) {
   profileModalMode = mode === 'other' ? 'other' : 'self';
   const isSelfMode = profileModalMode === 'self';
   profileAvatarBtn.classList.toggle('hidden', !isSelfMode);
+  profileBannerBtn.classList.toggle('hidden', !isSelfMode);
   profileLogoutBtn.classList.toggle('hidden', !isSelfMode);
   profileSaveBtn.classList.toggle('hidden', !isSelfMode);
   profileStatusBar.classList.toggle('hidden', !isSelfMode);
@@ -1071,6 +1088,7 @@ function openProfileModal() {
   profileModalLoginPreview.textContent = login || '';
   profileNicknameInput.value = nickname || '';
   profileNicknameInput.placeholder = t('enterDisplayName');
+  setProfileBanner(myBanner);
   const currentAvatarNode = document.getElementById('profileAvatar');
   const modalAvatarNode = currentAvatarNode ? currentAvatarNode.cloneNode(true) : createAvatar(myAvatar || { letter:(nickname||login||'?')[0]?.toUpperCase() || '?', color:'#5865f2' }, myStatus, true);
   const oldProfileModalAvatar = document.getElementById('profileModalAvatar');
@@ -1089,6 +1107,7 @@ function openUserProfileModal(userLogin) {
   profileModalLoginPreview.textContent = user.login || '';
   profileNicknameInput.value = user.nickname || user.login || '';
   profileNicknameInput.placeholder = t('displayName');
+  setProfileBanner(user.banner || null);
   const modalAvatarNode = createAvatar(user.avatar || { letter:(user.login||'?')[0]?.toUpperCase() || '?', color:'#5865f2' }, user.status || 'offline', true);
   const oldModalAvatar = document.getElementById('profileModalAvatar');
   if (oldModalAvatar) oldModalAvatar.replaceWith(modalAvatarNode);
@@ -1151,6 +1170,7 @@ function applyLanguage() {
   profileCancelBtn.textContent = t('cancel');
   profileSaveBtn.textContent = t('save');
   profileAvatarBtn.textContent = t('avatar');
+  profileBannerBtn.textContent = t('banner');
   document.getElementById('statusOnlineLabel').textContent = t('status_online');
   document.getElementById('statusIdleLabel').textContent = t('status_idle');
   document.getElementById('statusDndLabel').textContent = t('status_dnd');
@@ -1458,7 +1478,13 @@ function updateMessageLocally(peer, id, patch) {
 }
 
 function handle(d) {
-  if (d.type === 'error') { alert(d.message || t('serverError')); return; }
+  if (d.type === 'error') {
+    const msg = d.message || t('serverError');
+    if (/баннер/i.test(msg) && /формат/i.test(msg)) alert(t('badBanner'));
+    else if (/баннер/i.test(msg) && /больш/i.test(msg)) alert(t('bigBanner'));
+    else alert(msg);
+    return;
+  }
   if (d.type === 'auth_expired') { clearSavedAuth(); resetUiToLoggedOut(); alert(t('authExpired')); return; }
   if (d.type === 'register_ok') {
     clearSavedAuth();
@@ -1470,7 +1496,7 @@ function handle(d) {
   if (d.type === 'login_ok') {
     login = d.login; nickname = d.nickname; myStatus = normalizeClientStatus(d.status || 'online'); localStorage.setItem('login', login); authToken = typeof d.token === 'string' ? d.token : authToken; if (authToken) localStorage.setItem('messenger_token', authToken); localStorage.removeItem('password'); loadLocalChatState(login); friends = Array.isArray(d.friends) ? d.friends : friends; groups = Array.isArray(d.groups) ? d.groups : groups; unread = d.unread || unread || {};
     loginDiv.style.display = 'none'; appDiv.style.display = 'flex'; profileNick.textContent = nickname; profileLogin.textContent = login;
-    myAvatar = d.avatar || { letter:(nickname || login || '?')[0]?.toUpperCase() || '?', color:'#5865f2' }; const avatarEl = createAvatar(myAvatar, myStatus, true); const old = document.getElementById('profileAvatar'); old.replaceWith(avatarEl); avatarEl.id = 'profileAvatar';
+    myAvatar = d.avatar || { letter:(nickname || login || '?')[0]?.toUpperCase() || '?', color:'#5865f2' }; myBanner = d.banner || null; const avatarEl = createAvatar(myAvatar, myStatus, true); const old = document.getElementById('profileAvatar'); old.replaceWith(avatarEl); avatarEl.id = 'profileAvatar';
     profileModalLoginPreview.textContent = login;
     syncPresenceFromOnline();
     renderFriends(); renderRequests(); renderOnline(); renderGroups(); applyLanguage(); syncMobileLayout(); return;
@@ -1548,6 +1574,8 @@ function handle(d) {
   if (d.type === 'avatar_updated') {
     if (d.login === login) {
       myAvatar = d.avatar || myAvatar;
+    if (Object.prototype.hasOwnProperty.call(d, 'banner')) myBanner = d.banner || null;
+      if (Object.prototype.hasOwnProperty.call(d, 'banner')) myBanner = d.banner || null;
       const newA = createAvatar(d.avatar, myStatus, true); const oldA = document.getElementById('profileAvatar'); if (oldA) oldA.replaceWith(newA); newA.id = 'profileAvatar';
     }
     onlineUsers = onlineUsers.map(u => u.login === d.login ? { ...u, nickname:d.nickname, avatar:d.avatar } : u);
@@ -1566,6 +1594,7 @@ function handle(d) {
     nickname = d.nickname || nickname;
     myStatus = normalizeClientStatus(d.status || myStatus);
     myAvatar = d.avatar || myAvatar;
+    if (Object.prototype.hasOwnProperty.call(d, 'banner')) myBanner = d.banner || null;
     profileNick.textContent = nickname;
     profileLogin.textContent = login;
     const newA = createAvatar(myAvatar, myStatus, true);
@@ -1573,7 +1602,8 @@ function handle(d) {
     if (oldA) oldA.replaceWith(newA);
     newA.id = 'profileAvatar';
     syncProfileMiniCard();
-    applyProfileUpdateLocal({ login, nickname, avatar: myAvatar, status: myStatus === 'invisible' ? 'offline' : myStatus });
+    if (profileModalMode === 'self') setProfileBanner(myBanner);
+    applyProfileUpdateLocal({ login, nickname, avatar: myAvatar, banner: myBanner, status: myStatus === 'invisible' ? 'offline' : myStatus });
     return;
   }
   if (d.type === 'friend_request') { if (!requests.includes(d.from)) requests.push(d.from); renderRequests(); return; }
@@ -1927,6 +1957,7 @@ profileCard.onclick = (e) => {
 };
 profileSettingsBtn.onclick = (e) => { e.stopPropagation(); openProfileModal(); };
 profileAvatarBtn.onclick = () => avatarUploadInput.click();
+profileBannerBtn.onclick = () => bannerUploadInput.click();
 profileLogoutBtn.onclick = () => { performLogout(); };
 profileCancelBtn.onclick = closeProfileModal;
 profileModalOverlay.addEventListener('click', e => { if (e.target === profileModalOverlay) closeProfileModal(); });
@@ -1943,12 +1974,15 @@ profileSaveBtn.onclick = () => {
   if (oldA) oldA.replaceWith(newA);
   newA.id = 'profileAvatar';
   syncProfileMiniCard();
-  applyProfileUpdateLocal({ login, nickname, avatar: myAvatar, status: myStatus === 'invisible' ? 'offline' : myStatus });
+  applyProfileUpdateLocal({ login, nickname, avatar: myAvatar, banner: myBanner, status: myStatus === 'invisible' ? 'offline' : myStatus });
   ws.send(JSON.stringify({ type:'update_profile', nickname:newNickname, status:selectedProfileStatus }));
   closeProfileModal();
 };
 avatarUploadInput.onchange = () => {
-  const file = avatarUploadInput.files?.[0]; if (!file || !ws) return; const reader = new FileReader(); reader.onload = () => ws.send(JSON.stringify({ type:'update_avatar', image:reader.result })); reader.readAsDataURL(file);
+  const file = avatarUploadInput.files?.[0]; if (!file || !ws) return; const reader = new FileReader(); reader.onload = () => ws.send(JSON.stringify({ type:'update_avatar', image:reader.result })); reader.readAsDataURL(file); avatarUploadInput.value = '';
+};
+bannerUploadInput.onchange = () => {
+  const file = bannerUploadInput.files?.[0]; if (!file || !ws) return; const reader = new FileReader(); reader.onload = () => { setProfileBanner(reader.result); ws.send(JSON.stringify({ type:'update_banner', image:reader.result })); }; reader.readAsDataURL(file); bannerUploadInput.value = '';
 };
 window.addEventListener('load', () => {
   applyLanguage();
