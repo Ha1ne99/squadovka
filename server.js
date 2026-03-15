@@ -52,8 +52,6 @@ const MAX_MESSAGE_LENGTH = 4000;
 const MAX_GROUP_NAME_LENGTH = 48;
 const CHAT_HISTORY_LIMIT = 200;
 const MAX_NICKNAME_LENGTH = 32;
-const MAX_ATTACHMENT_SIZE_BYTES = 10 * 1024 * 1024;
-const MAX_ATTACHMENT_NAME_LENGTH = 180;
 const LOGIN_RE = /^[a-zA-Z0-9_\-.]{3,32}$/;
 const authAttempts = new Map();
 const actionAttempts = new Map();
@@ -231,122 +229,6 @@ app.use((req, res, next) => {
 app.use(express.static(publicDir));
 app.use(express.static(__dirname));
 
-function getRequestToken(req) {
-  const authHeader = typeof req.headers.authorization === 'string' ? req.headers.authorization : '';
-  if (authHeader.toLowerCase().startsWith('bearer ')) return authHeader.slice(7).trim();
-  const headerToken = typeof req.headers['x-session-token'] === 'string' ? req.headers['x-session-token'] : '';
-  if (headerToken) return headerToken.trim();
-  const queryToken = typeof req.query?.token === 'string' ? req.query.token : '';
-  return queryToken.trim();
-}
-
-function sanitizeAttachmentName(value) {
-  const base = typeof value === 'string' ? value.trim() : '';
-  if (!base) return 'file';
-  return base.replace(/[\\/:*?"<>| -]+/g, '_').slice(0, MAX_ATTACHMENT_NAME_LENGTH) || 'file';
-}
-
-function buildAttachmentPublic(row) {
-  if (!row || !row.id) return null;
-  return {
-    id: row.id,
-    name: row.originalname || 'file',
-    type: row.mimetype || 'application/octet-stream',
-    size: Number(row.sizebytes || 0)
-  };
-}
-
-function isInlineAttachment(attachment) {
-  return !!attachment && typeof attachment.type === 'string' && attachment.type.startsWith('image/');
-}
-
-async function getOwnedAttachmentPublic(attachmentId, ownerLogin) {
-  if (!attachmentId || !ownerLogin) return null;
-  const result = await pool.query(`
-    SELECT id, ownerLogin, originalName, mimeType, sizeBytes
-    FROM attachments
-    WHERE id = $1 AND ownerLogin = $2
-    LIMIT 1
-  `, [attachmentId, ownerLogin]);
-  return buildAttachmentPublic(result.rows[0]);
-}
-
-app.post('/api/upload', express.json({ limit: '16mb' }), async (req, res) => {
-  try {
-    const token = getRequestToken(req);
-    const session = await verifySessionToken(token);
-    if (!session?.login) return res.status(401).json({ error: 'auth_required' });
-
-    const originalName = sanitizeAttachmentName(req.body?.name);
-    const mimeType = typeof req.body?.type === 'string' && req.body.type ? req.body.type.slice(0, 120) : 'application/octet-stream';
-    const dataUrl = typeof req.body?.dataUrl === 'string' ? req.body.dataUrl : '';
-    const match = dataUrl.match(/^data:([^;,]+);base64,([A-Za-z0-9+/=\s]+)$/);
-    if (!match) return res.status(400).json({ error: 'bad_file' });
-
-    const buffer = Buffer.from(match[2].replace(/\s+/g, ''), 'base64');
-    if (!buffer.length) return res.status(400).json({ error: 'empty_file' });
-    if (buffer.length > MAX_ATTACHMENT_SIZE_BYTES) return res.status(413).json({ error: 'file_too_large' });
-
-    const attachmentId = crypto.randomBytes(18).toString('hex');
-    const insert = await pool.query(`
-      INSERT INTO attachments (id, ownerLogin, originalName, mimeType, sizeBytes, fileData, createdAt)
-      VALUES ($1, $2, $3, $4, $5, $6, $7)
-      RETURNING id, originalName, mimeType, sizeBytes
-    `, [attachmentId, session.login, originalName, mimeType, buffer.length, buffer, Date.now()]);
-
-    return res.json({ ok: true, attachment: buildAttachmentPublic(insert.rows[0]) });
-  } catch (error) {
-    console.error('Upload error:', error);
-    return res.status(500).json({ error: 'upload_failed' });
-  }
-});
-
-app.get('/api/attachments/:id', async (req, res) => {
-  try {
-    const token = getRequestToken(req);
-    const session = await verifySessionToken(token);
-    if (!session?.login) return res.status(401).send('Unauthorized');
-
-    const attachmentId = String(req.params.id || '').trim();
-    if (!attachmentId) return res.status(400).send('Bad request');
-
-    const result = await pool.query(`
-      SELECT a.id, a.originalName, a.mimeType, a.sizeBytes, a.fileData
-      FROM attachments a
-      WHERE a.id = $1
-        AND (
-          EXISTS (
-            SELECT 1
-            FROM messages m
-            WHERE m.attachmentId = a.id
-              AND (m.fromUser = $2 OR m.toUser = $2)
-          )
-          OR EXISTS (
-            SELECT 1
-            FROM group_messages gm
-            JOIN group_members gmem ON gmem.groupId = gm.groupId AND gmem.userLogin = $2
-            WHERE gm.attachmentId = a.id
-          )
-        )
-      LIMIT 1
-    `, [attachmentId, session.login]);
-
-    const row = result.rows[0];
-    if (!row) return res.status(404).send('Not found');
-
-    const mimeType = row.mimetype || 'application/octet-stream';
-    const filename = sanitizeAttachmentName(row.originalname || 'file');
-    const disposition = mimeType.startsWith('image/') ? 'inline' : 'attachment';
-    res.setHeader('Content-Type', mimeType);
-    res.setHeader('Content-Length', String(Number(row.sizebytes || 0)));
-    res.setHeader('Content-Disposition', `${disposition}; filename*=UTF-8''${encodeURIComponent(filename)}`);
-    return res.end(row.filedata);
-  } catch (error) {
-    console.error('Attachment read error:', error);
-    return res.status(500).send('Server error');
-  }
-});
-
 app.get('/', (req, res) => {
   if (fs.existsSync(publicIndex)) {
     return res.sendFile(publicIndex);
@@ -464,21 +346,6 @@ async function initDb() {
 
   await pool.query(`ALTER TABLE group_messages ADD COLUMN IF NOT EXISTS edited BOOLEAN NOT NULL DEFAULT FALSE`);
   await pool.query(`ALTER TABLE group_messages ADD COLUMN IF NOT EXISTS editedAt BIGINT`);
-
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS attachments (
-      id TEXT PRIMARY KEY,
-      ownerLogin TEXT NOT NULL,
-      originalName TEXT NOT NULL,
-      mimeType TEXT NOT NULL,
-      sizeBytes INTEGER NOT NULL,
-      fileData BYTEA NOT NULL,
-      createdAt BIGINT NOT NULL
-    )
-  `);
-
-  await pool.query(`ALTER TABLE messages ADD COLUMN IF NOT EXISTS attachmentId TEXT`);
-  await pool.query(`ALTER TABLE group_messages ADD COLUMN IF NOT EXISTS attachmentId TEXT`);
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS sessions (
@@ -686,18 +553,16 @@ async function getUnreadMap(login) {
 
 async function getChatHistory(userA, userB) {
   const result = await pool.query(`
-    SELECT m.id, m.fromUser, m.toUser, m.text, m.time, m.edited, m.editedAt, m.deliveredAt, m.readAt,
-           a.id AS attachmentId, a.originalName, a.mimeType, a.sizeBytes
+    SELECT id, fromUser, toUser, text, time, edited, editedAt, deliveredAt, readAt
     FROM (
-      SELECT id, fromUser, toUser, text, time, edited, editedAt, deliveredAt, readAt, attachmentId
+      SELECT id, fromUser, toUser, text, time, edited, editedAt, deliveredAt, readAt
       FROM messages
       WHERE (fromUser = $1 AND toUser = $2)
          OR (fromUser = $2 AND toUser = $1)
       ORDER BY time DESC, id DESC
       LIMIT $3
-    ) m
-    LEFT JOIN attachments a ON a.id = m.attachmentId
-    ORDER BY m.time ASC, m.id ASC
+    ) recent_messages
+    ORDER BY time ASC, id ASC
   `, [userA, userB, CHAT_HISTORY_LIMIT]);
 
   const senders = new Map();
@@ -720,7 +585,6 @@ async function getChatHistory(userA, userB) {
       deliveredAt: row.deliveredat ? Number(row.deliveredat) : null,
       readAt: row.readat ? Number(row.readat) : null,
       receiptStatus: getMessageReceiptStatus(row),
-      attachment: buildAttachmentPublic(row),
       avatar: sender?.avatar || buildAvatar(row.fromuser, row.fromuser)
     });
   }
@@ -792,17 +656,15 @@ async function getGroupsForUser(login) {
 
 async function getGroupHistory(groupId, viewerLogin = null) {
   const result = await pool.query(`
-    SELECT gm.id, gm.groupId, gm.fromUser, gm.text, gm.time, gm.edited, gm.editedAt,
-           a.id AS attachmentId, a.originalName, a.mimeType, a.sizeBytes
+    SELECT id, groupId, fromUser, text, time, edited, editedAt
     FROM (
-      SELECT id, groupId, fromUser, text, time, edited, editedAt, attachmentId
+      SELECT id, groupId, fromUser, text, time, edited, editedAt
       FROM group_messages
       WHERE groupId = $1
       ORDER BY time DESC, id DESC
       LIMIT $2
-    ) gm
-    LEFT JOIN attachments a ON a.id = gm.attachmentId
-    ORDER BY gm.time ASC, gm.id ASC
+    ) recent_group_messages
+    ORDER BY time ASC, id ASC
   `, [groupId, CHAT_HISTORY_LIMIT]);
 
   const senders = new Map();
@@ -821,7 +683,6 @@ async function getGroupHistory(groupId, viewerLogin = null) {
       time: Number(row.time),
       edited: Boolean(row.edited),
       editedAt: row.editedat ? Number(row.editedat) : null,
-      attachment: buildAttachmentPublic(row),
       fromNick: sender?.nickname || row.fromuser,
       avatar: sender?.avatar || buildAvatar(row.fromuser, row.fromuser)
     });
@@ -1218,16 +1079,14 @@ wss.on('connection', (ws, req) => {
         const groupId = Number(data.groupId);
         if (!Number.isFinite(groupId) || !(await isGroupMember(groupId, userLogin))) return;
         const messageText = sanitizeText(data.text);
-        const attachmentId = typeof data.attachmentId === 'string' ? data.attachmentId.trim() : '';
-        const attachment = attachmentId ? await getOwnedAttachmentPublic(attachmentId, userLogin) : null;
-        if (!messageText && !attachment) return;
+        if (!messageText) return;
 
         const messageTime = Date.now();
         const insertResult = await pool.query(`
-          INSERT INTO group_messages (groupId, fromUser, text, time, edited, editedAt, attachmentId)
-          VALUES ($1, $2, $3, $4, FALSE, NULL, $5)
+          INSERT INTO group_messages (groupId, fromUser, text, time, edited, editedAt)
+          VALUES ($1, $2, $3, $4, FALSE, NULL)
           RETURNING id
-        `, [groupId, userLogin, messageText, messageTime, attachment ? attachment.id : null]);
+        `, [groupId, userLogin, messageText, messageTime]);
 
         const msgData = {
           type: 'group_message',
@@ -1238,7 +1097,6 @@ wss.on('connection', (ws, req) => {
           time: messageTime,
           edited: false,
           editedAt: null,
-          attachment: attachment || null,
           fromNick: me.nickname,
           avatar: buildAvatar(userLogin, me.nickname, me.avatarImage)
         };
@@ -1564,9 +1422,7 @@ wss.on('connection', (ws, req) => {
         if (!requireActionAllowed(ws, clientIp, 'message')) return;
         const targetLogin = sanitizeLogin(data.to);
         const messageText = sanitizeText(data.text);
-        const attachmentId = typeof data.attachmentId === 'string' ? data.attachmentId.trim() : '';
-        const attachment = attachmentId ? await getOwnedAttachmentPublic(attachmentId, userLogin) : null;
-        if (!targetLogin || (!messageText && !attachment)) return;
+        if (!targetLogin || !messageText) return;
         if (!(await userExists(targetLogin))) return;
         if (!(await areFriends(userLogin, targetLogin))) {
           send(ws, { type: 'error', message: 'Личные сообщения доступны только друзьям' });
@@ -1575,10 +1431,10 @@ wss.on('connection', (ws, req) => {
 
         const messageTime = Date.now();
         const insertResult = await pool.query(`
-          INSERT INTO messages (fromUser, toUser, text, time, edited, editedAt, deliveredAt, readAt, attachmentId)
-          VALUES ($1, $2, $3, $4, FALSE, NULL, NULL, NULL, $5)
+          INSERT INTO messages (fromUser, toUser, text, time, edited, editedAt, deliveredAt, readAt)
+          VALUES ($1, $2, $3, $4, FALSE, NULL, NULL, NULL)
           RETURNING id
-        `, [userLogin, targetLogin, messageText, messageTime, attachment ? attachment.id : null]);
+        `, [userLogin, targetLogin, messageText, messageTime]);
 
         await pool.query(`
           INSERT INTO unread (fromUser, toUser, count)
@@ -1607,8 +1463,7 @@ wss.on('connection', (ws, req) => {
           fromNick: me.nickname,
           avatar: buildAvatar(userLogin, me.nickname, me.avatarImage),
           unread: unreadCount,
-          clientMsgId: typeof data.clientMsgId === 'string' ? data.clientMsgId : null,
-          attachment: attachment || null
+          clientMsgId: typeof data.clientMsgId === 'string' ? data.clientMsgId : null
         };
 
         sendToUser(userLogin, msgData);
