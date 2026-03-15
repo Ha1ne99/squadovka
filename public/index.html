@@ -36,8 +36,42 @@ body {
   overflow:hidden;
 }
 button, input { font: inherit; }
-button { transition: .18s ease; }
+button { transition: transform .22s ease, box-shadow .22s ease, border-color .22s ease, background .22s ease, opacity .22s ease; }
 button:hover { transform: translateY(-1px); }
+
+@keyframes fadeUp {
+  from { opacity:0; transform:translateY(18px); }
+  to { opacity:1; transform:translateY(0); }
+}
+@keyframes fadeIn {
+  from { opacity:0; }
+  to { opacity:1; }
+}
+@keyframes popIn {
+  from { opacity:0; transform:scale(.96); }
+  to { opacity:1; transform:scale(1); }
+}
+@keyframes shimmerMove {
+  from { transform:translateX(-120%); }
+  to { transform:translateX(120%); }
+}
+
+#login, #sidebar, #chat, .emptyCard, .profileCard, .friendSection {
+  animation: fadeUp .45s ease both;
+}
+#sidebar { animation-delay: .04s; }
+#chat { animation-delay: .09s; }
+.profileCard { animation-delay: .08s; }
+.friendSection:nth-of-type(2) { animation-delay: .05s; }
+.friendSection:nth-of-type(3) { animation-delay: .1s; }
+.friendSection:nth-of-type(4) { animation-delay: .15s; }
+
+.sidebarBrand, .ghostBtn, #friendsBtn, .profileSettingsBtn, .profileActionBtn, #input input, #login input, .user, .groupRow, .friendEntry, .messageContent {
+  transition: transform .22s ease, box-shadow .22s ease, border-color .22s ease, background .22s ease, opacity .22s ease;
+}
+.sidebarBrand:hover, .profileCard:hover, .friendSection:hover, .groupRow:hover {
+  box-shadow: 0 10px 28px rgba(0,0,0,.16);
+}
 
 #login {
   margin:auto;
@@ -165,7 +199,7 @@ button:hover { transform: translateY(-1px); }
   position:relative;
   border:1px solid transparent;
 }
-.user:hover { background:#1a202b; }
+.user:hover { background:#1a202b; transform:translateX(4px); box-shadow:0 10px 22px rgba(0,0,0,.16); }
 .user.active {
   background:linear-gradient(135deg, rgba(107,124,255,.18), rgba(107,124,255,.08));
   border-color: rgba(107,124,255,.35);
@@ -232,6 +266,7 @@ button:hover { transform: translateY(-1px); }
   cursor:pointer;
   border:1px solid var(--line);
 }
+.ghostBtn:hover { box-shadow:0 10px 24px rgba(0,0,0,.2); }
 #mobileBackBtn { display:none; }
 #emptyChat {
   flex:1;
@@ -266,6 +301,7 @@ button:hover { transform: translateY(-1px); }
   gap:12px;
   margin-bottom:14px;
   align-items:flex-start;
+  animation: fadeUp .22s ease both;
 }
 .messageContent {
   background:#171b23;
@@ -273,6 +309,11 @@ button:hover { transform: translateY(-1px); }
   border-radius:16px;
   max-width:min(78%, 720px);
   border:1px solid rgba(255,255,255,.05);
+}
+.message:hover .messageContent {
+  transform:translateY(-1px);
+  border-color:rgba(107,124,255,.18);
+  box-shadow:0 10px 24px rgba(0,0,0,.14);
 }
 .messageHeader {
   display:flex;
@@ -331,7 +372,9 @@ button:hover { transform: translateY(-1px); }
   cursor:pointer;
   border-radius:14px;
   font-weight:800;
+  box-shadow:0 10px 24px rgba(107,124,255,.22);
 }
+#input button:hover { box-shadow:0 14px 30px rgba(107,124,255,.3); }
 #friendsPanel {
   width:390px;
   max-width:100vw;
@@ -347,6 +390,7 @@ button:hover { transform: translateY(-1px); }
   backdrop-filter: blur(16px);
 }
 #friendsPanel.open { transform:translateX(0) !important; }
+#friendsPanel .friendSection, #friendsPanel .groupRow, #friendsPanel .friendEntry { animation: fadeUp .32s ease both; }
 .friendsPanelHeader { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:16px 16px 0; }
 .friendsPanelHeader h2 { margin:0; font-size:18px; }
 #closeFriendsPanelBtn { min-width:42px; height:42px; padding:0 14px; border-radius:12px; border:1px solid var(--line); background:#141925; color:#fff; cursor:pointer; font-size:20px; }
@@ -407,13 +451,16 @@ button:hover { transform: translateY(-1px); }
 }
 .profileSettingsBtn:hover { background:#1b2130; }
 #profileModalOverlay {
+  animation: fadeIn .22s ease;
   position:fixed; inset:0; background:rgba(0,0,0,.55); display:none; align-items:center; justify-content:center; z-index:70;
 }
 #profileModal {
+  animation: popIn .24s ease;
   width:min(92vw, 520px); background:linear-gradient(180deg,#23283a,#171b27); border:1px solid var(--line);
   border-radius:22px; box-shadow:0 24px 80px rgba(0,0,0,.45); overflow:hidden;
 }
 .profileBanner { height:110px; background:linear-gradient(135deg,#8792c7,#9ba2bf); background-size:cover; background-position:center; position:relative; overflow:hidden; }
+.profileBanner::before { content:''; position:absolute; inset:-20%; background:linear-gradient(90deg, transparent, rgba(255,255,255,.08), transparent); animation: shimmerMove 5.2s linear infinite; pointer-events:none; }
 .profileBanner::after { content:''; position:absolute; inset:0; background:linear-gradient(180deg, rgba(0,0,0,.08), rgba(0,0,0,.24)); pointer-events:none; }
 .profileBannerTools { position:absolute; right:12px; bottom:12px; z-index:1; display:flex; gap:8px; }
 .profileModalBody { padding:0 18px 18px; }
@@ -436,9 +483,19 @@ button:hover { transform: translateY(-1px); }
 .profileInput { width:100%; padding:12px 14px; border-radius:12px; background:#0f1420; border:1px solid var(--line); color:#fff; }
 .profileActions { display:flex; justify-content:flex-end; gap:10px; margin-top:16px; }
 .profileActionBtn { padding:11px 16px; border-radius:12px; border:1px solid var(--line); background:#1a2030; color:#fff; cursor:pointer; }
+.profileActionBtn:hover { box-shadow:0 10px 24px rgba(0,0,0,.18); }
 .profileActionBtn.primary { background:linear-gradient(135deg,var(--accent),var(--accent2)); border:1px solid rgba(255,255,255,.22); box-shadow:0 0 0 1px rgba(107,124,255,.28) inset; }
 .profileActionBtn.primary:hover { box-shadow:0 0 0 1px rgba(255,255,255,.18) inset, 0 0 0 1px rgba(107,124,255,.38); }
 .profileActionBtn.primary:focus-visible { outline:none; box-shadow:0 0 0 2px rgba(255,255,255,.18) inset, 0 0 0 3px rgba(107,124,255,.45); }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
 .hidden { display:none !important; }
 .friendMeta .statusText { text-transform:none; }
 #avatarUploadInput { display:none; }
@@ -669,6 +726,7 @@ button:hover { transform: translateY(-1px); }
     border-radius:13px;
   }
   #profileModal {
+  animation: popIn .24s ease;
     width:100vw;
     height:100dvh;
     max-width:none;
@@ -2001,6 +2059,7 @@ bannerUploadInput.onchange = () => {
   const file = bannerUploadInput.files?.[0]; if (!file || !ws) return; const reader = new FileReader(); reader.onload = () => { setProfileBanner(reader.result); ws.send(JSON.stringify({ type:'update_banner', image:reader.result })); }; reader.readAsDataURL(file); bannerUploadInput.value = '';
 };
 window.addEventListener('load', () => {
+  document.body.classList.add('ui-ready');
   applyLanguage();
   syncMobileLayout();
   const savedToken = localStorage.getItem('messenger_token');
