@@ -834,6 +834,26 @@ button:hover { transform: translateY(-1px); }
 .callInfoPill { margin-top:14px; padding:10px 12px; border:1px solid var(--line); border-radius:14px; background:#101520; color:var(--muted); font-size:13px; }
 #remoteAudio { display:none; }
 
+#groupsSidebar { display:none !important; }
+.callVolumeControl {
+  display:flex;
+  align-items:center;
+  gap:10px;
+  padding:12px 14px;
+  min-height:50px;
+  border-radius:16px;
+  border:1px solid var(--line);
+  background:linear-gradient(180deg, rgba(17,20,28,.95), rgba(22,27,38,.95));
+  color:#eef2fb;
+  font-weight:700;
+  flex:1 1 260px;
+}
+.callVolumeControl span { white-space:nowrap; font-size:14px; }
+#callVolumeSlider { width:100%; accent-color:#6b7cff; }
+.user.groupUser .userSub { color:#b4bdd1; }
+.user.groupUser .avatar { background:#5865f2 !important; }
+
+
 </style>
 </head>
 
@@ -868,9 +888,8 @@ button:hover { transform: translateY(-1px); }
       </div>
     </div>
     <div id="friendsBtn"><span id="friendsBtnLabel">👥 Друзья</span></div>
-    <div class="sectionLabel" id="onlineSectionLabel">Друзья онлайн</div>
+    <div class="sectionLabel" id="onlineSectionLabel">Личные сообщения</div>
     <div id="online"></div>
-      <div class="sectionLabel">Группы</div>
       <div id="groupsSidebar"></div>
 
     <!-- PROFILE -->
@@ -1026,7 +1045,9 @@ button:hover { transform: translateY(-1px); }
       <button id="callDeclineBtn" class="callActionBtn danger">Отклонить</button>
     </div>
     <div class="callRow" id="callMainActions">
-      <button id="callMuteBtn" class="callActionBtn">Mute</button>
+      <button id="callMuteBtn" class="callActionBtn">🎙️ Микрофон</button>
+      <button id="callSpeakerBtn" class="callActionBtn">🔊 Звук</button>
+      <label class="callVolumeControl"><span id="callVolumeLabel">Громкость</span><input id="callVolumeSlider" type="range" min="0" max="150" step="1" value="100"></label>
       <button id="callHangupBtn" class="callActionBtn danger">Сбросить</button>
       <button id="callCloseBtn" class="callActionBtn">Закрыть</button>
     </div>
@@ -1101,6 +1122,9 @@ const callAcceptBtn = document.getElementById('callAcceptBtn');
 const callDeclineBtn = document.getElementById('callDeclineBtn');
 const callMainActions = document.getElementById('callMainActions');
 const callMuteBtn = document.getElementById('callMuteBtn');
+const callSpeakerBtn = document.getElementById('callSpeakerBtn');
+const callVolumeLabel = document.getElementById('callVolumeLabel');
+const callVolumeSlider = document.getElementById('callVolumeSlider');
 const callHangupBtn = document.getElementById('callHangupBtn');
 const callCloseBtn = document.getElementById('callCloseBtn');
 const remoteAudio = document.getElementById('remoteAudio');
@@ -1133,7 +1157,11 @@ let callPeerConnection = null;
 let localCallStream = null;
 let remoteCallStream = null;
 let isMicMuted = false;
+let isSpeakerMuted = false;
+let opponentVolume = 100;
 let callVoiceMeterTimer = null;
+let callDisconnectTimer = null;
+let pendingRemoteCandidates = [];
 let pendingIncomingCall = null;
 let editingMessageId = null;
 let typingUsers = {};
@@ -1160,12 +1188,12 @@ const i18n = {
   ru: {
     loginBrandSubtitle:'Твой уютный мессенджер для друзей', login:'Вход', register:'Регистрация', loginBtn:'Войти', registerBtn:'Создать аккаунт',
     haveNoAccount:'Нет аккаунта? Зарегистрироваться', haveAccount:'Уже есть аккаунт? Войти', loginPlaceholder:'Логин', passwordPlaceholder:'Пароль',
-    sidebarSubtitle:'На связи с друзьями', friends:'Друзья', onlineFriends:'Друзья онлайн', avatar:'Аватар', banner:'Баннер', chooseFriend:'Выбери друга слева, чтобы открыть переписку',
+    sidebarSubtitle:'На связи с друзьями', friends:'Друзья', onlineFriends:'Друзья онлайн', dialogs:'Личные сообщения', avatar:'Аватар', banner:'Баннер', chooseFriend:'Выбери друга слева, чтобы открыть переписку',
     personalDialog:'Личный диалог', welcome:'Добро пожаловать в Squadovka', welcomeText:'Выбери друга слева или открой панель друзей, чтобы отправить заявку и начать переписку.',
     messagePlaceholder:'Сообщение...', addFriendTitle:'Добавить друга (по логину)', addFriendPlaceholder:'Логин пользователя', sendRequest:'Отправить заявку',
     requests:'Заявки', noRequests:'Нет входящих заявок', friendsTitle:'Друзья', noFriends:'Список друзей пуст', call:'Звонок', open:'Открыть', hang:'Сбросить',
-    accept:'Принять', decline:'Отклонить', close:'Закрыть', mute:'Mute', unmute:'Unmute', micOn:'🎙️ Микрофон: включён', micOff:'🎙️ Микрофон: выключён',
-    volume:'🔊 Громкость:', voiceLevel:'Уровень голоса:', natHint:'Если не соединяется у кого-то — это NAT. Для “всегда работает” нужен TURN-сервер.',
+    accept:'Принять', decline:'Отклонить', close:'Закрыть', mute:'Выключить микрофон', unmute:'Включить микрофон', speakerMute:'Выключить звук', speakerUnmute:'Включить звук', micOn:'🎙️ Микрофон: включён', micOff:'🎙️ Микрофон: выключён', soundOn:'🔊 Звук: включён', soundOff:'🔇 Звук: выключён',
+    volume:'🔊 Громкость:', groupLabel:'Группа', voiceLevel:'Уровень голоса:', natHint:'Если не соединяется у кого-то — это NAT. Для “всегда работает” нужен TURN-сервер.',
     online:'онлайн', incomingRequest:'Входящая заявка', friend:'Друг', nobodyOnline:'Пока никто из друзей не в сети',
     callWith:'Звонок с', calling:'📞 Звоним…', waitingAnswer:'Ожидаем ответ', connecting:'🔄 Подключаем…', connected:'✅ Соединено', incomingCall:'📲 Входящий звонок',
     incomingCallHint:'Нажми «Принять» или «Отклонить»', callEnded:'Звонок завершён', callDeclined:'Звонок отклонён', callCancelled:'Звонок отменён', userBusy:'Пользователь занят',
@@ -1178,12 +1206,12 @@ const i18n = {
   uk: {
     loginBrandSubtitle:'Твій затишний месенджер для друзів', login:'Вхід', register:'Реєстрація', loginBtn:'Увійти', registerBtn:'Створити акаунт',
     haveNoAccount:'Немає акаунта? Зареєструватися', haveAccount:'Уже є акаунт? Увійти', loginPlaceholder:'Логін', passwordPlaceholder:'Пароль',
-    sidebarSubtitle:'На звʼязку з друзями', friends:'Друзі', onlineFriends:'Друзі онлайн', avatar:'Аватар', banner:'Банер', chooseFriend:'Обери друга зліва, щоб відкрити листування',
+    sidebarSubtitle:'На звʼязку з друзями', friends:'Друзі', onlineFriends:'Друзі онлайн', dialogs:'Особисті повідомлення', avatar:'Аватар', banner:'Банер', chooseFriend:'Обери друга зліва, щоб відкрити листування',
     personalDialog:'Особистий діалог', welcome:'Ласкаво просимо до Squadovka', welcomeText:'Обери друга зліва або відкрий панель друзів, щоб надіслати запит і почати листування.',
     messagePlaceholder:'Повідомлення...', addFriendTitle:'Додати друга (за логіном)', addFriendPlaceholder:'Логін користувача', sendRequest:'Надіслати запит',
     requests:'Запити', noRequests:'Немає вхідних запитів', friendsTitle:'Друзі', noFriends:'Список друзів порожній', call:'Дзвінок', open:'Відкрити', hang:'Скинути',
-    accept:'Прийняти', decline:'Відхилити', close:'Закрити', mute:'Mute', unmute:'Unmute', micOn:'🎙️ Мікрофон: увімкнений', micOff:'🎙️ Мікрофон: вимкнений',
-    volume:'🔊 Гучність:', voiceLevel:'Рівень голосу:', natHint:'Якщо в когось не з’єднується — це NAT. Щоб працювало завжди, потрібен TURN-сервер.',
+    accept:'Прийняти', decline:'Відхилити', close:'Закрити', mute:'Вимкнути мікрофон', unmute:'Увімкнути мікрофон', speakerMute:'Вимкнути звук', speakerUnmute:'Увімкнути звук', micOn:'🎙️ Мікрофон: увімкнений', micOff:'🎙️ Мікрофон: вимкнений', soundOn:'🔊 Звук: увімкнений', soundOff:'🔇 Звук: вимкнений',
+    volume:'🔊 Гучність:', groupLabel:'Група', voiceLevel:'Рівень голосу:', natHint:'Якщо в когось не з’єднується — це NAT. Щоб працювало завжди, потрібен TURN-сервер.',
     online:'онлайн', incomingRequest:'Вхідний запит', friend:'Друг', nobodyOnline:'Поки ніхто з друзів не онлайн',
     callWith:'Дзвінок з', calling:'📞 Дзвонимо…', waitingAnswer:'Очікуємо відповідь', connecting:'🔄 Підключаємо…', connected:'✅ З’єднано', incomingCall:'📲 Вхідний дзвінок',
     incomingCallHint:'Натисни «Прийняти» або «Відхилити»', callEnded:'Дзвінок завершено', callDeclined:'Дзвінок відхилено', callCancelled:'Дзвінок скасовано', userBusy:'Користувач зайнятий',
@@ -1196,7 +1224,7 @@ const i18n = {
   en: {
     loginBrandSubtitle:'Your cozy messenger for friends', login:'Login', register:'Register', loginBtn:'Sign in', registerBtn:'Create account',
     haveNoAccount:'No account? Register', haveAccount:'Already have an account? Sign in', loginPlaceholder:'Login', passwordPlaceholder:'Password',
-    sidebarSubtitle:'Stay connected with friends', friends:'Friends', onlineFriends:'Friends online', avatar:'Avatar', banner:'Banner', chooseFriend:'Choose a friend on the left to open the chat',
+    sidebarSubtitle:'Stay connected with friends', friends:'Friends', onlineFriends:'Friends online', dialogs:'Direct messages', avatar:'Avatar', banner:'Banner', chooseFriend:'Choose a friend on the left to open the chat',
     personalDialog:'Direct message', welcome:'Welcome to Squadovka', welcomeText:'Choose a friend on the left or open the friends panel to send a request and start chatting.',
     messagePlaceholder:'Message...', addFriendTitle:'Add friend (by login)', addFriendPlaceholder:'User login', sendRequest:'Send request',
     requests:'Requests', noRequests:'No incoming requests', friendsTitle:'Friends', noFriends:'Friends list is empty', call:'Call', open:'Open', hang:'Hang up',
@@ -1347,8 +1375,11 @@ function updateCallUi() {
   callBtn.classList.toggle('activeCall', ['calling','incoming','connecting','connected'].includes(callState));
   setCallButtonVisible(currentChatType === 'dm' && !!currentDM);
   callBtnLabel.textContent = ['calling','incoming','connecting','connected'].includes(callState) ? t('hang') : t('call');
-  callInfoPill.textContent = t('natHint');
-  callMuteBtn.textContent = isMicMuted ? t('unmute') : t('mute');
+  callInfoPill.textContent = callState === 'connected' ? ((isMicMuted ? t('micOff') : t('micOn')) + ' · ' + (isSpeakerMuted ? t('soundOff') : t('soundOn'))) : t('natHint');
+  callMuteBtn.textContent = isMicMuted ? '🎙️ ' + t('unmute') : '🎙️ ' + t('mute');
+  if (callSpeakerBtn) callSpeakerBtn.textContent = isSpeakerMuted ? '🔇 ' + t('speakerUnmute') : '🔊 ' + t('speakerMute');
+  if (callVolumeLabel) callVolumeLabel.textContent = t('volume');
+  if (callVolumeSlider) callVolumeSlider.value = String(opponentVolume);
   callIncomingActions.style.display = callState === 'incoming' ? 'flex' : 'none';
   callMainActions.style.display = callState === 'incoming' ? 'none' : 'flex';
   if (callState === 'idle') {
@@ -1365,7 +1396,7 @@ function updateCallUi() {
     callHintText.textContent = t('natHint');
   } else if (callState === 'connected') {
     callStatusText.textContent = t('connected');
-    callHintText.textContent = isMicMuted ? t('micOff') : t('micOn');
+    callHintText.textContent = (isMicMuted ? t('micOff') : t('micOn')) + ' · ' + (isSpeakerMuted ? t('soundOff') : t('soundOn'));
   }
 }
 async function ensureLocalCallStream() {
@@ -1380,6 +1411,15 @@ function stopVoiceMeter() {
   if (callVoiceMeterTimer) clearInterval(callVoiceMeterTimer);
   callVoiceMeterTimer = null;
   if (callVoiceBar) callVoiceBar.style.width = '6%';
+}
+function clearCallDisconnectTimer() {
+  if (callDisconnectTimer) clearTimeout(callDisconnectTimer);
+  callDisconnectTimer = null;
+}
+function applyRemoteAudioSettings() {
+  if (!remoteAudio) return;
+  remoteAudio.muted = !!isSpeakerMuted;
+  remoteAudio.volume = Math.max(0, Math.min(1.5, Number(opponentVolume || 100) / 100));
 }
 function startVoiceMeter(stream) {
   stopVoiceMeter();
@@ -1402,6 +1442,8 @@ function startVoiceMeter(stream) {
   } catch {}
 }
 function cleanupPeerConnection() {
+  clearCallDisconnectTimer();
+  pendingRemoteCandidates = [];
   if (callPeerConnection) {
     try { callPeerConnection.onicecandidate = null; } catch {}
     try { callPeerConnection.ontrack = null; } catch {}
@@ -1409,7 +1451,7 @@ function cleanupPeerConnection() {
     try { callPeerConnection.close(); } catch {}
   }
   callPeerConnection = null;
-  if (remoteAudio) remoteAudio.srcObject = null;
+  if (remoteAudio) { remoteAudio.pause?.(); remoteAudio.srcObject = null; }
   remoteCallStream = null;
 }
 function stopLocalCallStream() {
@@ -1427,6 +1469,9 @@ function resetCallState(closeOverlay = true) {
   callPeerLogin = null;
   callPeerData = null;
   isMicMuted = false;
+  isSpeakerMuted = false;
+  opponentVolume = 100;
+  applyRemoteAudioSettings();
   if (closeOverlay) hideCallOverlay();
   updateCallUi();
 }
@@ -1441,19 +1486,60 @@ async function createCallPeerConnection() {
     }
   };
   pc.ontrack = ev => {
-    remoteCallStream = ev.streams?.[0] || null;
+    if (!remoteCallStream) remoteCallStream = new MediaStream();
+    const incomingStream = ev.streams?.[0];
+    if (incomingStream) {
+      incomingStream.getAudioTracks().forEach(track => {
+        if (!remoteCallStream.getTracks().some(existing => existing.id === track.id)) remoteCallStream.addTrack(track);
+      });
+    } else if (ev.track && !remoteCallStream.getTracks().some(existing => existing.id === ev.track.id)) {
+      remoteCallStream.addTrack(ev.track);
+    }
     if (remoteAudio && remoteCallStream) {
       remoteAudio.srcObject = remoteCallStream;
+      applyRemoteAudioSettings();
       remoteAudio.play().catch(() => {});
+    }
+    if (ev.track) {
+      ev.track.onunmute = () => { if (remoteAudio?.srcObject !== remoteCallStream) remoteAudio.srcObject = remoteCallStream; applyRemoteAudioSettings(); remoteAudio?.play?.().catch(() => {}); };
+      ev.track.onmute = () => { callHintText.textContent = t('connecting'); };
+    }
+  };
+  pc.oniceconnectionstatechange = async () => {
+    if (!pc || callState === 'idle') return;
+    const state = pc.iceConnectionState;
+    if (state === 'connected' || state === 'completed') {
+      clearCallDisconnectTimer();
+      callState = 'connected';
+      updateCallUi();
+      return;
+    }
+    if (state === 'disconnected') {
+      clearCallDisconnectTimer();
+      callDisconnectTimer = setTimeout(() => {
+        if (callPeerConnection === pc && callState !== 'idle' && ['disconnected','failed'].includes(pc.iceConnectionState)) endCurrentCall(false);
+      }, 8000);
+      return;
+    }
+    if (state === 'failed') {
+      try { if (typeof pc.restartIce === 'function') pc.restartIce(); } catch {}
+      clearCallDisconnectTimer();
+      callDisconnectTimer = setTimeout(() => {
+        if (callPeerConnection === pc && callState !== 'idle' && pc.iceConnectionState === 'failed') endCurrentCall(false);
+      }, 9000);
     }
   };
   pc.onconnectionstatechange = () => {
-    if (!pc) return;
+    if (!pc || callState === 'idle') return;
     if (pc.connectionState === 'connected') {
+      clearCallDisconnectTimer();
       callState = 'connected';
       updateCallUi();
-    } else if (['failed','disconnected','closed'].includes(pc.connectionState) && callState !== 'idle') {
-      endCurrentCall(false);
+    } else if (pc.connectionState === 'failed') {
+      clearCallDisconnectTimer();
+      callDisconnectTimer = setTimeout(() => {
+        if (callPeerConnection === pc && callState !== 'idle' && pc.connectionState === 'failed') endCurrentCall(false);
+      }, 9000);
     }
   };
   callPeerConnection = pc;
@@ -1503,6 +1589,14 @@ async function beginOfferFlow() {
   await pc.setLocalDescription(offer);
   if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type:'call_signal', to:callPeerLogin, signal:{ type:'offer', sdp:offer.sdp } }));
 }
+async function flushPendingRemoteCandidates() {
+  if (!callPeerConnection || !callPeerConnection.remoteDescription) return;
+  const queue = [...pendingRemoteCandidates];
+  pendingRemoteCandidates = [];
+  for (const candidate of queue) {
+    try { await callPeerConnection.addIceCandidate(candidate); } catch {}
+  }
+}
 async function handleCallSignalMessage(from, signal) {
   if (!signal || !from) return;
   callPeerLogin = from;
@@ -1513,17 +1607,23 @@ async function handleCallSignalMessage(from, signal) {
     updateCallUi();
     const pc = await createCallPeerConnection();
     await pc.setRemoteDescription({ type:'offer', sdp:signal.sdp });
+    await flushPendingRemoteCandidates();
     const answer = await pc.createAnswer();
     await pc.setLocalDescription(answer);
     if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type:'call_signal', to:from, signal:{ type:'answer', sdp:answer.sdp } }));
     return;
   }
-  if (!callPeerConnection) return;
   if (signal.type === 'answer') {
+    if (!callPeerConnection) return;
     await callPeerConnection.setRemoteDescription({ type:'answer', sdp:signal.sdp });
+    await flushPendingRemoteCandidates();
     return;
   }
   if (signal.type === 'candidate' && signal.candidate) {
+    if (!callPeerConnection || !callPeerConnection.remoteDescription) {
+      pendingRemoteCandidates.push(signal.candidate);
+      return;
+    }
     try { await callPeerConnection.addIceCandidate(signal.candidate); } catch {}
   }
 }
@@ -1541,6 +1641,16 @@ function toggleMuteCall() {
   localCallStream.getAudioTracks().forEach(track => { track.enabled = !isMicMuted; });
   updateCallUi();
 }
+function toggleSpeakerMute() {
+  isSpeakerMuted = !isSpeakerMuted;
+  applyRemoteAudioSettings();
+  updateCallUi();
+}
+function setOpponentVolume(value) {
+  opponentVolume = Math.max(0, Math.min(150, Number(value) || 0));
+  applyRemoteAudioSettings();
+  updateCallUi();
+}
 
 function applyLanguage() {
   updateLangButtons();
@@ -1555,7 +1665,7 @@ function applyLanguage() {
   document.getElementById('headerFriendsBtnLabel').textContent = t('friends');
   document.getElementById('friendsPanelHeading').textContent = t('friends');
   closeFriendsPanelBtn.setAttribute('aria-label', t('close'));
-  document.getElementById('onlineSectionLabel').textContent = t('onlineFriends');
+  document.getElementById('onlineSectionLabel').textContent = t('dialogs');
   document.getElementById('emptyTitle').textContent = t('welcome');
   document.getElementById('emptyTextLabel').textContent = t('welcomeText');
   text.placeholder = t('messagePlaceholder');
@@ -1577,7 +1687,9 @@ function applyLanguage() {
   if (callBtnLabel) callBtnLabel.textContent = ['calling','incoming','connecting','connected'].includes(callState) ? t('hang') : t('call');
   if (callAcceptBtn) callAcceptBtn.textContent = t('accept');
   if (callDeclineBtn) callDeclineBtn.textContent = t('decline');
-  if (callMuteBtn) callMuteBtn.textContent = isMicMuted ? t('unmute') : t('mute');
+  if (callMuteBtn) callMuteBtn.textContent = isMicMuted ? '🎙️ ' + t('unmute') : '🎙️ ' + t('mute');
+  if (callSpeakerBtn) callSpeakerBtn.textContent = isSpeakerMuted ? '🔇 ' + t('speakerUnmute') : '🔊 ' + t('speakerMute');
+  if (callVolumeLabel) callVolumeLabel.textContent = t('volume');
   if (callHangupBtn) callHangupBtn.textContent = t('hang');
   if (callCloseBtn) callCloseBtn.textContent = t('close');
   document.getElementById('statusOnlineLabel').textContent = t('status_online');
@@ -2409,16 +2521,53 @@ function renderGroups() {
   });
 }
 
+function getChatSortMeta(item) {
+  const key = item.kind === 'group' ? getGroupChatKey(item.id) : item.login;
+  const arr = chats[key] || [];
+  const last = arr.length ? Number(arr[arr.length - 1].time || 0) : 0;
+  return { key, last };
+}
 function renderOnline() {
   online.innerHTML = '';
-  const uniqueOnlineUsers = dedupeUsers(onlineUsers).filter(u => normalizeClientStatus(u.status || 'online') !== 'offline');
-  if (!uniqueOnlineUsers.length) { const e = document.createElement('div'); e.className = 'emptyText'; e.textContent = t('nobodyOnline'); online.appendChild(e); return; }
-  uniqueOnlineUsers.forEach(u => {
-    const div = document.createElement('div'); div.className = 'user' + (u.login === currentDM ? ' active' : ''); div.dataset.login = u.login; div.appendChild(createAvatar(u.avatar || u, u.status || 'online', true));
-    const info = document.createElement('div'); info.className = 'userInfo'; info.innerHTML = `<div class="userName">${escapeHtml(u.nickname || u.login)}</div><div class="userSub">${escapeHtml(statusText(u.status || 'online'))}</div>`; div.appendChild(info);
-    if (unread[u.login] > 0) { const b = document.createElement('div'); b.className = 'unread'; b.textContent = unread[u.login]; div.appendChild(b); }
-    div.onclick = () => openDM(u.login, u.nickname, u.avatar);
-    div.ondblclick = () => openUserProfileModal(u);
+  const dmItems = dedupeUsers(friends).map(user => ({ kind:'dm', ...user }));
+  const groupItems = (Array.isArray(groups) ? groups : []).map(group => ({ kind:'group', id:Number(group.id), name:group.name, members:group.members || [] }));
+  const items = [...dmItems, ...groupItems].sort((a, b) => {
+    const metaA = getChatSortMeta(a);
+    const metaB = getChatSortMeta(b);
+    if (metaB.last !== metaA.last) return metaB.last - metaA.last;
+    if (a.kind !== b.kind) {
+      if (a.kind === 'dm' && normalizeClientStatus(a.status || 'offline') !== 'offline') return -1;
+      if (b.kind === 'dm' && normalizeClientStatus(b.status || 'offline') !== 'offline') return 1;
+    }
+    const nameA = (a.kind === 'group' ? a.name : (a.nickname || a.login || '')).toLowerCase();
+    const nameB = (b.kind === 'group' ? b.name : (b.nickname || b.login || '')).toLowerCase();
+    return nameA.localeCompare(nameB, currentLanguage);
+  });
+  if (!items.length) { const e = document.createElement('div'); e.className = 'emptyText'; e.textContent = t('chooseFriend'); online.appendChild(e); return; }
+
+  items.forEach(item => {
+    const div = document.createElement('div');
+    if (item.kind === 'group') {
+      div.className = 'user groupUser' + (currentChatType === 'group' && Number(currentGroupId) === Number(item.id) ? ' active' : '');
+      div.dataset.groupId = item.id;
+      div.appendChild(createAvatar({ letter:(item.name || 'G')[0]?.toUpperCase() || 'G', color:'#5865f2' }, 'online', false));
+      const info = document.createElement('div');
+      info.className = 'userInfo';
+      info.innerHTML = `<div class="userName">${escapeHtml(item.name || ('Group ' + item.id))}</div><div class="userSub">${escapeHtml(t('groupLabel'))} · ${escapeHtml(String((item.members || []).length))}</div>`;
+      div.appendChild(info);
+      div.onclick = () => openGroup(item.id);
+    } else {
+      div.className = 'user' + (item.login === currentDM && currentChatType === 'dm' ? ' active' : '');
+      div.dataset.login = item.login;
+      div.appendChild(createAvatar(item.avatar || item, item.status || 'offline', true));
+      const info = document.createElement('div');
+      info.className = 'userInfo';
+      info.innerHTML = `<div class="userName">${escapeHtml(item.nickname || item.login)}</div><div class="userSub">${escapeHtml(statusText(item.status || 'offline'))}</div>`;
+      div.appendChild(info);
+      if (unread[item.login] > 0) { const b = document.createElement('div'); b.className = 'unread'; b.textContent = unread[item.login]; div.appendChild(b); }
+      div.onclick = () => openDM(item.login, item.nickname, item.avatar);
+      div.ondblclick = () => openUserProfileModal(item);
+    }
     online.appendChild(div);
   });
 }
@@ -2471,10 +2620,13 @@ callAcceptBtn.onclick = () => { acceptIncomingCall().catch(() => { alert(t('allo
 callDeclineBtn.onclick = declineIncomingCall;
 callHangupBtn.onclick = () => endCurrentCall(true);
 callMuteBtn.onclick = toggleMuteCall;
+callSpeakerBtn.onclick = toggleSpeakerMute;
+callVolumeSlider.oninput = () => setOpponentVolume(callVolumeSlider.value);
 callCloseBtn.onclick = () => { if (callState === 'incoming') declineIncomingCall(); else hideCallOverlay(); };
 callOverlay.addEventListener('click', e => { if (e.target === callOverlay && callState === 'idle') hideCallOverlay(); });
 
 window.addEventListener('load', () => {
+  applyRemoteAudioSettings();
   document.body.classList.add('ui-ready');
   applyLanguage();
   syncMobileLayout();
