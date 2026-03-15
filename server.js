@@ -42,7 +42,11 @@ const ACTION_LIMITS = {
   update_group: 20,
   add_group_members: 20,
   remove_group_member: 20,
-  leave_group: 20
+  leave_group: 20,
+  call_start: 12,
+  call_signal: 600,
+  call_response: 30,
+  call_end: 60
 };
 const MAX_MESSAGE_LENGTH = 4000;
 const MAX_GROUP_NAME_LENGTH = 48;
@@ -60,6 +64,20 @@ if (!SESSION_SECRET) {
   console.warn('SESSION_SECRET not set. Using development-only fallback secret.');
 }
 const EFFECTIVE_SESSION_SECRET = SESSION_SECRET || 'dev-only-session-secret-change-me';
+
+function getIceServers() {
+  const servers = [{ urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] }];
+  const turnUrl = (process.env.TURN_URL || '').trim();
+  const turnUsername = (process.env.TURN_USERNAME || '').trim();
+  const turnCredential = (process.env.TURN_CREDENTIAL || '').trim();
+  if (turnUrl) {
+    const turnServer = { urls: turnUrl.includes(',') ? turnUrl.split(',').map(v => v.trim()).filter(Boolean) : [turnUrl] };
+    if (turnUsername) turnServer.username = turnUsername;
+    if (turnCredential) turnServer.credential = turnCredential;
+    servers.push(turnServer);
+  }
+  return servers;
+}
 
 function getClientIp(req) {
   return (req.headers['x-forwarded-for'] || '').split(',')[0].trim() || req.socket?.remoteAddress || 'unknown';
@@ -348,6 +366,8 @@ async function initDb() {
 }
 
 const clients = new Map();
+const pendingCalls = new Map();
+const activeCalls = new Map();
 
 function send(ws, data) {
   if (ws.readyState === WebSocket.OPEN) {
@@ -364,6 +384,35 @@ function sendToUser(login, data) {
     }
   }
   return delivered;
+}
+
+function getCallState(login) {
+  return { pendingWith: pendingCalls.get(login) || null, activeWith: activeCalls.get(login) || null };
+}
+
+function isUserBusy(login) {
+  const state = getCallState(login);
+  return Boolean(state.pendingWith || state.activeWith);
+}
+
+function clearPendingBetween(a, b) {
+  if (pendingCalls.get(a) === b) pendingCalls.delete(a);
+  if (pendingCalls.get(b) === a) pendingCalls.delete(b);
+}
+
+function clearActiveBetween(a, b) {
+  if (activeCalls.get(a) === b) activeCalls.delete(a);
+  if (activeCalls.get(b) === a) activeCalls.delete(b);
+}
+
+function clearAnyCallState(login) {
+  const pendingPeer = pendingCalls.get(login);
+  if (pendingPeer) clearPendingBetween(login, pendingPeer);
+  for (const [key, value] of pendingCalls) {
+    if (value === login) pendingCalls.delete(key);
+  }
+  const activePeer = activeCalls.get(login);
+  if (activePeer) clearActiveBetween(login, activePeer);
 }
 
 function getMessageReceiptStatus(message) {
@@ -406,7 +455,8 @@ async function loginSocket(ws, user) {
     friends: await getFriendUsers(user.login),
     unread: await getUnreadMap(user.login),
     groups: await getGroupsForUser(user.login),
-    token
+    token,
+    iceServers: getIceServers()
   });
 
   const requests = await pool.query(`SELECT fromUser FROM friend_requests WHERE toUser = $1`, [user.login]);
@@ -1247,6 +1297,95 @@ wss.on('connection', (ws, req) => {
       }
 
 
+      if (data.type === 'call_start') {
+        if (!requireActionAllowed(ws, clientIp, 'call_start')) return;
+        const targetLogin = sanitizeLogin(data.to);
+        if (!targetLogin || targetLogin === userLogin) return;
+        if (!(await areFriends(userLogin, targetLogin))) {
+          send(ws, { type: 'error', message: 'Звонки доступны только друзьям' });
+          return;
+        }
+        if (!sendToUser(targetLogin, { type: 'call_probe' })) {
+          send(ws, { type: 'call_unavailable', reason: 'offline', to: targetLogin });
+          return;
+        }
+        if (isUserBusy(userLogin) || isUserBusy(targetLogin)) {
+          send(ws, { type: 'call_unavailable', reason: 'busy', to: targetLogin });
+          return;
+        }
+        pendingCalls.set(userLogin, targetLogin);
+        pendingCalls.set(targetLogin, userLogin);
+        send(ws, { type: 'call_outgoing', to: targetLogin });
+        sendToUser(targetLogin, {
+          type: 'call_incoming',
+          from: userLogin,
+          fromNick: me.nickname,
+          avatar: buildAvatar(userLogin, me.nickname, me.avatarImage)
+        });
+        return;
+      }
+
+      if (data.type === 'call_accept') {
+        if (!requireActionAllowed(ws, clientIp, 'call_response')) return;
+        const otherLogin = sanitizeLogin(data.with);
+        if (!otherLogin || pendingCalls.get(userLogin) !== otherLogin || pendingCalls.get(otherLogin) !== userLogin) return;
+        clearPendingBetween(userLogin, otherLogin);
+        activeCalls.set(userLogin, otherLogin);
+        activeCalls.set(otherLogin, userLogin);
+        send(ws, { type: 'call_joined', with: otherLogin });
+        sendToUser(otherLogin, { type: 'call_accepted', by: userLogin });
+        return;
+      }
+
+      if (data.type === 'call_decline') {
+        if (!requireActionAllowed(ws, clientIp, 'call_response')) return;
+        const otherLogin = sanitizeLogin(data.with);
+        if (!otherLogin) return;
+        const wasPending = pendingCalls.get(userLogin) === otherLogin || pendingCalls.get(otherLogin) === userLogin;
+        if (!wasPending) return;
+        clearPendingBetween(userLogin, otherLogin);
+        send(ws, { type: 'call_ended', reason: 'declined', with: otherLogin });
+        sendToUser(otherLogin, { type: 'call_ended', reason: 'declined', with: userLogin });
+        return;
+      }
+
+      if (data.type === 'call_cancel') {
+        if (!requireActionAllowed(ws, clientIp, 'call_end')) return;
+        const otherLogin = sanitizeLogin(data.with);
+        if (!otherLogin) return;
+        const wasPending = pendingCalls.get(userLogin) === otherLogin || pendingCalls.get(otherLogin) === userLogin;
+        if (!wasPending) return;
+        clearPendingBetween(userLogin, otherLogin);
+        send(ws, { type: 'call_ended', reason: 'cancelled', with: otherLogin });
+        sendToUser(otherLogin, { type: 'call_ended', reason: 'cancelled', with: userLogin });
+        return;
+      }
+
+      if (data.type === 'call_end') {
+        if (!requireActionAllowed(ws, clientIp, 'call_end')) return;
+        const otherLogin = sanitizeLogin(data.with);
+        if (!otherLogin) return;
+        const wasActive = activeCalls.get(userLogin) === otherLogin || activeCalls.get(otherLogin) === userLogin;
+        const wasPending = pendingCalls.get(userLogin) === otherLogin || pendingCalls.get(otherLogin) === userLogin;
+        if (!wasActive && !wasPending) return;
+        clearPendingBetween(userLogin, otherLogin);
+        clearActiveBetween(userLogin, otherLogin);
+        send(ws, { type: 'call_ended', reason: 'ended', with: otherLogin });
+        sendToUser(otherLogin, { type: 'call_ended', reason: 'ended', with: userLogin });
+        return;
+      }
+
+      if (data.type === 'call_signal') {
+        if (!requireActionAllowed(ws, clientIp, 'call_signal')) return;
+        const targetLogin = sanitizeLogin(data.to);
+        const signal = data.signal && typeof data.signal === 'object' ? data.signal : null;
+        if (!targetLogin || !signal) return;
+        const activePeer = activeCalls.get(userLogin);
+        if (activePeer !== targetLogin || activeCalls.get(targetLogin) !== userLogin) return;
+        sendToUser(targetLogin, { type: 'call_signal', from: userLogin, signal });
+        return;
+      }
+
       if (data.type === 'get_user_profile') {
         const targetLogin = sanitizeLogin(data.login);
         if (!targetLogin) return;
@@ -1453,6 +1592,19 @@ wss.on('connection', (ws, req) => {
   ws.on('close', async () => {
     const info = clients.get(ws);
     clients.delete(ws);
+
+    if (userLogin) {
+      const pendingPeer = pendingCalls.get(userLogin);
+      if (pendingPeer) {
+        clearPendingBetween(userLogin, pendingPeer);
+        sendToUser(pendingPeer, { type: 'call_ended', reason: 'cancelled', with: userLogin });
+      }
+      const activePeer = activeCalls.get(userLogin);
+      if (activePeer) {
+        clearActiveBetween(userLogin, activePeer);
+        sendToUser(activePeer, { type: 'call_ended', reason: 'ended', with: userLogin });
+      }
+    }
 
     if (info?.sessionId && userLogin) {
       await pool.query(`DELETE FROM sessions WHERE id = $1 AND login = $2 AND revoked = TRUE`, [info.sessionId, userLogin]).catch(() => {});
