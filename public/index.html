@@ -1572,6 +1572,7 @@ let currentLanguage = localStorage.getItem('messenger_language') || 'ru';
 const defaultCustomization = { theme:'midnight', accent:'#6b7cff', radius:16, fontSize:14, wallpaper:'none', compact:false, bio:'' };
 let customization = loadCustomization();
 let dmWallpapers = loadDmWallpapers();
+let suppressProfileOpenUntil = 0;
 let openDmListMenuLogin = null;
 let openDmListMenuPosition = null;
 let openDmListMenuUser = null;
@@ -1764,13 +1765,15 @@ function renderDmMenuPortal() {
   profileBtn.type = 'button';
   profileBtn.className = 'userMenuItem';
   profileBtn.textContent = t('viewProfile');
+  profileBtn.onpointerdown = (e) => { e.preventDefault(); e.stopPropagation(); };
   profileBtn.onclick = (e) => {
     e.preventDefault();
     e.stopPropagation();
+    suppressProfileOpenUntil = Date.now() + 600;
     const targetUser = openDmListMenuUser ? { ...openDmListMenuUser } : (openDmListMenuLogin ? { login: openDmListMenuLogin } : null);
     if (!targetUser?.login) return;
+    closeDmListMenu();
     openUserProfileModal(targetUser);
-    setTimeout(() => closeDmListMenu(), 0);
   };
   menu.appendChild(profileBtn);
 
@@ -1778,13 +1781,14 @@ function renderDmMenuPortal() {
   backgroundBtn.type = 'button';
   backgroundBtn.className = 'userMenuItem';
   backgroundBtn.textContent = t('changeBackground');
+  backgroundBtn.onpointerdown = (e) => { e.preventDefault(); e.stopPropagation(); };
   backgroundBtn.onclick = (e) => {
     e.preventDefault();
     e.stopPropagation();
     const targetLogin = openDmListMenuUser?.login || openDmListMenuLogin;
     if (!targetLogin) return;
+    closeDmListMenu();
     requestDmWallpaperChange(targetLogin);
-    setTimeout(() => closeDmListMenu(), 0);
   };
   menu.appendChild(backgroundBtn);
 
@@ -1827,6 +1831,7 @@ function toggleDmListMenu(userLogin, triggerEl, userData) {
 }
 function requestDmWallpaperChange(userLogin) {
   if (!userLogin || !dmWallpaperUploadInput) return;
+  suppressProfileOpenUntil = Date.now() + 1200;
   pendingDmWallpaperLogin = userLogin;
   dmWallpaperUploadInput.click();
 }
@@ -3638,10 +3643,11 @@ function accept(u) { ws.send(JSON.stringify({ type:'friend_accept', from:u })); 
 function decline(u) { requests = requests.filter(r => r !== u); renderRequests(); }
 window.accept = accept; window.decline = decline; window.openUserProfileModal = openUserProfileModal;
 profileCard.onclick = (e) => {
+  if (Date.now() < suppressProfileOpenUntil) return;
   if (e.target === profileSettingsBtn) return;
   openProfileModal();
 };
-profileSettingsBtn.onclick = (e) => { e.stopPropagation(); openProfileModal(); };
+profileSettingsBtn.onclick = (e) => { if (Date.now() < suppressProfileOpenUntil) return; e.stopPropagation(); openProfileModal(); };
 profileAvatarBtn.onclick = () => avatarUploadInput.click();
 profileBannerBtn.onclick = () => bannerUploadInput.click();
 profileLogoutBtn.onclick = () => { performLogout(); };
