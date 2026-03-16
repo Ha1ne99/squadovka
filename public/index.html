@@ -329,7 +329,9 @@ button:hover { transform: translateY(-1px); }
   margin-bottom:14px;
   align-items:flex-start;
   animation: fadeUp .22s ease both;
+  position:relative;
 }
+.message.menuMenuOpen { z-index:80; }
 .messageContent {
   background:#171b23;
   padding:10px 12px;
@@ -763,7 +765,7 @@ body[data-theme='midnight'] { --bg:#101217; --bg2:#0b0d12; }
 .messageHeader .messageReceipt { margin-left:0; }
 .messageMenuTrigger { width:28px; height:28px; border-radius:10px; border:1px solid transparent; background:transparent; color:var(--muted); cursor:pointer; display:inline-flex; align-items:center; justify-content:center; font-size:18px; line-height:1; }
 .messageMenuTrigger:hover, .messageMenuTrigger.active { background:#202633; color:#fff; border-color:rgba(255,255,255,.08); }
-.messageMenu { position:absolute; top:34px; right:0; min-width:168px; background:#111622; border:1px solid rgba(255,255,255,.08); box-shadow:0 16px 40px rgba(0,0,0,.32); border-radius:12px; padding:6px; display:none; z-index:30; }
+.messageMenu { position:absolute; top:-2px; left:calc(100% + 8px); right:auto; min-width:168px; background:#111622; border:1px solid rgba(255,255,255,.08); box-shadow:0 16px 40px rgba(0,0,0,.38); border-radius:12px; padding:6px; display:none; z-index:120; }
 .messageMenu.open { display:block; }
 .messageMenuItem { width:100%; text-align:left; background:transparent; color:white; border:none; border-radius:8px; padding:9px 10px; cursor:pointer; display:block; }
 .messageMenuItem:hover { background:#202633; }
@@ -2956,7 +2958,7 @@ function deleteMessage(messageId) {
 window.beginEditMessage = beginEditMessage; window.cancelEditMessage = cancelEditMessage; window.saveEditMessage = saveEditMessage; window.deleteMessage = deleteMessage; window.setReplyMessage = setReplyMessage; window.clearReplyMessage = clearReplyMessage; window.toggleMessageMenu = toggleMessageMenu; window.closeMessageMenu = closeMessageMenu;
 
 function renderMessage(message) {
-  const m = document.createElement('div'); m.className = 'message'; m.dataset.id = message.id;
+  const m = document.createElement('div'); m.className = 'message' + (openMessageMenuId === Number(message.id) ? ' menuMenuOpen' : ''); m.dataset.id = message.id;
   m.appendChild(createAvatar(message.avatar || { letter:String(message.from || '?').charAt(0).toUpperCase(), color:'#5865f2' }, 'offline', false));
   const c = document.createElement('div'); c.className = 'messageContent';
   const editedLabel = message.edited ? `<span class="messageEdited">(${escapeHtml(t('edited'))})</span>` : '';
