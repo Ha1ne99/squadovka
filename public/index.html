@@ -1036,37 +1036,71 @@ body[data-theme='midnight'] { --bg:#101217; --bg2:#0b0d12; }
   position: fixed;
   inset: 0;
   display: none;
-  align-items: center;
-  justify-content: center;
-  background: rgba(0,0,0,.56);
+  align-items: flex-start;
+  justify-content: flex-end;
+  padding: 16px;
+  background: transparent;
   z-index: 7000;
-  backdrop-filter: blur(8px);
-  animation: fadeIn .22s ease;
+  pointer-events: none;
 }
+#callOverlay.visible { display:flex; }
 #callModal {
-  width: min(92vw, 430px);
-  background: linear-gradient(180deg, rgba(23,27,35,.98), rgba(12,15,22,.98));
+  width: min(380px, calc(100vw - 20px));
+  pointer-events: auto;
+  position: relative;
+  margin-top: 6px;
+  background: linear-gradient(180deg, rgba(34,39,52,.98), rgba(18,22,31,.98));
   border: 1px solid rgba(255,255,255,.08);
-  border-radius: 26px;
-  padding: 22px;
-  box-shadow: 0 24px 70px rgba(0,0,0,.45);
+  border-radius: 20px;
+  padding: 16px;
+  box-shadow: 0 18px 55px rgba(0,0,0,.42);
   animation: popIn .22s ease;
+  overflow: hidden;
 }
-.callTop { display:flex; align-items:center; gap:14px; }
-.callMeta b { display:block; font-size:22px; }
-.callMeta span { color:var(--muted); font-size:13px; }
-#callStatusText { margin-top:14px; color:#dbe1f0; font-weight:700; }
-#callHintText { margin-top:6px; color:var(--muted); font-size:13px; line-height:1.4; }
-.callMeterWrap { margin-top:16px; }
-.callMeterBar { width:100%; height:10px; background:#0f131a; border:1px solid var(--line); border-radius:999px; overflow:hidden; }
-#callVoiceBar { height:100%; width:6%; background:linear-gradient(90deg, var(--green), var(--accent)); transition:width .12s ease; }
-.callRow { display:flex; gap:10px; margin-top:18px; flex-wrap:wrap; }
+#callModal::before {
+  content:'';
+  position:absolute;
+  inset:0 0 auto 0;
+  height:4px;
+  background: linear-gradient(90deg, #57f287, #6b7cff);
+  opacity:.95;
+}
+#callModal.compact {
+  width: min(340px, calc(100vw - 20px));
+  padding: 14px;
+}
+.callTop { display:flex; align-items:center; gap:12px; }
+#callAvatar { width:52px !important; height:52px !important; border-radius:16px; box-shadow: inset 0 0 0 2px rgba(255,255,255,.06); }
+.callMeta { min-width:0; flex:1; }
+.callMeta b { display:block; font-size:18px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.callMeta span { color:var(--muted); font-size:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.callBadgeRow { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:12px; }
+.callBadge {
+  display:inline-flex; align-items:center; gap:8px;
+  font-size:12px; font-weight:800; letter-spacing:.02em;
+  padding:7px 10px; border-radius:999px;
+  background:rgba(87,242,135,.12); color:#b7f7cb; border:1px solid rgba(87,242,135,.22);
+}
+.callBadgeDot { width:8px; height:8px; border-radius:50%; background:#57f287; box-shadow:0 0 10px rgba(87,242,135,.55); }
+.callWindowBtn {
+  width:34px; height:34px; border-radius:12px; border:1px solid rgba(255,255,255,.08);
+  background:#161b25; color:#cfd6e6; cursor:pointer; font-size:18px;
+}
+.callWindowBtn:hover { background:#1d2330; }
+#callStatusText { margin-top:14px; color:#eef2fb; font-weight:800; font-size:15px; }
+#callHintText { margin-top:4px; color:var(--muted); font-size:12px; line-height:1.35; }
+.callMeterWrap { margin-top:14px; }
+.callMeterLabel { margin:12px 0 8px; color:var(--muted); font-size:12px; }
+.callMeterBar { width:100%; height:8px; background:#0f131a; border:1px solid var(--line); border-radius:999px; overflow:hidden; }
+#callVoiceBar { height:100%; width:6%; background:linear-gradient(90deg, #57f287, #6b7cff); transition:width .12s ease; }
+.callRow { display:flex; gap:10px; margin-top:14px; flex-wrap:wrap; }
 .callActionBtn {
   flex:1;
-  min-width:120px;
+  min-width:110px;
+  min-height:46px;
   padding:12px 14px;
   border-radius:14px;
-  border:1px solid var(--line);
+  border:1px solid rgba(255,255,255,.08);
   background:#171b23;
   color:white;
   cursor:pointer;
@@ -1074,10 +1108,46 @@ body[data-theme='midnight'] { --bg:#101217; --bg2:#0b0d12; }
 }
 .callActionBtn:hover { box-shadow:0 12px 28px rgba(0,0,0,.22); }
 .callActionBtn.primary { background:linear-gradient(135deg, var(--accent), var(--accent-2)); }
-.callActionBtn.good { background:linear-gradient(135deg, #2ea86d, #45c979); }
-.callActionBtn.danger { background:linear-gradient(135deg, #b93139, #ed4245); }
-.callInfoPill { margin-top:14px; padding:10px 12px; border:1px solid var(--line); border-radius:14px; background:#101520; color:var(--muted); font-size:13px; }
+.callActionBtn.good { background:linear-gradient(135deg, #248046, #2fbf71); }
+.callActionBtn.danger { background:linear-gradient(135deg, #a12828, #da373c); }
+.callControlsCompact { display:flex; gap:10px; margin-top:14px; }
+.callCircleBtn {
+  width:46px; height:46px; border-radius:50%; border:1px solid rgba(255,255,255,.08);
+  background:#202633; color:white; cursor:pointer; font-size:18px; flex:0 0 46px;
+}
+.callCircleBtn:hover { transform:translateY(-1px); box-shadow:0 10px 24px rgba(0,0,0,.22); }
+.callCircleBtn.danger { background:linear-gradient(135deg, #a12828, #da373c); }
+.callVolumeControl {
+  display:flex;
+  align-items:center;
+  gap:10px;
+  padding:0 14px;
+  min-height:46px;
+  border-radius:999px;
+  border:1px solid rgba(255,255,255,.08);
+  background:#161b25;
+  color:#eef2fb;
+  font-weight:700;
+  flex:1 1 180px;
+}
+.callVolumeControl span { white-space:nowrap; font-size:13px; }
+#callVolumeSlider { width:100%; accent-color:#6b7cff; }
+.callInfoPill { margin-top:12px; padding:10px 12px; border:1px solid rgba(255,255,255,.07); border-radius:14px; background:#101520; color:var(--muted); font-size:12px; }
 #remoteAudio { display:none; }
+#callIncomingActions { margin-top:16px; }
+#callMainActions { margin-top:14px; }
+#callOverlay[data-state="incoming"] #callModal {
+  width:min(400px, calc(100vw - 20px));
+}
+#callOverlay[data-state="connected"] #callHintText,
+#callOverlay[data-state="calling"] #callHintText,
+#callOverlay[data-state="connecting"] #callHintText {
+  display:block;
+}
+@media (max-width: 700px) {
+  #callOverlay { padding: 10px; align-items:flex-end; }
+  #callModal, #callModal.compact { width: calc(100vw - 20px); margin-top:0; }
+}
 
 #groupsSidebar { display:none !important; }
 .callVolumeControl {
@@ -1343,10 +1413,14 @@ body[data-theme='midnight'] { --bg:#101217; --bg2:#0b0d12; }
 </div>
 
 
-<div id="callOverlay">
-  <div id="callModal">
+<div id="callOverlay" data-state="idle">
+  <div id="callModal" class="compact">
+    <div class="callBadgeRow">
+      <div class="callBadge"><span class="callBadgeDot"></span><span id="callBadgeText">Голосовой звонок</span></div>
+      <button id="callCloseBtn" class="callWindowBtn" title="Скрыть">×</button>
+    </div>
     <div class="callTop">
-      <div id="callAvatar" class="avatar" style="width:58px;height:58px;background:#5865f2">?</div>
+      <div id="callAvatar" class="avatar" style="background:#5865f2">?</div>
       <div class="callMeta">
         <b id="callPeerName">Звонок</b>
         <span id="callPeerSub">Squadovka Call</span>
@@ -1356,19 +1430,18 @@ body[data-theme='midnight'] { --bg:#101217; --bg2:#0b0d12; }
     <div id="callHintText"></div>
     <div class="callMeterWrap">
       <div class="callInfoPill" id="callInfoPill">TURN improves reliability for difficult NAT networks.</div>
-      <div style="margin:12px 0 8px;color:var(--muted);font-size:13px;">Уровень голоса</div>
+      <div class="callMeterLabel" id="callVoiceLevelLabel">Уровень голоса</div>
       <div class="callMeterBar"><div id="callVoiceBar"></div></div>
     </div>
     <div class="callRow" id="callIncomingActions" style="display:none;">
       <button id="callAcceptBtn" class="callActionBtn good">Принять</button>
       <button id="callDeclineBtn" class="callActionBtn danger">Отклонить</button>
     </div>
-    <div class="callRow" id="callMainActions">
-      <button id="callMuteBtn" class="callActionBtn">🎙️ Микрофон</button>
-      <button id="callSpeakerBtn" class="callActionBtn">🔊 Звук</button>
+    <div class="callControlsCompact" id="callMainActions">
+      <button id="callMuteBtn" class="callCircleBtn" title="Микрофон">🎙️</button>
+      <button id="callSpeakerBtn" class="callCircleBtn" title="Звук">🔊</button>
       <label class="callVolumeControl"><span id="callVolumeLabel">Громкость</span><input id="callVolumeSlider" type="range" min="0" max="150" step="1" value="100"></label>
-      <button id="callHangupBtn" class="callActionBtn danger">Сбросить</button>
-      <button id="callCloseBtn" class="callActionBtn">Закрыть</button>
+      <button id="callHangupBtn" class="callCircleBtn danger" title="Сбросить">📞</button>
     </div>
     <audio id="remoteAudio" autoplay playsinline></audio>
   </div>
@@ -1461,6 +1534,7 @@ const bannerUploadInput = document.getElementById('bannerUploadInput');
 const callBtn = document.getElementById('callBtn');
 const callBtnLabel = document.getElementById('callBtnLabel');
 const callOverlay = document.getElementById('callOverlay');
+const callModal = document.getElementById('callModal');
 const callAvatar = document.getElementById('callAvatar');
 const callPeerName = document.getElementById('callPeerName');
 const callPeerSub = document.getElementById('callPeerSub');
@@ -1832,8 +1906,16 @@ function setCallButtonVisible(visible) {
   if (!callBtn) return;
   callBtn.style.display = visible ? 'inline-flex' : 'none';
 }
-function showCallOverlay() { if (callOverlay) callOverlay.style.display = 'flex'; }
-function hideCallOverlay() { if (callOverlay) callOverlay.style.display = 'none'; }
+function showCallOverlay() {
+  if (!callOverlay) return;
+  callOverlay.style.display = 'flex';
+  callOverlay.classList.add('visible');
+}
+function hideCallOverlay() {
+  if (!callOverlay) return;
+  callOverlay.style.display = 'none';
+  callOverlay.classList.remove('visible');
+}
 function updateCallAvatar(user) {
   if (!callAvatar) return;
   const avatar = user?.avatar || { letter:(user?.nickname || user?.login || '?')[0]?.toUpperCase() || '?', color:'#5865f2' };
@@ -1855,13 +1937,31 @@ function updateCallUi() {
   callBtn.classList.toggle('activeCall', ['calling','incoming','connecting','connected'].includes(callState));
   setCallButtonVisible(currentChatType === 'dm' && !!currentDM);
   callBtnLabel.textContent = ['calling','incoming','connecting','connected'].includes(callState) ? t('hang') : t('call');
-  callInfoPill.textContent = callState === 'connected' ? ((isMicMuted ? t('micOff') : t('micOn')) + ' · ' + (isSpeakerMuted ? t('soundOff') : t('soundOn'))) : t('natHint');
-  callMuteBtn.textContent = isMicMuted ? '🎙️ ' + t('unmute') : '🎙️ ' + t('mute');
-  if (callSpeakerBtn) callSpeakerBtn.textContent = isSpeakerMuted ? '🔇 ' + t('speakerUnmute') : '🔊 ' + t('speakerMute');
+  if (callOverlay) callOverlay.dataset.state = callState;
+  if (callModal) callModal.classList.toggle('compact', callState !== 'incoming');
+  if (callInfoPill) callInfoPill.textContent = callState === 'connected' ? ((isMicMuted ? t('micOff') : t('micOn')) + ' · ' + (isSpeakerMuted ? t('soundOff') : t('soundOn'))) : t('natHint');
+  if (callMuteBtn) {
+    callMuteBtn.textContent = isMicMuted ? '🎙️' : '🎤';
+    callMuteBtn.title = isMicMuted ? t('unmute') : t('mute');
+  }
+  if (callSpeakerBtn) {
+    callSpeakerBtn.textContent = isSpeakerMuted ? '🔇' : '🔊';
+    callSpeakerBtn.title = isSpeakerMuted ? t('speakerUnmute') : t('speakerMute');
+  }
   if (callVolumeLabel) callVolumeLabel.textContent = t('volume');
+  const callVoiceLevelLabel = document.getElementById('callVoiceLevelLabel');
+  if (callVoiceLevelLabel) callVoiceLevelLabel.textContent = t('voiceLevel');
   if (callVolumeSlider) callVolumeSlider.value = String(opponentVolume);
-  callIncomingActions.style.display = callState === 'incoming' ? 'flex' : 'none';
-  callMainActions.style.display = callState === 'incoming' ? 'none' : 'flex';
+  if (callIncomingActions) callIncomingActions.style.display = callState === 'incoming' ? 'flex' : 'none';
+  if (callMainActions) callMainActions.style.display = callState === 'incoming' ? 'none' : 'flex';
+  if (callCloseBtn) callCloseBtn.style.display = callState === 'incoming' ? 'none' : 'inline-flex';
+  const badgeText = document.getElementById('callBadgeText');
+  if (badgeText) {
+    if (callState === 'incoming') badgeText.textContent = 'Входящий звонок';
+    else if (callState === 'connected') badgeText.textContent = 'Голосовой канал';
+    else if (callState === 'connecting') badgeText.textContent = 'Подключение';
+    else badgeText.textContent = 'Голосовой звонок';
+  }
   if (callState === 'idle') {
     callStatusText.textContent = t('call');
     callHintText.textContent = '';
@@ -2173,6 +2273,8 @@ function applyLanguage() {
   if (callMuteBtn) callMuteBtn.textContent = isMicMuted ? '🎙️ ' + t('unmute') : '🎙️ ' + t('mute');
   if (callSpeakerBtn) callSpeakerBtn.textContent = isSpeakerMuted ? '🔇 ' + t('speakerUnmute') : '🔊 ' + t('speakerMute');
   if (callVolumeLabel) callVolumeLabel.textContent = t('volume');
+  const callVoiceLevelLabel = document.getElementById('callVoiceLevelLabel');
+  if (callVoiceLevelLabel) callVoiceLevelLabel.textContent = t('voiceLevel');
   if (callHangupBtn) callHangupBtn.textContent = t('hang');
   if (callCloseBtn) callCloseBtn.textContent = t('close');
   document.getElementById('statusOnlineLabel').textContent = t('status_online');
