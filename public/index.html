@@ -233,37 +233,38 @@ button:hover { transform: translateY(-1px); }
 }
 .dmEntryMenuBtn:hover { background:#222a38; border-color:rgba(107,124,255,.32); }
 .dmEntryMenu {
-  position:absolute;
-  top:56px;
-  right:10px;
-  min-width:190px;
-  background:#131923;
+  position:fixed;
+  min-width:164px;
+  max-width:190px;
+  background:#11161f;
   border:1px solid rgba(255,255,255,.08);
-  border-radius:14px;
-  box-shadow:0 18px 40px rgba(0,0,0,.34);
-  padding:8px;
+  border-radius:12px;
+  box-shadow:0 18px 44px rgba(0,0,0,.42);
+  padding:6px;
   display:flex;
   flex-direction:column;
-  gap:6px;
-  z-index:30;
-  animation: popIn .16s ease;
+  gap:4px;
+  z-index:9999;
+  animation: popIn .14s ease;
 }
 .dmEntryMenu button {
   width:100%;
   text-align:left;
   border:none;
-  border-radius:10px;
-  padding:10px 12px;
+  border-radius:9px;
+  padding:8px 10px;
   background:transparent;
   color:var(--text);
   cursor:pointer;
+  font-size:13px;
+  line-height:1.2;
 }
-.dmEntryMenu button:hover { background:#1d2533; }
+.dmEntryMenu button:hover { background:#1b2330; }
 .dmWallpaperOptions {
   display:grid;
   grid-template-columns:1fr 1fr;
-  gap:6px;
-  padding-top:4px;
+  gap:5px;
+  padding-top:2px;
 }
 .dmWallpaperOptions button {
   text-align:center;
@@ -3536,8 +3537,8 @@ function closeDmEntryMenu() {
 function toggleDmEntryMenu(event, user) {
   event.preventDefault();
   event.stopPropagation();
-  const row = event.currentTarget?.closest('.user');
-  if (!row || !user?.login) return;
+  const trigger = event.currentTarget;
+  if (!trigger || !user?.login) return;
   if (openDmEntryMenuLogin === user.login) {
     closeDmEntryMenu();
     return;
@@ -3556,6 +3557,7 @@ function toggleDmEntryMenu(event, user) {
   bgBtn.onclick = ev => {
     ev.stopPropagation();
     options.hidden = !options.hidden;
+    requestAnimationFrame(() => positionDmEntryMenu(menu, trigger));
   };
   bgWrap.appendChild(bgBtn);
   const options = document.createElement('div');
@@ -3576,12 +3578,32 @@ function toggleDmEntryMenu(event, user) {
   });
   bgWrap.appendChild(options);
   menu.appendChild(bgWrap);
-  row.appendChild(menu);
+  document.body.appendChild(menu);
+  requestAnimationFrame(() => positionDmEntryMenu(menu, trigger));
+}
+
+function positionDmEntryMenu(menu, trigger) {
+  if (!menu || !trigger) return;
+  const rect = trigger.getBoundingClientRect();
+  const menuRect = menu.getBoundingClientRect();
+  const gap = 6;
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+  let left = rect.right + gap;
+  if (left + menuRect.width > vw - 8) left = rect.left - menuRect.width - gap;
+  if (left < 8) left = Math.max(8, vw - menuRect.width - 8);
+  let top = rect.top;
+  if (top + menuRect.height > vh - 8) top = vh - menuRect.height - 8;
+  if (top < 8) top = 8;
+  menu.style.left = `${left}px`;
+  menu.style.top = `${top}px`;
 }
 
 document.addEventListener('click', e => {
   if (!e.target.closest('.dmEntryMenu') && !e.target.closest('.dmEntryMenuBtn')) closeDmEntryMenu();
 });
+window.addEventListener('resize', () => closeDmEntryMenu());
+document.addEventListener('scroll', () => { if (openDmEntryMenuLogin) closeDmEntryMenu(); }, true);
 
 function accept(u) { ws.send(JSON.stringify({ type:'friend_accept', from:u })); requests = requests.filter(r => r !== u); renderRequests(); }
 function decline(u) { requests = requests.filter(r => r !== u); renderRequests(); }
