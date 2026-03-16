@@ -547,32 +547,129 @@ button:hover { transform: translateY(-1px); }
 }
 #profileModal {
   animation: popIn .24s ease;
-  width:min(92vw, 520px); background:linear-gradient(180deg,#23283a,#171b27); border:1px solid var(--line);
-  border-radius:22px; box-shadow:0 24px 80px rgba(0,0,0,.45); overflow:hidden;
+  width:min(96vw, 1120px);
+  height:min(90vh, 820px);
+  background:linear-gradient(180deg,#23283a,#171b27);
+  border:1px solid var(--line);
+  border-radius:26px;
+  box-shadow:0 24px 80px rgba(0,0,0,.45);
+  overflow:hidden;
 }
-.profileBanner { height:110px; background:linear-gradient(135deg,#8792c7,#9ba2bf); background-size:cover; background-position:center; position:relative; overflow:hidden; }
+.settingsHeader {
+  height:68px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:14px;
+  padding:0 24px;
+  border-bottom:1px solid rgba(255,255,255,.06);
+  background:rgba(10,12,18,.34);
+}
+.settingsHeaderTitle { display:flex; flex-direction:column; gap:3px; }
+.settingsHeaderTitle b { font-size:20px; }
+.settingsHeaderTitle span { color:var(--muted); font-size:12px; }
+#profileModalCloseBtn {
+  width:42px; height:42px; border-radius:14px; border:1px solid var(--line); background:#161c28; color:#fff; cursor:pointer; font-size:22px;
+}
+#profileModalCloseBtn:hover { background:#1d2534; }
+.settingsShell {
+  display:grid;
+  grid-template-columns: 260px minmax(0,1fr);
+  height:calc(100% - 68px);
+  min-height:0;
+}
+.settingsSidebar {
+  background:rgba(9,11,17,.34);
+  border-right:1px solid rgba(255,255,255,.06);
+  padding:18px 14px;
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+}
+.settingsSidebarTitle {
+  font-size:12px;
+  font-weight:700;
+  color:var(--muted);
+  text-transform:uppercase;
+  letter-spacing:.08em;
+  padding:4px 10px 10px;
+}
+.settingsNavBtn {
+  width:100%;
+  text-align:left;
+  border:1px solid transparent;
+  background:transparent;
+  color:#dfe5f3;
+  border-radius:14px;
+  padding:12px 14px;
+  font-size:14px;
+  font-weight:700;
+  cursor:pointer;
+  transition:background .18s ease,border-color .18s ease,transform .18s ease;
+}
+.settingsNavBtn:hover { background:rgba(255,255,255,.04); }
+.settingsNavBtn.active {
+  background:rgba(107,124,255,.18);
+  border-color:rgba(107,124,255,.38);
+  box-shadow:0 0 0 1px rgba(107,124,255,.18) inset;
+}
+.settingsMain {
+  min-width:0;
+  min-height:0;
+  display:flex;
+  flex-direction:column;
+  background:linear-gradient(180deg,rgba(255,255,255,.01),transparent);
+}
+.settingsContent {
+  flex:1;
+  overflow:auto;
+  padding:22px;
+}
+.settingsPane { display:none; }
+.settingsPane.active { display:block; }
+.settingsPaneTitle {
+  margin:0 0 14px;
+  font-size:22px;
+  font-weight:800;
+}
+.profileBanner { height:190px; background:linear-gradient(135deg,#8792c7,#9ba2bf); background-size:cover; background-position:center; position:relative; overflow:hidden; border-radius:22px; border:1px solid rgba(255,255,255,.07); }
 .profileBanner::before { content:''; position:absolute; inset:-20%; background:linear-gradient(90deg, transparent, rgba(255,255,255,.08), transparent); animation: shimmerMove 5.2s linear infinite; pointer-events:none; }
 .profileBanner::after { content:''; position:absolute; inset:0; background:linear-gradient(180deg, rgba(0,0,0,.08), rgba(0,0,0,.24)); pointer-events:none; }
-.profileBannerTools { position:absolute; right:12px; bottom:12px; z-index:1; display:flex; gap:8px; }
-.profileModalBody { padding:0 18px 18px; }
-.profileHero { display:flex; align-items:flex-end; justify-content:space-between; margin-top:-42px; gap:12px; }
-.profileHeroLeft { display:flex; align-items:flex-end; gap:14px; }
-.profileHeroMeta b { display:block; font-size:24px; }
-.profileHeroMeta span { color:var(--muted); font-size:14px; }
-#profileModalAvatar.avatarWrap { width:86px; height:86px; flex:0 0 86px; }
-#profileModalAvatar .presenceDot { width:18px; height:18px; border-width:4px; }
-.profileStatusBar { margin-top:14px; display:flex; gap:8px; flex-wrap:wrap; }
+.profileBannerTools { position:absolute; right:16px; bottom:16px; z-index:1; display:flex; gap:8px; }
+.profileModalBody { padding:0; }
+.profileHeroCard {
+  margin-top:16px;
+  background:#121722;
+  border:1px solid var(--line);
+  border-radius:22px;
+  padding:18px;
+}
+.profileHero { display:flex; align-items:flex-end; justify-content:space-between; margin-top:-64px; gap:12px; }
+.profileHeroLeft { display:flex; align-items:flex-end; gap:14px; min-width:0; }
+.profileHeroMeta { min-width:0; }
+.profileHeroMeta b { display:block; font-size:28px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.profileHeroMeta span { color:var(--muted); font-size:14px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; display:block; }
+#profileModalAvatar.avatarWrap { width:104px; height:104px; flex:0 0 104px; }
+#profileModalAvatar .presenceDot { width:20px; height:20px; border-width:4px; }
+.profileStatusBar { margin-top:18px; display:flex; gap:10px; flex-wrap:wrap; }
 .statusChoice {
-  flex:1 1 calc(50% - 8px); min-width:140px; display:flex; align-items:center; gap:10px; padding:12px 14px;
-  border-radius:14px; border:1px solid var(--line); background:#141925; color:#fff; cursor:pointer;
+  flex:1 1 calc(50% - 10px); min-width:170px; display:flex; align-items:center; gap:10px; padding:13px 14px;
+  border-radius:16px; border:1px solid var(--line); background:#141925; color:#fff; cursor:pointer;
 }
 .statusChoice.active { border-color:#6b7cff; box-shadow:0 0 0 1px rgba(107,124,255,.35) inset; background:#1a2134; }
 .statusDot { width:12px; height:12px; border-radius:50%; }
-.profileSection { margin-top:16px; background:#141925; border:1px solid var(--line); border-radius:16px; padding:14px; }
-.profileSection h4 { margin:0 0 12px; font-size:14px; color:#cfd6e6; }
+.profileSection { margin-top:16px; background:#141925; border:1px solid var(--line); border-radius:18px; padding:16px; }
+.profileSection h4 { margin:0 0 12px; font-size:15px; color:#cfd6e6; }
 .profileFieldLabel { display:block; font-size:12px; color:var(--muted); margin-bottom:6px; }
 .profileInput { width:100%; padding:12px 14px; border-radius:12px; background:#0f1420; border:1px solid var(--line); color:#fff; }
-.profileActions { display:flex; justify-content:flex-end; gap:10px; margin-top:16px; }
+.profileActions {
+  display:flex;
+  justify-content:flex-end;
+  gap:10px;
+  padding:16px 22px 18px;
+  border-top:1px solid rgba(255,255,255,.06);
+  background:rgba(8,10,16,.42);
+}
 .profileActionBtn { padding:11px 16px; border-radius:12px; border:1px solid var(--line); background:#1a2030; color:#fff; cursor:pointer; }
 .profileActionBtn:hover { box-shadow:0 10px 24px rgba(0,0,0,.18); }
 .profileActionBtn.primary { background:linear-gradient(135deg,var(--accent),var(--accent2)); border:1px solid rgba(255,255,255,.22); box-shadow:0 0 0 1px rgba(107,124,255,.28) inset; }
@@ -603,7 +700,20 @@ body[data-theme='grape'] { --bg:#15111b; --bg2:#0b0911; --panel:rgba(29,20,38,.9
 body[data-theme='emerald'] { --bg:#0d1615; --bg2:#09100f; --panel:rgba(16,31,28,.92); --panel-2:rgba(21,39,35,.96); --panel-3:#1d312d; --accent:#2ecf8f; --accent-2:#61e2ae; --green:#56db9d; }
 body[data-theme='sunset'] { --bg:#1a1310; --bg2:#0f0a08; --panel:rgba(37,24,20,.92); --panel-2:rgba(48,31,26,.96); --panel-3:#35231d; --accent:#ff8a5b; --accent-2:#ffb36b; --green:#ffcf76; }
 body[data-theme='midnight'] { --bg:#101217; --bg2:#0b0d12; }
-@media (max-width: 700px) { .customGrid, .themePresetGrid, .wallpaperGrid { grid-template-columns:1fr; } }
+@media (max-width: 700px) {
+  .customGrid, .themePresetGrid, .wallpaperGrid { grid-template-columns:1fr; }
+  #profileModal { width:100vw; height:100dvh; max-height:none; border-radius:0; }
+  .settingsShell { grid-template-columns:1fr; }
+  .settingsSidebar { border-right:none; border-bottom:1px solid rgba(255,255,255,.06); flex-direction:row; overflow:auto; padding:12px; }
+  .settingsSidebarTitle { display:none; }
+  .settingsNavBtn { min-width:160px; }
+  .settingsContent { padding:14px; }
+  .profileBanner { height:150px; }
+  .profileHero { margin-top:-44px; align-items:flex-start; flex-direction:column; }
+  .profileHeroLeft { width:100%; }
+  .profileActions { padding:14px; flex-wrap:wrap; }
+}
+
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
@@ -1104,80 +1214,107 @@ body[data-theme='midnight'] { --bg:#101217; --bg2:#0b0d12; }
 <!-- PROFILE MODAL -->
 <div id="profileModalOverlay">
   <div id="profileModal">
-    <div class="profileBanner" id="profileBannerPreview"><div class="profileBannerTools"><button id="profileBannerBtn" class="profileActionBtn">Баннер</button></div></div>
-    <div class="profileModalBody">
-      <div class="profileHero">
-        <div class="profileHeroLeft">
-          <div id="profileModalAvatar" class="avatarWrap"><div class="avatar" style="background:#5865f2">?</div><div class="presenceDot presence-online"></div></div>
-          <div class="profileHeroMeta">
-            <b id="profileModalNickPreview">User</b>
-            <span>@<span id="profileModalLoginPreview">login</span></span>
+    <div class="settingsHeader">
+      <div class="settingsHeaderTitle">
+        <b id="settingsModalTitle">Настройки</b>
+        <span id="settingsModalSubtitle">Профиль и внешний вид</span>
+      </div>
+      <button id="profileModalCloseBtn" type="button">×</button>
+    </div>
+    <div class="settingsShell">
+      <aside class="settingsSidebar">
+        <div class="settingsSidebarTitle" id="settingsSidebarTitle">Настройки пользователя</div>
+        <button id="settingsTabProfileBtn" class="settingsNavBtn active" type="button" data-settings-tab="profile">Профиль</button>
+        <button id="settingsTabCustomizationBtn" class="settingsNavBtn" type="button" data-settings-tab="customization">Кастомизация</button>
+      </aside>
+
+      <div class="settingsMain">
+        <div class="settingsContent">
+          <div class="settingsPane active" id="settingsPaneProfile" data-settings-pane="profile">
+            <h3 class="settingsPaneTitle" id="settingsPaneProfileTitle">Профиль</h3>
+            <div class="profileBanner" id="profileBannerPreview"><div class="profileBannerTools"><button id="profileBannerBtn" class="profileActionBtn">Баннер</button></div></div>
+
+            <div class="profileHeroCard">
+              <div class="profileHero">
+                <div class="profileHeroLeft">
+                  <div id="profileModalAvatar" class="avatarWrap"><div class="avatar" style="background:#5865f2">?</div><div class="presenceDot presence-online"></div></div>
+                  <div class="profileHeroMeta">
+                    <b id="profileModalNickPreview">User</b>
+                    <span>@<span id="profileModalLoginPreview">login</span></span>
+                  </div>
+                </div>
+                <button id="profileAvatarBtn" class="profileActionBtn">Аватар</button>
+              </div>
+
+              <div class="profileStatusBar" id="profileStatusBar">
+                <button class="statusChoice active" data-status="online"><span class="statusDot presence-online"></span><span id="statusOnlineLabel">В сети</span></button>
+                <button class="statusChoice" data-status="idle"><span class="statusDot presence-idle"></span><span id="statusIdleLabel">Не активен</span></button>
+                <button class="statusChoice" data-status="dnd"><span class="statusDot presence-dnd"></span><span id="statusDndLabel">Не беспокоить</span></button>
+                <button class="statusChoice" data-status="invisible"><span class="statusDot presence-invisible"></span><span id="statusInvisibleLabel">Невидимка</span></button>
+              </div>
+
+              <div class="profileSection">
+                <h4 id="profileSettingsTitle">Настройка профиля</h4>
+                <div id="profileReadonlyNote" class="profileFieldLabel hidden">Просмотр профиля пользователя</div>
+                <label class="profileFieldLabel" id="profileNameLabel" for="profileNicknameInput">Отображаемое имя</label>
+                <input id="profileNicknameInput" class="profileInput" maxlength="32" placeholder="Введите имя">
+                <label class="profileFieldLabel" id="profileBioLabel" for="profileBioInput" style="margin-top:12px;">О себе</label>
+                <textarea id="profileBioInput" class="profileInput bioInput" maxlength="160" placeholder="Пара слов о себе"></textarea>
+                <div id="profileBioHint" class="profileHint">Это локальная подпись для твоего клиента — можно сделать себе стильный профиль.</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="settingsPane" id="settingsPaneCustomization" data-settings-pane="customization">
+            <h3 class="settingsPaneTitle" id="settingsPaneCustomizationTitle">Кастомизация</h3>
+
+            <div class="profileSection" id="appearanceSection">
+              <h4 id="appearanceTitle">Кастомизация</h4>
+              <div class="themePresetGrid" id="themePresetGrid">
+                <button class="themePresetBtn" type="button" data-theme="midnight"><div class="themePreviewRow"><span class="themeSwatch" style="background:linear-gradient(90deg,#6b7cff,#8592ff)"></span><span class="themeSwatch" style="background:#171b23"></span></div><span class="themeLabelMain">Midnight</span><span class="themeLabelSub">Классический тёмный</span></button>
+                <button class="themePresetBtn" type="button" data-theme="grape"><div class="themePreviewRow"><span class="themeSwatch" style="background:linear-gradient(90deg,#b06bff,#d18dff)"></span><span class="themeSwatch" style="background:#24192d"></span></div><span class="themeLabelMain">Grape</span><span class="themeLabelSub">Фиолетовый стиль</span></button>
+                <button class="themePresetBtn" type="button" data-theme="emerald"><div class="themePreviewRow"><span class="themeSwatch" style="background:linear-gradient(90deg,#2ecf8f,#61e2ae)"></span><span class="themeSwatch" style="background:#13211f"></span></div><span class="themeLabelMain">Emerald</span><span class="themeLabelSub">Зелёный стиль</span></button>
+                <button class="themePresetBtn" type="button" data-theme="sunset"><div class="themePreviewRow"><span class="themeSwatch" style="background:linear-gradient(90deg,#ff8a5b,#ffb36b)"></span><span class="themeSwatch" style="background:#2c1c16"></span></div><span class="themeLabelMain">Sunset</span><span class="themeLabelSub">Тёплый оранжевый</span></button>
+              </div>
+              <div class="customGrid" style="margin-top:12px;">
+                <label class="rangeField">
+                  <span class="profileFieldLabel" id="accentColorLabel">Акцентный цвет</span>
+                  <input id="accentColorInput" class="accentColorInput" type="color" value="#6b7cff">
+                </label>
+                <label class="toggleField">
+                  <span class="profileFieldLabel" id="compactModeLabel">Компактный режим</span>
+                  <button id="compactModeBtn" type="button" class="profileActionBtn">Выключен</button>
+                </label>
+                <label class="rangeField">
+                  <span class="profileFieldLabel" id="bubbleRadiusLabel">Скругление</span>
+                  <input id="bubbleRadiusInput" type="range" min="10" max="26" step="1" value="16">
+                  <span id="bubbleRadiusValue" class="rangeValue">16px</span>
+                </label>
+                <label class="rangeField">
+                  <span class="profileFieldLabel" id="fontSizeLabel">Размер текста</span>
+                  <input id="fontSizeInput" type="range" min="13" max="18" step="1" value="14">
+                  <span id="fontSizeValue" class="rangeValue">14px</span>
+                </label>
+              </div>
+            </div>
+
+            <div class="profileSection" id="wallpaperSection">
+              <h4 id="wallpaperTitle">Фон чата</h4>
+              <div class="wallpaperGrid">
+                <button class="wallpaperBtn" type="button" data-wallpaper="none">Без фона</button>
+                <button class="wallpaperBtn" type="button" data-wallpaper="dots">Точки</button>
+                <button class="wallpaperBtn" type="button" data-wallpaper="grid">Сетка</button>
+                <button class="wallpaperBtn" type="button" data-wallpaper="aurora">Aurora</button>
+              </div>
+            </div>
           </div>
         </div>
-        <button id="profileAvatarBtn" class="profileActionBtn">Аватар</button>
-      </div>
 
-      <div class="profileStatusBar" id="profileStatusBar">
-        <button class="statusChoice active" data-status="online"><span class="statusDot presence-online"></span><span id="statusOnlineLabel">В сети</span></button>
-        <button class="statusChoice" data-status="idle"><span class="statusDot presence-idle"></span><span id="statusIdleLabel">Не активен</span></button>
-        <button class="statusChoice" data-status="dnd"><span class="statusDot presence-dnd"></span><span id="statusDndLabel">Не беспокоить</span></button>
-        <button class="statusChoice" data-status="invisible"><span class="statusDot presence-invisible"></span><span id="statusInvisibleLabel">Невидимка</span></button>
-      </div>
-
-      <div class="profileSection">
-        <h4 id="profileSettingsTitle">Настройка профиля</h4>
-        <div id="profileReadonlyNote" class="profileFieldLabel hidden">Просмотр профиля пользователя</div>
-        <label class="profileFieldLabel" id="profileNameLabel" for="profileNicknameInput">Отображаемое имя</label>
-        <input id="profileNicknameInput" class="profileInput" maxlength="32" placeholder="Введите имя">
-        <label class="profileFieldLabel" id="profileBioLabel" for="profileBioInput" style="margin-top:12px;">О себе</label>
-        <textarea id="profileBioInput" class="profileInput bioInput" maxlength="160" placeholder="Пара слов о себе"></textarea>
-        <div id="profileBioHint" class="profileHint">Это локальная подпись для твоего клиента — можно сделать себе стильный профиль.</div>
-      </div>
-
-      <div class="profileSection" id="appearanceSection">
-        <h4 id="appearanceTitle">Кастомизация</h4>
-        <div class="themePresetGrid" id="themePresetGrid">
-          <button class="themePresetBtn" type="button" data-theme="midnight"><div class="themePreviewRow"><span class="themeSwatch" style="background:linear-gradient(90deg,#6b7cff,#8592ff)"></span><span class="themeSwatch" style="background:#171b23"></span></div><span class="themeLabelMain">Midnight</span><span class="themeLabelSub">Классический тёмный</span></button>
-          <button class="themePresetBtn" type="button" data-theme="grape"><div class="themePreviewRow"><span class="themeSwatch" style="background:linear-gradient(90deg,#b06bff,#d18dff)"></span><span class="themeSwatch" style="background:#24192d"></span></div><span class="themeLabelMain">Grape</span><span class="themeLabelSub">Фиолетовый стиль</span></button>
-          <button class="themePresetBtn" type="button" data-theme="emerald"><div class="themePreviewRow"><span class="themeSwatch" style="background:linear-gradient(90deg,#2ecf8f,#61e2ae)"></span><span class="themeSwatch" style="background:#13211f"></span></div><span class="themeLabelMain">Emerald</span><span class="themeLabelSub">Зелёный стиль</span></button>
-          <button class="themePresetBtn" type="button" data-theme="sunset"><div class="themePreviewRow"><span class="themeSwatch" style="background:linear-gradient(90deg,#ff8a5b,#ffb36b)"></span><span class="themeSwatch" style="background:#2c1c16"></span></div><span class="themeLabelMain">Sunset</span><span class="themeLabelSub">Тёплый оранжевый</span></button>
+        <div class="profileActions">
+          <button id="profileLogoutBtn" class="profileActionBtn">Выйти</button>
+          <button id="profileCancelBtn" class="profileActionBtn">Отмена</button>
+          <button id="profileSaveBtn" class="profileActionBtn primary">Сохранить</button>
         </div>
-        <div class="customGrid" style="margin-top:12px;">
-          <label class="rangeField">
-            <span class="profileFieldLabel" id="accentColorLabel">Акцентный цвет</span>
-            <input id="accentColorInput" class="accentColorInput" type="color" value="#6b7cff">
-          </label>
-          <label class="toggleField">
-            <span class="profileFieldLabel" id="compactModeLabel">Компактный режим</span>
-            <button id="compactModeBtn" type="button" class="profileActionBtn">Выключен</button>
-          </label>
-          <label class="rangeField">
-            <span class="profileFieldLabel" id="bubbleRadiusLabel">Скругление</span>
-            <input id="bubbleRadiusInput" type="range" min="10" max="26" step="1" value="16">
-            <span id="bubbleRadiusValue" class="rangeValue">16px</span>
-          </label>
-          <label class="rangeField">
-            <span class="profileFieldLabel" id="fontSizeLabel">Размер текста</span>
-            <input id="fontSizeInput" type="range" min="13" max="18" step="1" value="14">
-            <span id="fontSizeValue" class="rangeValue">14px</span>
-          </label>
-        </div>
-      </div>
-
-      <div class="profileSection" id="wallpaperSection">
-        <h4 id="wallpaperTitle">Фон чата</h4>
-        <div class="wallpaperGrid">
-          <button class="wallpaperBtn" type="button" data-wallpaper="none">Без фона</button>
-          <button class="wallpaperBtn" type="button" data-wallpaper="dots">Точки</button>
-          <button class="wallpaperBtn" type="button" data-wallpaper="grid">Сетка</button>
-          <button class="wallpaperBtn" type="button" data-wallpaper="aurora">Aurora</button>
-        </div>
-      </div>
-
-      <div class="profileActions">
-        <button id="profileLogoutBtn" class="profileActionBtn">Выйти</button>
-        <button id="profileCancelBtn" class="profileActionBtn">Отмена</button>
-        <button id="profileSaveBtn" class="profileActionBtn primary">Сохранить</button>
       </div>
     </div>
   </div>
@@ -1260,6 +1397,16 @@ const wallpaperTitle = document.getElementById('wallpaperTitle');
 const profileLogoutBtn = document.getElementById('profileLogoutBtn');
 const profileCancelBtn = document.getElementById('profileCancelBtn');
 const profileSaveBtn = document.getElementById('profileSaveBtn');
+const profileModalCloseBtn = document.getElementById('profileModalCloseBtn');
+const settingsTabProfileBtn = document.getElementById('settingsTabProfileBtn');
+const settingsTabCustomizationBtn = document.getElementById('settingsTabCustomizationBtn');
+const settingsPaneProfile = document.getElementById('settingsPaneProfile');
+const settingsPaneCustomization = document.getElementById('settingsPaneCustomization');
+const settingsModalTitle = document.getElementById('settingsModalTitle');
+const settingsModalSubtitle = document.getElementById('settingsModalSubtitle');
+const settingsSidebarTitle = document.getElementById('settingsSidebarTitle');
+const settingsPaneProfileTitle = document.getElementById('settingsPaneProfileTitle');
+const settingsPaneCustomizationTitle = document.getElementById('settingsPaneCustomizationTitle');
 const chatAvatar = document.getElementById('chatAvatar');
 const mobileBackBtn = document.getElementById('mobileBackBtn');
 const chatTitle = document.getElementById('chatTitle');
@@ -1347,6 +1494,7 @@ let callDisconnectTimer = null;
 let pendingRemoteCandidates = [];
 let pendingIncomingCall = null;
 let editingMessageId = null;
+let activeSettingsTab = 'profile';
 let typingUsers = {};
 let typingSendTimer = null;
 let typingStopTimer = null;
@@ -1495,7 +1643,34 @@ function appearanceText(key) {
   };
   return (map[currentLanguage] || map.ru)[key] || key;
 }
+
+function settingsText(key) {
+  const map = {
+    ru:{ title:'Настройки', subtitle:'Профиль и внешний вид', sidebar:'Настройки пользователя', profile:'Профиль', customization:'Кастомизация' },
+    uk:{ title:'Налаштування', subtitle:'Профіль і зовнішній вигляд', sidebar:'Налаштування користувача', profile:'Профіль', customization:'Кастомізація' },
+    en:{ title:'Settings', subtitle:'Profile and appearance', sidebar:'User settings', profile:'Profile', customization:'Customization' }
+  };
+  return (map[currentLanguage] || map.ru)[key] || key;
+}
+function setSettingsTab(tab) {
+  activeSettingsTab = tab === 'customization' ? 'customization' : 'profile';
+  [settingsTabProfileBtn, settingsTabCustomizationBtn].forEach(btn => {
+    if (!btn) return;
+    btn.classList.toggle('active', btn.dataset.settingsTab === activeSettingsTab);
+  });
+  [settingsPaneProfile, settingsPaneCustomization].forEach(pane => {
+    if (!pane) return;
+    pane.classList.toggle('active', pane.dataset.settingsPane === activeSettingsTab);
+  });
+}
 function applyAppearanceTexts() {
+  if (settingsModalTitle) settingsModalTitle.textContent = settingsText('title');
+  if (settingsModalSubtitle) settingsModalSubtitle.textContent = settingsText('subtitle');
+  if (settingsSidebarTitle) settingsSidebarTitle.textContent = settingsText('sidebar');
+  if (settingsTabProfileBtn) settingsTabProfileBtn.textContent = settingsText('profile');
+  if (settingsTabCustomizationBtn) settingsTabCustomizationBtn.textContent = settingsText('customization');
+  if (settingsPaneProfileTitle) settingsPaneProfileTitle.textContent = settingsText('profile');
+  if (settingsPaneCustomizationTitle) settingsPaneCustomizationTitle.textContent = settingsText('customization');
   if (appearanceTitle) appearanceTitle.textContent = appearanceText('appearance');
   if (accentColorLabel) accentColorLabel.textContent = appearanceText('accent');
   if (compactModeLabel) compactModeLabel.textContent = appearanceText('compact');
@@ -1548,11 +1723,13 @@ function setProfileModalMode(mode) {
   profileReadonlyNote.classList.toggle('hidden', isSelfMode);
   appearanceSection?.classList.toggle('hidden', !isSelfMode);
   wallpaperSection?.classList.toggle('hidden', !isSelfMode);
+  settingsTabCustomizationBtn?.classList.toggle('hidden', !isSelfMode);
   profileNicknameInput.readOnly = !isSelfMode;
   profileNicknameInput.disabled = !isSelfMode;
   if (profileBioInput) { profileBioInput.readOnly = !isSelfMode; profileBioInput.disabled = !isSelfMode; }
   profileSettingsTitle.textContent = isSelfMode ? t('profileSettings') : t('profileViewTitle');
   profileNameLabel.textContent = t('displayName');
+  if (!isSelfMode && activeSettingsTab === 'customization') setSettingsTab('profile');
 }
 
 function openProfileModal() {
@@ -1560,6 +1737,7 @@ function openProfileModal() {
   resetCallState();
   selectedProfileStatus = myStatus || 'online';
   setProfileModalMode('self');
+  setSettingsTab('profile');
   profileModalNickPreview.textContent = nickname || login || 'User';
   profileModalLoginPreview.textContent = login || '';
   profileNicknameInput.value = nickname || '';
@@ -1577,6 +1755,7 @@ function openProfileModal() {
 }
 
 function openUserProfileModal(userLogin, fetchFresh = true) {
+  setSettingsTab('profile');
   const incoming = typeof userLogin === 'string' ? { login:userLogin } : (userLogin || {});
   const resolved = findFriendData(incoming.login) || incoming;
   if (!resolved || !resolved.login) return;
@@ -1960,6 +2139,7 @@ function applyLanguage() {
   profileLogoutBtn.textContent = t('logout');
   profileCancelBtn.textContent = t('cancel');
   profileSaveBtn.textContent = t('save');
+  if (profileModalCloseBtn) profileModalCloseBtn.setAttribute('aria-label', t('close'));
   profileAvatarBtn.textContent = t('avatar');
   profileBannerBtn.textContent = t('banner');
   if (callBtnLabel) callBtnLabel.textContent = ['calling','incoming','connecting','connected'].includes(callState) ? t('hang') : t('call');
