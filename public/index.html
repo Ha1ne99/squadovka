@@ -3316,6 +3316,13 @@ profileAvatarBtn.onclick = () => avatarUploadInput.click();
 profileBannerBtn.onclick = () => bannerUploadInput.click();
 profileLogoutBtn.onclick = () => { performLogout(); };
 profileCancelBtn.onclick = closeProfileModal;
+
+profileModalCloseBtn.onclick = closeProfileModal;
+settingsTabProfileBtn?.addEventListener('click', () => setSettingsTab('profile'));
+settingsTabCustomizationBtn?.addEventListener('click', () => setSettingsTab('customization'));
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && profileModalOverlay?.style.display === 'flex') closeProfileModal();
+});
 profileModalOverlay.addEventListener('click', e => { if (e.target === profileModalOverlay) closeProfileModal(); });
 document.querySelectorAll('.statusChoice').forEach(btn => btn.onclick = () => { selectedProfileStatus = btn.dataset.status; updateStatusChoices(); });
 profileSaveBtn.onclick = () => {
