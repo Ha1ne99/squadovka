@@ -2241,12 +2241,18 @@ function hydrateStoredChats(rawChats) {
   const restored = {};
   for (const [key, list] of Object.entries(rawChats || {})) {
     if (!Array.isArray(list)) continue;
+
     restored[key] = list.map(item => {
       const msg = { ...item };
+
       if (!msg.avatar && msg.from) {
         const letter = String(msg.from || '?').charAt(0).toUpperCase() || '?';
         msg.avatar = { letter, color:'#5865f2' };
       }
+
+      msg.attachment = normalizeAttachment(msg.attachment);
+      msg.replyTo = normalizeReplyPayload(msg.replyTo);
+
       return msg;
     }).slice(-MAX_STORED_MESSAGES);
   }
@@ -2287,12 +2293,31 @@ function formatFileSize(bytes) {
 }
 function normalizeAttachment(att) {
   if (!att || typeof att !== 'object') return null;
+
   const url = typeof att.url === 'string' ? att.url : '';
-  const name = typeof att.name === 'string' ? att.name : 'file';
+  const name = typeof att.name === 'string'
+    ? att.name
+    : (typeof att.filename === 'string' ? att.filename : 'file');
+
   const size = Number(att.size);
-  const mimeType = typeof att.mimeType === 'string' ? att.mimeType : 'application/octet-stream';
+  const mimeType =
+    typeof att.mimeType === 'string' && att.mimeType
+      ? att.mimeType
+      : (typeof att.type === 'string' && att.type ? att.type : 'application/octet-stream');
+
+  const lowerName = String(name || '').toLowerCase();
+  const looksLikeImageByName = /\.(png|jpe?g|gif|webp|bmp|svg)$/i.test(lowerName);
+  const looksLikeImageByMime = /^image\//i.test(mimeType);
+
   if (!url) return null;
-  return { name, url, size:Number.isFinite(size) ? size : 0, mimeType, isImage: !!att.isImage || /^image\//i.test(mimeType) };
+
+  return {
+    name,
+    url,
+    size: Number.isFinite(size) ? size : 0,
+    mimeType,
+    isImage: !!att.isImage || looksLikeImageByMime || looksLikeImageByName
+  };
 }
 function normalizeReplyPayload(reply) {
   if (!reply || typeof reply !== 'object') return null;
