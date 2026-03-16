@@ -572,6 +572,7 @@ async function loginSocket(ws, user) {
     login: user.login,
     nickname: user.nickname,
     avatarImage: user.avatarimage,
+    bannerImage: user.bannerimage,
     status: normalizedStatus,
     sessionId: verifiedToken?.sessionId || null
   });
