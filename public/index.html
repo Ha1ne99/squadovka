@@ -1764,14 +1764,28 @@ function renderDmMenuPortal() {
   profileBtn.type = 'button';
   profileBtn.className = 'userMenuItem';
   profileBtn.textContent = t('viewProfile');
-  profileBtn.onclick = (e) => { e.stopPropagation(); closeDmListMenu(); openUserProfileModal(openDmListMenuUser); };
+  profileBtn.onclick = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const targetUser = openDmListMenuUser ? { ...openDmListMenuUser } : (openDmListMenuLogin ? { login: openDmListMenuLogin } : null);
+    if (!targetUser?.login) return;
+    openUserProfileModal(targetUser);
+    setTimeout(() => closeDmListMenu(), 0);
+  };
   menu.appendChild(profileBtn);
 
   const backgroundBtn = document.createElement('button');
   backgroundBtn.type = 'button';
   backgroundBtn.className = 'userMenuItem';
   backgroundBtn.textContent = t('changeBackground');
-  backgroundBtn.onclick = (e) => { e.stopPropagation(); const login = openDmListMenuUser?.login; closeDmListMenu(); requestDmWallpaperChange(login); };
+  backgroundBtn.onclick = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const targetLogin = openDmListMenuUser?.login || openDmListMenuLogin;
+    if (!targetLogin) return;
+    requestDmWallpaperChange(targetLogin);
+    setTimeout(() => closeDmListMenu(), 0);
+  };
   menu.appendChild(backgroundBtn);
 
   portal.appendChild(menu);
