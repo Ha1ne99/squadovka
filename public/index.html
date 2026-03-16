@@ -1046,6 +1046,39 @@ body[data-theme='midnight'] { --bg:#101217; --bg2:#0b0d12; }
   backdrop-filter: blur(10px);
   animation: fadeIn .22s ease;
 }
+#callOverlay.compactCall {
+  inset: auto;
+  top: 76px;
+  left: 302px;
+  right: 12px;
+  bottom: 88px;
+  background:
+    linear-gradient(180deg, rgba(9,11,18,.94), rgba(8,10,16,.90)),
+    radial-gradient(circle at 82% 72%, rgba(65,194,114,.10), transparent 28%),
+    radial-gradient(circle at 22% 22%, rgba(88,101,242,.15), transparent 26%);
+  border: 1px solid var(--line);
+  border-radius: 0 0 22px 22px;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.03), 0 18px 44px rgba(0,0,0,.28);
+  backdrop-filter: blur(14px);
+  overflow: hidden;
+  pointer-events: none;
+}
+#callOverlay.compactCall #callModal { pointer-events: auto; }
+#callOverlay.compactCall::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(90deg, transparent 0%, rgba(88,101,242,.06) 25%, transparent 50%, rgba(65,194,114,.05) 100%);
+  opacity: .9;
+  pointer-events: none;
+}
+#callOverlay.incomingCall {
+  inset: 0;
+  border: 0;
+  border-radius: 0;
+  pointer-events: auto;
+}
 #callModal {
   position: relative;
   width: 100%;
@@ -1054,6 +1087,11 @@ body[data-theme='midnight'] { --bg:#101217; --bg2:#0b0d12; }
   display: flex;
   flex-direction: column;
   overflow: hidden;
+}
+#callOverlay.compactCall #callModal {
+  min-height: auto;
+  height: 100%;
+  padding: 14px 18px 18px;
 }
 .callTop {
   display:flex;
@@ -1079,6 +1117,23 @@ body[data-theme='midnight'] { --bg:#101217; --bg2:#0b0d12; }
   font-size: 20px;
 }
 #callCloseBtn:hover { background: rgba(255,255,255,.1); }
+#callOverlay.compactCall #callCloseBtn {
+  width: 38px;
+  height: 38px;
+  min-width: 38px;
+  font-size: 18px;
+}
+#callOverlay.compactCall .callMeta b { font-size: 16px; }
+#callOverlay.compactCall .callMeta span { font-size: 12px; }
+#callOverlay.compactCall .callStageAvatar { width: 92px; height: 92px; }
+#callOverlay.compactCall .callStageAvatar.self { width: 78px; height: 78px; }
+#callOverlay.compactCall #callStatusText { font-size: 22px; }
+#callOverlay.compactCall #callHintText { font-size: 13px; max-width: 460px; }
+#callOverlay.compactCall .callMeterWrap { width: min(420px, calc(100% - 40px)); }
+#callOverlay.compactCall .callInfoPill { font-size: 12px; }
+#callOverlay.compactCall .callActionBtn { min-width: 114px; min-height: 48px; padding: 10px 14px; border-radius: 16px; }
+#callOverlay.compactCall .callVolumeControl { min-height: 48px; border-radius: 16px; }
+
 .callStage {
   flex: 1;
   display:flex;
@@ -1088,6 +1143,10 @@ body[data-theme='midnight'] { --bg:#101217; --bg2:#0b0d12; }
   gap: 18px;
   text-align:center;
   padding: 20px 0 156px;
+}
+#callOverlay.compactCall .callStage {
+  justify-content: center;
+  padding: 18px 0 116px;
 }
 .callAvatarRow {
   position: relative;
@@ -1177,6 +1236,12 @@ body[data-theme='midnight'] { --bg:#101217; --bg2:#0b0d12; }
   align-items:center;
   gap: 12px;
 }
+#callOverlay.compactCall .callBottomBar {
+  position: absolute;
+  left: 50%;
+  bottom: 14px;
+  width: min(720px, calc(100% - 24px));
+}
 .callRow {
   display:flex;
   gap:12px;
@@ -1230,6 +1295,15 @@ body[data-theme='midnight'] { --bg:#101217; --bg2:#0b0d12; }
 .user.groupUser .avatar { background:#5865f2 !important; }
 
 @media (max-width: 700px) {
+  #callOverlay.compactCall {
+    inset: 0;
+    left: 0;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    border-radius: 0;
+    pointer-events: auto;
+  }
   #callModal { padding: 14px 12px 22px; }
   .callStage { padding-bottom: 190px; }
   .callAvatarRow { gap: 14px; }
@@ -1994,8 +2068,22 @@ function setCallButtonVisible(visible) {
   if (!callBtn) return;
   callBtn.style.display = visible ? 'inline-flex' : 'none';
 }
-function showCallOverlay() { if (callOverlay) callOverlay.style.display = 'flex'; }
-function hideCallOverlay() { if (callOverlay) callOverlay.style.display = 'none'; }
+function syncCallOverlayMode() {
+  if (!callOverlay) return;
+  const compactStates = ['calling','connecting','connected'];
+  callOverlay.classList.toggle('compactCall', compactStates.includes(callState));
+  callOverlay.classList.toggle('incomingCall', callState === 'incoming');
+}
+function showCallOverlay() {
+  if (!callOverlay) return;
+  syncCallOverlayMode();
+  callOverlay.style.display = 'flex';
+}
+function hideCallOverlay() {
+  if (!callOverlay) return;
+  callOverlay.style.display = 'none';
+  callOverlay.classList.remove('compactCall', 'incomingCall');
+}
 function paintCallAvatarNode(node, avatarLike, fallbackLabel = '?') {
   if (!node) return;
   const letter = avatarLike?.letter || fallbackLabel;
@@ -2019,6 +2107,7 @@ function updateCallAvatar(user) {
   paintCallAvatarNode(callSelfStageAvatar, selfAvatar, (nickname || login || '?')[0]?.toUpperCase() || '?');
 }
 function updateCallUi() {
+  syncCallOverlayMode();
   const user = callPeerData || (callPeerLogin ? findFriendData(callPeerLogin) : null) || { login:callPeerLogin, nickname:callPeerLogin };
   updateCallAvatar(user);
   callPeerName.textContent = user?.nickname || user?.login || 'Call';
