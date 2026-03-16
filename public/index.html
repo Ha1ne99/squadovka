@@ -801,9 +801,9 @@ body[data-theme='midnight'] { --bg:#101217; --bg2:#0b0d12; }
   border-color:rgba(255,255,255,.08);
 }
 .userMenu {
-  position:absolute;
+  position:fixed;
   top:0;
-  left:calc(100% + 8px);
+  left:0;
   min-width:168px;
   background:#111622;
   border:1px solid rgba(255,255,255,.08);
@@ -811,7 +811,7 @@ body[data-theme='midnight'] { --bg:#101217; --bg2:#0b0d12; }
   border-radius:12px;
   padding:6px;
   display:none;
-  z-index:6500;
+  z-index:99999;
 }
 .userMenu.open { display:block; }
 .userMenuItem {
@@ -828,6 +828,16 @@ body[data-theme='midnight'] { --bg:#101217; --bg2:#0b0d12; }
 .userMenuItem:hover { background:#202633; }
 .user.hasOpenMenu { z-index:6200; overflow:visible; }
 .user.hasOpenMenu .unread { display:none; }
+.userMenuPortal {
+  position:fixed;
+  inset:0;
+  z-index:99998;
+  pointer-events:none;
+}
+.userMenuPortal .userMenu {
+  display:block;
+  pointer-events:auto;
+}
 
 @media (max-width: 900px) {
   html, body { height:100%; overflow:hidden; }
@@ -1563,6 +1573,8 @@ const defaultCustomization = { theme:'midnight', accent:'#6b7cff', radius:16, fo
 let customization = loadCustomization();
 let dmWallpapers = loadDmWallpapers();
 let openDmListMenuLogin = null;
+let openDmListMenuPosition = null;
+let openDmListMenuUser = null;
 let pendingDmWallpaperLogin = null;
 let rtcConfig = { iceServers:[{ urls:['stun:stun.l.google.com:19302'] }] };
 let callState = 'idle';
@@ -1734,14 +1746,70 @@ function applyChatWallpaper() {
   else if (customization.wallpaper === 'grid') chatEl.style.setProperty('background-size','34px 34px');
   else chatEl.style.removeProperty('background-size');
 }
+function removeDmMenuPortal() {
+  document.getElementById('dmListMenuPortal')?.remove();
+}
+function renderDmMenuPortal() {
+  removeDmMenuPortal();
+  if (!openDmListMenuLogin || !openDmListMenuPosition || !openDmListMenuUser) return;
+  const portal = document.createElement('div');
+  portal.id = 'dmListMenuPortal';
+  portal.className = 'userMenuPortal';
+
+  const menu = document.createElement('div');
+  menu.className = 'userMenu open';
+  menu.onclick = (e) => e.stopPropagation();
+
+  const profileBtn = document.createElement('button');
+  profileBtn.type = 'button';
+  profileBtn.className = 'userMenuItem';
+  profileBtn.textContent = t('viewProfile');
+  profileBtn.onclick = (e) => { e.stopPropagation(); closeDmListMenu(); openUserProfileModal(openDmListMenuUser); };
+  menu.appendChild(profileBtn);
+
+  const backgroundBtn = document.createElement('button');
+  backgroundBtn.type = 'button';
+  backgroundBtn.className = 'userMenuItem';
+  backgroundBtn.textContent = t('changeBackground');
+  backgroundBtn.onclick = (e) => { e.stopPropagation(); const login = openDmListMenuUser?.login; closeDmListMenu(); requestDmWallpaperChange(login); };
+  menu.appendChild(backgroundBtn);
+
+  portal.appendChild(menu);
+  document.body.appendChild(portal);
+
+  const viewportWidth = window.innerWidth;
+  const viewportHeight = window.innerHeight;
+  const startLeft = Math.min(openDmListMenuPosition.right + 8, viewportWidth - 180);
+  const startTop = Math.max(8, openDmListMenuPosition.top);
+  menu.style.left = `${startLeft}px`;
+  menu.style.top = `${startTop}px`;
+
+  const rect = menu.getBoundingClientRect();
+  let left = startLeft;
+  let top = startTop;
+  if (rect.right > viewportWidth - 8) left = Math.max(8, openDmListMenuPosition.left - rect.width - 8);
+  if (rect.bottom > viewportHeight - 8) top = Math.max(8, viewportHeight - rect.height - 8);
+  menu.style.left = `${left}px`;
+  menu.style.top = `${top}px`;
+}
 function closeDmListMenu() {
   openDmListMenuLogin = null;
+  openDmListMenuPosition = null;
+  openDmListMenuUser = null;
+  removeDmMenuPortal();
   document.querySelectorAll('.user').forEach(el => el.classList.remove('hasOpenMenu'));
   renderOnline();
 }
-function toggleDmListMenu(userLogin) {
-  openDmListMenuLogin = openDmListMenuLogin === userLogin ? null : userLogin;
+function toggleDmListMenu(userLogin, triggerEl, userData) {
+  if (openDmListMenuLogin === userLogin) {
+    closeDmListMenu();
+    return;
+  }
+  openDmListMenuLogin = userLogin;
+  openDmListMenuPosition = triggerEl?.getBoundingClientRect?.() || null;
+  openDmListMenuUser = userData || null;
   renderOnline();
+  requestAnimationFrame(renderDmMenuPortal);
 }
 function requestDmWallpaperChange(userLogin) {
   if (!userLogin || !dmWallpaperUploadInput) return;
@@ -3540,28 +3608,10 @@ function renderOnline() {
       trigger.className = 'userMenuTrigger' + (isMenuOpen ? ' active' : '');
       trigger.textContent = '⋯';
       trigger.title = 'Меню';
-      trigger.onclick = (e) => { e.stopPropagation(); toggleDmListMenu(item.login); };
+      trigger.onclick = (e) => { e.stopPropagation(); toggleDmListMenu(item.login, trigger, item); };
       actions.appendChild(trigger);
 
-      const menu = document.createElement('div');
-      menu.className = 'userMenu' + (isMenuOpen ? ' open' : '');
-      menu.onclick = (e) => e.stopPropagation();
-
-      const profileBtn = document.createElement('button');
-      profileBtn.type = 'button';
-      profileBtn.className = 'userMenuItem';
-      profileBtn.textContent = t('viewProfile');
-      profileBtn.onclick = (e) => { e.stopPropagation(); closeDmListMenu(); openUserProfileModal(item); };
-      menu.appendChild(profileBtn);
-
-      const backgroundBtn = document.createElement('button');
-      backgroundBtn.type = 'button';
-      backgroundBtn.className = 'userMenuItem';
-      backgroundBtn.textContent = t('changeBackground');
-      backgroundBtn.onclick = (e) => { e.stopPropagation(); closeDmListMenu(); requestDmWallpaperChange(item.login); };
-      menu.appendChild(backgroundBtn);
-
-      actions.appendChild(menu);
+      if (isMenuOpen) actions.classList.add('menuOpen');
       div.appendChild(actions);
       div.onclick = () => { closeDmListMenu(); openDM(item.login, item.nickname, item.avatar); };
       div.ondblclick = () => openUserProfileModal(item);
@@ -3626,8 +3676,10 @@ dmWallpaperUploadInput.onchange = () => {
 };
 
 document.addEventListener('click', e => {
-  if (!e.target.closest('.userActions')) closeDmListMenu();
+  if (!e.target.closest('.userActions') && !e.target.closest('#dmListMenuPortal .userMenu')) closeDmListMenu();
 });
+window.addEventListener('resize', () => { if (openDmListMenuLogin) renderDmMenuPortal(); });
+document.getElementById('online')?.addEventListener('scroll', () => { if (openDmListMenuLogin) closeDmListMenu(); });
 
 callBtn.onclick = async () => {
   if (callState !== 'idle') { endCurrentCall(true); return; }
