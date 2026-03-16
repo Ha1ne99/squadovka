@@ -216,67 +216,6 @@ button:hover { transform: translateY(-1px); }
   border-color: rgba(107,124,255,.45);
   box-shadow: inset 0 0 0 1px rgba(255,255,255,.04);
 }
-.dmEntryMenuBtn {
-  margin-left:auto;
-  width:32px;
-  height:32px;
-  border-radius:10px;
-  border:1px solid rgba(255,255,255,.08);
-  background:rgba(255,255,255,.04);
-  color:var(--text);
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  cursor:pointer;
-  flex:0 0 32px;
-  opacity:.9;
-}
-.dmEntryMenuBtn:hover { background:#222a38; border-color:rgba(107,124,255,.32); }
-.dmEntryMenu {
-  position:fixed;
-  min-width:164px;
-  max-width:190px;
-  background:#11161f;
-  border:1px solid rgba(255,255,255,.08);
-  border-radius:12px;
-  box-shadow:0 18px 44px rgba(0,0,0,.42);
-  padding:6px;
-  display:flex;
-  flex-direction:column;
-  gap:4px;
-  z-index:9999;
-  animation: popIn .14s ease;
-}
-.dmEntryMenu button {
-  width:100%;
-  text-align:left;
-  border:none;
-  border-radius:9px;
-  padding:8px 10px;
-  background:transparent;
-  color:var(--text);
-  cursor:pointer;
-  font-size:13px;
-  line-height:1.2;
-}
-.dmEntryMenu button:hover { background:#1b2330; }
-.dmWallpaperOptions {
-  display:grid;
-  grid-template-columns:1fr 1fr;
-  gap:5px;
-  padding-top:2px;
-}
-.dmWallpaperOptions button {
-  text-align:center;
-  font-size:12px;
-  padding:9px 8px;
-  border:1px solid rgba(255,255,255,.08);
-  background:#171d28;
-}
-.dmWallpaperOptions button.active {
-  border-color:rgba(107,124,255,.45);
-  background:#202a3c;
-}
 .user .userSub { display:block; line-height:1.2; }
 .userInfo { min-width:0; }
 .userName { font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
@@ -292,6 +231,87 @@ button:hover { transform: translateY(-1px); }
   padding:2px 7px;
   border-radius:999px;
   font-weight:800;
+}
+
+.chatItemMenuBtn {
+  position:absolute;
+  right:10px;
+  top:50%;
+  transform:translateY(-50%);
+  width:28px;
+  height:28px;
+  border-radius:10px;
+  border:1px solid rgba(255,255,255,.08);
+  background:rgba(15,18,27,.92);
+  color:#dbe2f2;
+  display:none;
+  align-items:center;
+  justify-content:center;
+  cursor:pointer;
+  z-index:2;
+  font-size:16px;
+  line-height:1;
+}
+.user:hover .chatItemMenuBtn,
+.user.active .chatItemMenuBtn,
+.chatItemMenuBtn.open {
+  display:flex;
+}
+.user.hasUnread .chatItemMenuBtn { right:44px; }
+.chatItemMenuBtn:hover { background:#222938; border-color:rgba(107,124,255,.35); }
+.chatItemMenu {
+  position:fixed;
+  min-width:180px;
+  background:#101521;
+  border:1px solid rgba(255,255,255,.09);
+  border-radius:12px;
+  box-shadow:0 16px 42px rgba(0,0,0,.42);
+  padding:6px;
+  z-index:10050;
+  display:flex;
+  flex-direction:column;
+  gap:4px;
+}
+.chatItemMenu[hidden] { display:none !important; }
+.chatItemMenuBtnItem,
+.chatItemMenuLabel {
+  width:100%;
+  border:none;
+  background:transparent;
+  color:#edf2ff;
+  text-align:left;
+  padding:9px 10px;
+  border-radius:9px;
+  font-size:13px;
+  line-height:1.2;
+}
+.chatItemMenuBtnItem { cursor:pointer; }
+.chatItemMenuBtnItem:hover { background:#1b2333; }
+.chatItemMenuLabel {
+  color:#98a4be;
+  font-size:11px;
+  padding-bottom:3px;
+  cursor:default;
+}
+.chatItemMenuWallpaperGrid {
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:6px;
+  padding:2px;
+}
+.chatItemWallpaperOption {
+  border:1px solid rgba(255,255,255,.08);
+  background:#171f2d;
+  color:#edf2ff;
+  border-radius:10px;
+  padding:8px 6px;
+  cursor:pointer;
+  font-size:12px;
+}
+.chatItemWallpaperOption:hover,
+.chatItemWallpaperOption.active {
+  border-color:rgba(107,124,255,.45);
+  background:#202a3d;
 }
 .avatar {
   width:40px;
@@ -1554,8 +1574,6 @@ let myBanner = null;
 let currentDM = null;
 let currentDMNick = null;
 let currentDMAvatar = null;
-let openDmEntryMenuLogin = null;
-let dmWallpapers = loadDmWallpapers();
 let currentChatType = 'dm';
 let currentGroupId = null;
 let groups = [];
@@ -1621,7 +1639,7 @@ const i18n = {
     messageNotFound:'Сообщение не найдено', edit:'Редактировать', save:'Сохранить', cancel:'Отмена', edited:'изменено', editOwnOnly:'Можно редактировать только свои сообщения',
     serverError:'Ошибка сервера', accountCreated:'Аккаунт создан, войдите', enterLoginPassword:'Введите логин и пароль', loginTaken:'Логин занят', badLogin:'Неверный логин или пароль', authExpired:'Сессия истекла. Войди снова.',
     badAvatar:'Неверный формат аватара', bigAvatar:'Аватар слишком большой', badBanner:'Неверный формат баннера', bigBanner:'Баннер слишком большой', userNotFound:'Пользователь не найден', alreadyFriends:'Вы уже друзья',
-    allowMic:'Разрешите доступ к микрофону для звонков', userOffline:'Пользователь не в сети', delete:'Удалить', typing:'печатает', profileSettings:'Настройка профиля', displayName:'Отображаемое имя', enterDisplayName:'Введите имя', status_online:'В сети', status_idle:'Не активен', status_dnd:'Не беспокоить', status_invisible:'Невидимка', status_offline:'Не в сети', viewProfile:'Профиль', removeFriend:'Удалить', profileViewTitle:'Профиль пользователя', removeFriendConfirm:'Удалить этого пользователя из друзей?', removedFromFriends:'Пользователь удалён из друзей', logout:'Выйти из аккаунта', reply:'Ответить', replyingTo:'Ответ на сообщение', replyUnknown:'Сообщение' 
+    allowMic:'Разрешите доступ к микрофону для звонков', userOffline:'Пользователь не в сети', delete:'Удалить', typing:'печатает', profileSettings:'Настройка профиля', displayName:'Отображаемое имя', enterDisplayName:'Введите имя', status_online:'В сети', status_idle:'Не активен', status_dnd:'Не беспокоить', status_invisible:'Невидимка', status_offline:'Не в сети', viewProfile:'Профиль', changeChatBackground:'Поменять фон', removeFriend:'Удалить', profileViewTitle:'Профиль пользователя', removeFriendConfirm:'Удалить этого пользователя из друзей?', removedFromFriends:'Пользователь удалён из друзей', logout:'Выйти из аккаунта', reply:'Ответить', replyingTo:'Ответ на сообщение', replyUnknown:'Сообщение' 
   },
   uk: {
     loginBrandSubtitle:'Твій затишний месенджер для друзів', login:'Вхід', register:'Реєстрація', loginBtn:'Увійти', registerBtn:'Створити акаунт',
@@ -1657,7 +1675,7 @@ const i18n = {
     messageNotFound:'Message not found', edit:'Edit', save:'Save', cancel:'Cancel', edited:'edited', editOwnOnly:'You can edit only your own messages',
     serverError:'Server error', accountCreated:'Account created, sign in', enterLoginPassword:'Enter login and password', loginTaken:'Login is already taken', badLogin:'Invalid login or password', authExpired:'Session expired. Sign in again.',
     badAvatar:'Invalid avatar format', bigAvatar:'Avatar is too large', badBanner:'Invalid banner format', bigBanner:'Banner is too large', userNotFound:'User not found', alreadyFriends:'You are already friends',
-    allowMic:'Allow microphone access for calls', userOffline:'User is offline', delete:'Delete', typing:'is typing', profileSettings:'Profile settings', displayName:'Display name', enterDisplayName:'Enter display name', status_online:'Online', status_idle:'Idle', status_dnd:'Do not disturb', status_invisible:'Invisible', status_offline:'Offline', viewProfile:'Profile', changeChatBackground:'Change chat background', wallNone:'No wallpaper', wallDots:'Dots', wallGrid:'Grid', wallAurora:'Aurora', removeFriend:'Remove', profileViewTitle:'User profile', removeFriendConfirm:'Remove this user from friends?', removedFromFriends:'User removed from friends', logout:'Log out', reply:'Reply', replyingTo:'Replying to message', replyUnknown:'Message' 
+    allowMic:'Allow microphone access for calls', userOffline:'User is offline', delete:'Delete', typing:'is typing', profileSettings:'Profile settings', displayName:'Display name', enterDisplayName:'Enter display name', status_online:'Online', status_idle:'Idle', status_dnd:'Do not disturb', status_invisible:'Invisible', status_offline:'Offline', viewProfile:'Profile', changeChatBackground:'Change wallpaper', removeFriend:'Remove', profileViewTitle:'User profile', removeFriendConfirm:'Remove this user from friends?', removedFromFriends:'User removed from friends', logout:'Log out', reply:'Reply', replyingTo:'Replying to message', replyUnknown:'Message' 
   }
 };
 
@@ -1682,39 +1700,41 @@ function loadCustomization() {
 function saveCustomization() {
   localStorage.setItem('messenger_customization', JSON.stringify(customization));
 }
-function loadDmWallpapers() {
+function getDmWallpapersStorageKey(userLogin) {
+  return `messenger_dm_wallpapers_${userLogin || 'guest'}`;
+}
+function loadDmWallpapers(userLogin) {
   try {
-    const raw = JSON.parse(localStorage.getItem('messenger_dm_wallpapers') || '{}');
-    return raw && typeof raw === 'object' ? raw : {};
+    return JSON.parse(localStorage.getItem(getDmWallpapersStorageKey(userLogin)) || '{}') || {};
   } catch {
     return {};
   }
 }
 function saveDmWallpapers() {
-  localStorage.setItem('messenger_dm_wallpapers', JSON.stringify(dmWallpapers || {}));
+  if (!login) return;
+  try {
+    localStorage.setItem(getDmWallpapersStorageKey(login), JSON.stringify(dmWallpapers || {}));
+  } catch (err) {
+    console.warn('Failed to save DM wallpapers:', err);
+  }
 }
-function getEffectiveWallpaperName() {
-  if (currentChatType === 'dm' && currentDM && dmWallpapers && dmWallpapers[currentDM]) return dmWallpapers[currentDM];
+function getCurrentChatWallpaper() {
+  if (currentChatType === 'dm' && currentDM && dmWallpapers[currentDM]) return dmWallpapers[currentDM];
   return customization.wallpaper || 'none';
 }
-function applyChatWallpaper() {
-  const wallpaperName = getEffectiveWallpaperName();
+function applyCurrentChatWallpaper() {
+  const wallpaperName = getCurrentChatWallpaper();
   document.documentElement.style.setProperty('--chat-wallpaper', getWallpaperValue(wallpaperName));
   document.documentElement.style.setProperty('--chat-wallpaper-opacity', wallpaperName === 'none' ? '.16' : '.22');
   if (wallpaperName === 'dots') document.getElementById('chat')?.style.setProperty('background-size','18px 18px');
   else if (wallpaperName === 'grid') document.getElementById('chat')?.style.setProperty('background-size','34px 34px');
   else document.getElementById('chat')?.style.removeProperty('background-size');
 }
-function setDmWallpaper(targetLogin, wallpaperName) {
-  if (!targetLogin) return;
-  const nextWallpaper = wallpaperName || 'none';
-  if (nextWallpaper === 'none') delete dmWallpapers[targetLogin];
-  else dmWallpapers[targetLogin] = nextWallpaper;
+function setDmWallpaper(userLogin, wallpaper) {
+  if (!userLogin) return;
+  dmWallpapers[userLogin] = wallpaper || 'none';
   saveDmWallpapers();
-  if (currentChatType === 'dm' && currentDM === targetLogin) applyChatWallpaper();
-}
-function getDmWallpaper(loginValue) {
-  return (dmWallpapers && loginValue && dmWallpapers[loginValue]) || 'none';
+  if (currentChatType === 'dm' && currentDM === userLogin) applyCurrentChatWallpaper();
 }
 function getAccent2(hex) {
   const value = String(hex || '#6b7cff').replace('#','');
@@ -1747,7 +1767,7 @@ function applyCustomization() {
   document.documentElement.style.setProperty('--accent-2', getAccent2(customization.accent || '#6b7cff'));
   document.documentElement.style.setProperty('--ui-radius', `${customization.radius ?? 16}px`);
   document.documentElement.style.setProperty('--message-font-size', `${customization.fontSize ?? 14}px`);
-  applyChatWallpaper();
+  applyCurrentChatWallpaper();
   if (profileBioInput && profileModalMode === 'self') profileBioInput.value = customization.bio || '';
   saveCustomization();
   updateCustomizationControls();
@@ -1755,9 +1775,9 @@ function applyCustomization() {
 }
 function appearanceText(key) {
   const map = {
-    ru:{ appearance:'Кастомизация', accent:'Акцентный цвет', compact:'Компактный режим', radius:'Скругление', font:'Размер текста', wallpaper:'Фон чата', bio:'О себе', bioHint:'Это локальная подпись для твоего клиента — можно сделать себе стильный профиль.', enabled:'Включен', disabled:'Выключен', wallNone:'Без фона', wallDots:'Точки', wallGrid:'Сетка', wallAurora:'Aurora' },
-    uk:{ appearance:'Кастомізація', accent:'Акцентний колір', compact:'Компактний режим', radius:'Заокруглення', font:'Розмір тексту', wallpaper:'Фон чату', bio:'Про себе', bioHint:'Це локальний підпис для твого клієнта — можна зробити собі стильний профіль.', enabled:'Увімкнено', disabled:'Вимкнено', wallNone:'Без фону', wallDots:'Крапки', wallGrid:'Сітка', wallAurora:'Aurora' },
-    en:{ appearance:'Customization', accent:'Accent color', compact:'Compact mode', radius:'Bubble roundness', font:'Text size', wallpaper:'Chat wallpaper', bio:'About me', bioHint:'This is a local note for your client — a simple way to style your profile.', enabled:'Enabled', disabled:'Disabled', wallNone:'No wallpaper', wallDots:'Dots', wallGrid:'Grid', wallAurora:'Aurora' }
+    ru:{ appearance:'Кастомизация', accent:'Акцентный цвет', compact:'Компактный режим', radius:'Скругление', font:'Размер текста', wallpaper:'Фон чата', bio:'О себе', bioHint:'Это локальная подпись для твоего клиента — можно сделать себе стильный профиль.', enabled:'Включен', disabled:'Выключен', wallNone:'Без фона', wallDots:'Точки', wallGrid:'Сетка', wallAurora:'Aurora', chatActions:'Действия чата' },
+    uk:{ appearance:'Кастомізація', accent:'Акцентний колір', compact:'Компактний режим', radius:'Заокруглення', font:'Розмір тексту', wallpaper:'Фон чату', bio:'Про себе', bioHint:'Це локальний підпис для твого клієнта — можна зробити собі стильний профіль.', enabled:'Увімкнено', disabled:'Вимкнено', wallNone:'Без фону', wallDots:'Крапки', wallGrid:'Сітка', wallAurora:'Aurora', chatActions:'Дії чату' },
+    en:{ appearance:'Customization', accent:'Accent color', compact:'Compact mode', radius:'Bubble roundness', font:'Text size', wallpaper:'Chat wallpaper', bio:'About me', bioHint:'This is a local note for your client — a simple way to style your profile.', enabled:'Enabled', disabled:'Disabled', wallNone:'No wallpaper', wallDots:'Dots', wallGrid:'Grid', wallAurora:'Aurora', chatActions:'Chat actions' }
   };
   return (map[currentLanguage] || map.ru)[key] || key;
 }
@@ -2350,6 +2370,7 @@ function loadLocalChatState(userLogin) {
     chats = hydrateStoredChats(JSON.parse(localStorage.getItem(getChatsStorageKey(userLogin)) || '{}'));
     unread = JSON.parse(localStorage.getItem(getUnreadStorageKey(userLogin)) || '{}');
   } catch { chats = {}; unread = {}; }
+  dmWallpapers = loadDmWallpapers(userLogin);
 }
 
 async function unlockAudio() {}
@@ -3008,18 +3029,19 @@ function handle(d) {
 }
 
 function openDM(l, n, avatar = null) {
-  closeDmEntryMenu();
+  closeChatItemMenu();
   closeFriendsPanel();
   syncMobileLayout(true);
   currentChatType = 'dm';
   currentGroupId = null;
   currentDM = l; currentDMNick = n; currentDMAvatar = avatar; editingMessageId = null; openMessageMenuId = null; clearReplyMessage(); emptyChat.style.display = 'none'; messages.style.display = 'block'; unread[l] = 0; saveLocalChatState();
   const peer = findFriendData(l) || { nickname:n, avatar, status:'offline' };
-  updateChatHeader(l, peer.nickname || n, peer.avatar || avatar); applyChatWallpaper(); renderTypingIndicator(); ws.send(JSON.stringify({ type:'get_messages', with:l })); ws.send(JSON.stringify({ type:'read', from:l })); scheduleRenderCurrentChat(true); renderOnline(); renderGroups();
+  updateChatHeader(l, peer.nickname || n, peer.avatar || avatar);
+  applyCurrentChatWallpaper(); renderTypingIndicator(); ws.send(JSON.stringify({ type:'get_messages', with:l })); ws.send(JSON.stringify({ type:'read', from:l })); scheduleRenderCurrentChat(true); renderOnline(); renderGroups();
 }
 
 function openGroup(groupId) {
-  closeDmEntryMenu();
+  closeChatItemMenu();
   friendsPanel.classList.remove('open');
   friendsBtn.classList.remove('active');
   syncMobileLayout(true);
@@ -3032,7 +3054,7 @@ function openGroup(groupId) {
   emptyChat.style.display = 'none';
   messages.style.display = 'block';
   updateChatHeader();
-  applyChatWallpaper();
+  applyCurrentChatWallpaper();
   scheduleRenderCurrentChat(true);
   renderOnline();
   renderGroups();
@@ -3250,6 +3272,8 @@ text.addEventListener('input', () => {
 });
 messages.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.classList.contains('editInput')) { e.preventDefault(); saveEditMessage(e.target.dataset.messageId); } });
 document.addEventListener('click', e => { if (!e.target.closest('.messageMenuWrap')) closeMessageMenu(); });
+document.addEventListener('click', e => { if (!e.target.closest('.chatItemMenu') && !e.target.closest('.chatItemMenuBtn')) closeChatItemMenu(); });
+window.addEventListener('resize', () => positionChatItemMenu(activeChatItemMenuButton, activeChatItemMenu));
 
 function closeFriendsPanel() { friendsPanel.classList.remove('open'); friendsBtn.classList.remove('active'); }
 function toggleFriendsPanel() {
@@ -3472,6 +3496,81 @@ function getChatSortMeta(item) {
   const last = arr.length ? Number(arr[arr.length - 1].time || 0) : 0;
   return { key, last };
 }
+function closeChatItemMenu() {
+  activeChatItemMenu?.remove();
+  activeChatItemMenu = null;
+  if (activeChatItemMenuButton) activeChatItemMenuButton.classList.remove('open');
+  activeChatItemMenuButton = null;
+}
+function openChatItemMenu(button, user) {
+  if (!button || !user?.login) return;
+  if (activeChatItemMenuButton === button && activeChatItemMenu) {
+    closeChatItemMenu();
+    return;
+  }
+  closeChatItemMenu();
+  const menu = document.createElement('div');
+  menu.className = 'chatItemMenu';
+  const profileBtn = document.createElement('button');
+  profileBtn.type = 'button';
+  profileBtn.className = 'chatItemMenuBtnItem';
+  profileBtn.textContent = t('viewProfile');
+  profileBtn.onclick = () => {
+    closeChatItemMenu();
+    openUserProfileModal(user);
+  };
+  const wallpaperBtn = document.createElement('button');
+  wallpaperBtn.type = 'button';
+  wallpaperBtn.className = 'chatItemMenuBtnItem';
+  wallpaperBtn.textContent = t('changeChatBackground');
+  wallpaperBtn.onclick = () => {
+    const grid = menu.querySelector('.chatItemMenuWallpaperGrid');
+    const isHidden = grid.hasAttribute('hidden');
+    grid.toggleAttribute('hidden', !isHidden);
+    requestAnimationFrame(() => positionChatItemMenu(button, menu));
+  };
+  const label = document.createElement('div');
+  label.className = 'chatItemMenuLabel';
+  label.textContent = appearanceText('wallpaper');
+  const grid = document.createElement('div');
+  grid.className = 'chatItemMenuWallpaperGrid';
+  grid.hidden = true;
+  [
+    ['none', appearanceText('wallNone')],
+    ['dots', appearanceText('wallDots')],
+    ['grid', appearanceText('wallGrid')],
+    ['aurora', appearanceText('wallAurora')]
+  ].forEach(([value, labelText]) => {
+    const option = document.createElement('button');
+    option.type = 'button';
+    option.className = 'chatItemWallpaperOption' + (dmWallpapers[user.login] === value ? ' active' : '');
+    option.textContent = labelText;
+    option.onclick = () => {
+      setDmWallpaper(user.login, value);
+      closeChatItemMenu();
+    };
+    grid.appendChild(option);
+  });
+  menu.append(profileBtn, wallpaperBtn, label, grid);
+  document.body.appendChild(menu);
+  activeChatItemMenu = menu;
+  activeChatItemMenuButton = button;
+  button.classList.add('open');
+  positionChatItemMenu(button, menu);
+}
+function positionChatItemMenu(button, menu) {
+  if (!button || !menu) return;
+  const rect = button.getBoundingClientRect();
+  const menuRect = menu.getBoundingClientRect();
+  let left = rect.right + 8;
+  let top = rect.top - 4;
+  if (left + menuRect.width > window.innerWidth - 8) left = rect.left - menuRect.width - 8;
+  if (left < 8) left = 8;
+  if (top + menuRect.height > window.innerHeight - 8) top = window.innerHeight - menuRect.height - 8;
+  if (top < 8) top = 8;
+  menu.style.left = `${left}px`;
+  menu.style.top = `${top}px`;
+}
 function renderOnline() {
   online.innerHTML = '';
   const dmItems = dedupeUsers(friends).map(user => ({ kind:'dm', ...user }));
@@ -3502,108 +3601,31 @@ function renderOnline() {
       div.appendChild(info);
       div.onclick = () => openGroup(item.id);
     } else {
-      div.className = 'user' + (item.login === currentDM && currentChatType === 'dm' ? ' active' : '');
+      const unreadCount = Number(unread[item.login] || 0);
+      div.className = 'user' + (item.login === currentDM && currentChatType === 'dm' ? ' active' : '') + (unreadCount > 0 ? ' hasUnread' : '');
       div.dataset.login = item.login;
       div.appendChild(createAvatar(item.avatar || item, item.status || 'offline', true));
       const info = document.createElement('div');
       info.className = 'userInfo';
       info.innerHTML = `<div class="userName">${escapeHtml(item.nickname || item.login)}</div><div class="userSub">${escapeHtml(statusText(item.status || 'offline'))}</div>`;
       div.appendChild(info);
+      if (unreadCount > 0) { const b = document.createElement('div'); b.className = 'unread'; b.textContent = unreadCount; div.appendChild(b); }
       const menuBtn = document.createElement('button');
       menuBtn.type = 'button';
-      menuBtn.className = 'dmEntryMenuBtn';
+      menuBtn.className = 'chatItemMenuBtn';
       menuBtn.textContent = '⋯';
-      menuBtn.setAttribute('aria-label', 'menu');
-      menuBtn.onclick = e => toggleDmEntryMenu(e, item);
+      menuBtn.title = appearanceText('chatActions');
+      menuBtn.onclick = e => {
+        e.stopPropagation();
+        openChatItemMenu(menuBtn, item);
+      };
       div.appendChild(menuBtn);
-      if (unread[item.login] > 0) { const b = document.createElement('div'); b.className = 'unread'; b.textContent = unread[item.login]; div.appendChild(b); }
-      div.onclick = e => { if (e.target.closest('.dmEntryMenuBtn') || e.target.closest('.dmEntryMenu')) return; openDM(item.login, item.nickname, item.avatar); };
-      div.ondblclick = e => { if (e.target.closest('.dmEntryMenuBtn') || e.target.closest('.dmEntryMenu')) return; openUserProfileModal(item); };
+      div.onclick = () => openDM(item.login, item.nickname, item.avatar);
+      div.ondblclick = () => openUserProfileModal(item);
     }
     online.appendChild(div);
   });
 }
-
-function getWallpaperLabel(name) {
-  if (name === 'dots') return t('wallDots');
-  if (name === 'grid') return t('wallGrid');
-  if (name === 'aurora') return t('wallAurora');
-  return t('wallNone');
-}
-function closeDmEntryMenu() {
-  openDmEntryMenuLogin = null;
-  document.querySelectorAll('.dmEntryMenu').forEach(menu => menu.remove());
-}
-function toggleDmEntryMenu(event, user) {
-  event.preventDefault();
-  event.stopPropagation();
-  const trigger = event.currentTarget;
-  if (!trigger || !user?.login) return;
-  if (openDmEntryMenuLogin === user.login) {
-    closeDmEntryMenu();
-    return;
-  }
-  closeDmEntryMenu();
-  openDmEntryMenuLogin = user.login;
-  const menu = document.createElement('div');
-  menu.className = 'dmEntryMenu';
-  const profileBtn = document.createElement('button');
-  profileBtn.textContent = t('viewProfile');
-  profileBtn.onclick = ev => { ev.stopPropagation(); closeDmEntryMenu(); openUserProfileModal(user); };
-  menu.appendChild(profileBtn);
-  const bgWrap = document.createElement('div');
-  const bgBtn = document.createElement('button');
-  bgBtn.textContent = `${t('changeChatBackground')} · ${getWallpaperLabel(getDmWallpaper(user.login))}`;
-  bgBtn.onclick = ev => {
-    ev.stopPropagation();
-    options.hidden = !options.hidden;
-    requestAnimationFrame(() => positionDmEntryMenu(menu, trigger));
-  };
-  bgWrap.appendChild(bgBtn);
-  const options = document.createElement('div');
-  options.className = 'dmWallpaperOptions';
-  options.hidden = true;
-  ['none','dots','grid','aurora'].forEach(name => {
-    const option = document.createElement('button');
-    option.type = 'button';
-    option.textContent = getWallpaperLabel(name);
-    option.classList.toggle('active', getDmWallpaper(user.login) === name);
-    option.onclick = ev => {
-      ev.stopPropagation();
-      if (currentDM !== user.login || currentChatType !== 'dm') openDM(user.login, user.nickname || user.login, user.avatar || null);
-      setDmWallpaper(user.login, name);
-      closeDmEntryMenu();
-    };
-    options.appendChild(option);
-  });
-  bgWrap.appendChild(options);
-  menu.appendChild(bgWrap);
-  document.body.appendChild(menu);
-  requestAnimationFrame(() => positionDmEntryMenu(menu, trigger));
-}
-
-function positionDmEntryMenu(menu, trigger) {
-  if (!menu || !trigger) return;
-  const rect = trigger.getBoundingClientRect();
-  const menuRect = menu.getBoundingClientRect();
-  const gap = 6;
-  const vw = window.innerWidth;
-  const vh = window.innerHeight;
-  let left = rect.right + gap;
-  if (left + menuRect.width > vw - 8) left = rect.left - menuRect.width - gap;
-  if (left < 8) left = Math.max(8, vw - menuRect.width - 8);
-  let top = rect.top;
-  if (top + menuRect.height > vh - 8) top = vh - menuRect.height - 8;
-  if (top < 8) top = 8;
-  menu.style.left = `${left}px`;
-  menu.style.top = `${top}px`;
-}
-
-document.addEventListener('click', e => {
-  if (!e.target.closest('.dmEntryMenu') && !e.target.closest('.dmEntryMenuBtn')) closeDmEntryMenu();
-});
-window.addEventListener('resize', () => closeDmEntryMenu());
-document.addEventListener('scroll', () => { if (openDmEntryMenuLogin) closeDmEntryMenu(); }, true);
 
 function accept(u) { ws.send(JSON.stringify({ type:'friend_accept', from:u })); requests = requests.filter(r => r !== u); renderRequests(); }
 function decline(u) { requests = requests.filter(r => r !== u); renderRequests(); }
