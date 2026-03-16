@@ -249,6 +249,17 @@ function sanitizeAttachmentPayload(attachment) {
   if (!url.startsWith('/uploads/') || !Number.isFinite(size) || size <= 0 || size > MAX_FILE_SIZE) return null;
   return { name, url, size, mimeType, isImage: isImageMime(mimeType) };
 }
+function sanitizeReplyPayload(reply) {
+  if (!reply || typeof reply !== 'object') return null;
+  const id = Number(reply.id);
+  if (!Number.isFinite(id)) return null;
+  const text = typeof reply.text === 'string' ? reply.text.trim().slice(0, 240) : '';
+  const from = typeof reply.from === 'string' ? sanitizeLogin(reply.from) : '';
+  const fromNick = typeof reply.fromNick === 'string' ? sanitizeName(reply.fromNick, MAX_NICKNAME_LENGTH) : '';
+  const attachment = sanitizeAttachmentPayload(reply.attachment);
+  if (!from && !fromNick && !text && !attachment) return null;
+  return { id, text, from, fromNick, attachment };
+}
 
 async function readRequestBody(req, maxBytes = MAX_FILE_SIZE) {
   const chunks = [];
@@ -403,6 +414,7 @@ async function initDb() {
   await pool.query(`ALTER TABLE messages ADD COLUMN IF NOT EXISTS deliveredAt BIGINT`);
   await pool.query(`ALTER TABLE messages ADD COLUMN IF NOT EXISTS readAt BIGINT`);
   await pool.query(`ALTER TABLE messages ADD COLUMN IF NOT EXISTS attachment JSONB`);
+  await pool.query(`ALTER TABLE messages ADD COLUMN IF NOT EXISTS replyTo JSONB`);
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS friends (
@@ -464,6 +476,7 @@ async function initDb() {
   await pool.query(`ALTER TABLE group_messages ADD COLUMN IF NOT EXISTS edited BOOLEAN NOT NULL DEFAULT FALSE`);
   await pool.query(`ALTER TABLE group_messages ADD COLUMN IF NOT EXISTS editedAt BIGINT`);
   await pool.query(`ALTER TABLE group_messages ADD COLUMN IF NOT EXISTS attachment JSONB`);
+  await pool.query(`ALTER TABLE group_messages ADD COLUMN IF NOT EXISTS replyTo JSONB`);
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS sessions (
@@ -671,9 +684,9 @@ async function getUnreadMap(login) {
 
 async function getChatHistory(userA, userB) {
   const result = await pool.query(`
-    SELECT id, fromUser, toUser, text, time, edited, editedAt, deliveredAt, readAt, attachment
+    SELECT id, fromUser, toUser, text, time, edited, editedAt, deliveredAt, readAt, attachment, replyTo
     FROM (
-      SELECT id, fromUser, toUser, text, time, edited, editedAt, deliveredAt, readAt, attachment
+      SELECT id, fromUser, toUser, text, time, edited, editedAt, deliveredAt, readAt, attachment, replyTo
       FROM messages
       WHERE (fromUser = $1 AND toUser = $2)
          OR (fromUser = $2 AND toUser = $1)
@@ -704,6 +717,7 @@ async function getChatHistory(userA, userB) {
       readAt: row.readat ? Number(row.readat) : null,
       receiptStatus: getMessageReceiptStatus(row),
       attachment: sanitizeAttachmentPayload(row.attachment),
+      replyTo: sanitizeReplyPayload(row.replyto),
       avatar: sender?.avatar || buildAvatar(row.fromuser, row.fromuser)
     });
   }
@@ -775,9 +789,9 @@ async function getGroupsForUser(login) {
 
 async function getGroupHistory(groupId, viewerLogin = null) {
   const result = await pool.query(`
-    SELECT id, groupId, fromUser, text, time, edited, editedAt, attachment
+    SELECT id, groupId, fromUser, text, time, edited, editedAt, attachment, replyTo
     FROM (
-      SELECT id, groupId, fromUser, text, time, edited, editedAt, attachment
+      SELECT id, groupId, fromUser, text, time, edited, editedAt, attachment, replyTo
       FROM group_messages
       WHERE groupId = $1
       ORDER BY time DESC, id DESC
@@ -804,6 +818,7 @@ async function getGroupHistory(groupId, viewerLogin = null) {
       editedAt: row.editedat ? Number(row.editedat) : null,
       fromNick: sender?.nickname || row.fromuser,
       attachment: sanitizeAttachmentPayload(row.attachment),
+      replyTo: sanitizeReplyPayload(row.replyto),
       avatar: sender?.avatar || buildAvatar(row.fromuser, row.fromuser)
     });
   }
@@ -1199,15 +1214,16 @@ wss.on('connection', (ws, req) => {
         const groupId = Number(data.groupId);
         const messageText = sanitizeText(data.text);
         const attachment = sanitizeAttachmentPayload(data.attachment);
+        const replyTo = sanitizeReplyPayload(data.replyTo);
         if (!groupId || (!messageText && !attachment)) return;
         if (!(await isGroupMember(groupId, userLogin))) return;
 
         const messageTime = Date.now();
         const insertResult = await pool.query(`
-          INSERT INTO group_messages (groupId, fromUser, text, time, edited, editedAt, attachment)
-          VALUES ($1, $2, $3, $4, FALSE, NULL, $5::jsonb)
+          INSERT INTO group_messages (groupId, fromUser, text, time, edited, editedAt, attachment, replyTo)
+          VALUES ($1, $2, $3, $4, FALSE, NULL, $5::jsonb, $6::jsonb)
           RETURNING id
-        `, [groupId, userLogin, messageText, messageTime, attachment ? JSON.stringify(attachment) : null]);
+        `, [groupId, userLogin, messageText, messageTime, attachment ? JSON.stringify(attachment) : null, replyTo ? JSON.stringify(replyTo) : null]);
 
         const msgData = {
           type: 'group_message',
@@ -1219,6 +1235,7 @@ wss.on('connection', (ws, req) => {
           edited: false,
           editedAt: null,
           attachment,
+          replyTo,
           fromNick: me.nickname,
           avatar: buildAvatar(userLogin, me.nickname, me.avatarImage)
         };
@@ -1546,6 +1563,7 @@ wss.on('connection', (ws, req) => {
         const targetLogin = sanitizeLogin(data.to);
         const messageText = sanitizeText(data.text);
         const attachment = sanitizeAttachmentPayload(data.attachment);
+        const replyTo = sanitizeReplyPayload(data.replyTo);
         if (!targetLogin || (!messageText && !attachment)) return;
         if (!(await userExists(targetLogin))) return;
         if (!(await areFriends(userLogin, targetLogin))) {
@@ -1555,10 +1573,10 @@ wss.on('connection', (ws, req) => {
 
         const messageTime = Date.now();
         const insertResult = await pool.query(`
-          INSERT INTO messages (fromUser, toUser, text, time, edited, editedAt, deliveredAt, readAt, attachment)
-          VALUES ($1, $2, $3, $4, FALSE, NULL, NULL, NULL, $5::jsonb)
+          INSERT INTO messages (fromUser, toUser, text, time, edited, editedAt, deliveredAt, readAt, attachment, replyTo)
+          VALUES ($1, $2, $3, $4, FALSE, NULL, NULL, NULL, $5::jsonb, $6::jsonb)
           RETURNING id
-        `, [userLogin, targetLogin, messageText, messageTime, attachment ? JSON.stringify(attachment) : null]);
+        `, [userLogin, targetLogin, messageText, messageTime, attachment ? JSON.stringify(attachment) : null, replyTo ? JSON.stringify(replyTo) : null]);
 
         await pool.query(`
           INSERT INTO unread (fromUser, toUser, count)
@@ -1585,6 +1603,7 @@ wss.on('connection', (ws, req) => {
           readAt: null,
           receiptStatus: 'pending',
           attachment,
+          replyTo,
           fromNick: me.nickname,
           avatar: buildAvatar(userLogin, me.nickname, me.avatarImage),
           unread: unreadCount,
