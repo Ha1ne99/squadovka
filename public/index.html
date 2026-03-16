@@ -20,6 +20,10 @@
   --green: #41c272;
   --red: #ed4245;
   --shadow: 0 16px 40px rgba(0,0,0,0.35);
+  --ui-radius: 16px;
+  --message-font-size: 14px;
+  --chat-wallpaper: none;
+  --chat-wallpaper-opacity: .18;
 }
 * { box-sizing: border-box; }
 html, body { height: 100%; }
@@ -34,6 +38,7 @@ body {
   min-height:100vh;
   display:flex;
   overflow:hidden;
+  font-size: 16px;
 }
 button, input { font: inherit; }
 button { transition: transform .22s ease, box-shadow .22s ease, border-color .22s ease, background .22s ease, opacity .22s ease; }
@@ -95,7 +100,7 @@ button:hover { transform: translateY(-1px); }
 .brandLogo {
   width:52px;
   height:52px;
-  border-radius:16px;
+  border-radius:var(--ui-radius);
   background: linear-gradient(135deg, var(--accent), var(--green));
   display:flex;
   align-items:center;
@@ -175,7 +180,7 @@ button:hover { transform: translateY(-1px); }
   justify-content:center;
   gap:10px;
   padding:12px;
-  border-radius:16px;
+  border-radius:var(--ui-radius);
   cursor:pointer;
   border:1px solid var(--line);
   background:#171b23;
@@ -192,7 +197,7 @@ button:hover { transform: translateY(-1px); }
 }
 .user {
   padding:10px 12px;
-  border-radius:16px;
+  border-radius:var(--ui-radius);
   cursor:pointer;
   display:flex;
   align-items:center;
@@ -249,7 +254,21 @@ button:hover { transform: translateY(-1px); }
   display:flex;
   flex-direction:column;
   background:rgba(255,255,255,0.01);
+  position:relative;
+  isolation:isolate;
 }
+#chat::before {
+  content:'';
+  position:absolute;
+  inset:0;
+  background-image: var(--chat-wallpaper);
+  background-size: cover;
+  background-position: center;
+  opacity: var(--chat-wallpaper-opacity);
+  pointer-events:none;
+  z-index:0;
+}
+#chat > * { position:relative; z-index:1; }
 #chatHeader {
   display:flex;
   align-items:center;
@@ -314,7 +333,7 @@ button:hover { transform: translateY(-1px); }
 .messageContent {
   background:#171b23;
   padding:10px 12px;
-  border-radius:16px;
+  border-radius:calc(var(--ui-radius) + 2px);
   max-width:min(78%, 720px);
   border:1px solid rgba(255,255,255,.05);
 }
@@ -339,7 +358,7 @@ button:hover { transform: translateY(-1px); }
   user-select: none;
 }
 .messageReceipt.read { color: var(--accent-2); }
-.messageText { line-height:1.4; word-break:break-word; white-space:pre-wrap; }
+.messageText { line-height:1.4; word-break:break-word; white-space:pre-wrap; font-size: var(--message-font-size); }
 .messageAttachment { margin-top:10px; }
 .messageAttachment img { display:block; max-width:min(320px, 100%); max-height:320px; width:auto; height:auto; border-radius:14px; border:1px solid rgba(255,255,255,.08); cursor:pointer; }
 .messageFileCard { display:flex; align-items:center; gap:12px; padding:10px 12px; border-radius:14px; background:#111622; border:1px solid rgba(255,255,255,.08); color:#fff; text-decoration:none; }
@@ -430,7 +449,7 @@ button:hover { transform: translateY(-1px); }
   background:#171b23;
   border:1px solid var(--line);
   color:white;
-  border-radius:16px;
+  border-radius:calc(var(--ui-radius) + 2px);
   outline:none;
 }
 #input input:focus { border-color: rgba(107,124,255,.45); }
@@ -442,7 +461,7 @@ button:hover { transform: translateY(-1px); }
   border:none;
   color:white;
   cursor:pointer;
-  border-radius:14px;
+  border-radius:calc(var(--ui-radius) - 2px);
   font-weight:800;
   box-shadow:0 10px 24px rgba(107,124,255,.22);
 }
@@ -559,6 +578,32 @@ button:hover { transform: translateY(-1px); }
 .profileActionBtn.primary { background:linear-gradient(135deg,var(--accent),var(--accent2)); border:1px solid rgba(255,255,255,.22); box-shadow:0 0 0 1px rgba(107,124,255,.28) inset; }
 .profileActionBtn.primary:hover { box-shadow:0 0 0 1px rgba(255,255,255,.18) inset, 0 0 0 1px rgba(107,124,255,.38); }
 .profileActionBtn.primary:focus-visible { outline:none; box-shadow:0 0 0 2px rgba(255,255,255,.18) inset, 0 0 0 3px rgba(107,124,255,.45); }
+.customGrid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }
+.themePresetGrid, .wallpaperGrid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }
+.themePresetBtn, .wallpaperBtn {
+  border:1px solid var(--line); border-radius:14px; background:#111723; color:#fff; cursor:pointer; padding:12px; text-align:left;
+}
+.themePresetBtn.active, .wallpaperBtn.active { border-color: rgba(107,124,255,.55); box-shadow:0 0 0 1px rgba(107,124,255,.28) inset; background:#1a2134; }
+.themePreviewRow { display:flex; gap:8px; margin-bottom:8px; }
+.themeSwatch { flex:1; height:16px; border-radius:999px; border:1px solid rgba(255,255,255,.1); }
+.themeLabelMain { font-weight:700; display:block; }
+.themeLabelSub { font-size:12px; color:var(--muted); display:block; margin-top:4px; }
+.rangeField, .toggleField { display:flex; flex-direction:column; gap:8px; }
+.rangeField input[type=range], .accentColorInput { width:100%; }
+.rangeValue { font-size:12px; color:var(--muted); }
+.bioInput { min-height:88px; resize:vertical; }
+.profileHint { margin-top:8px; color:var(--muted); font-size:12px; line-height:1.45; }
+.profileMiniBio { display:block; color:var(--muted); font-size:11px; margin-top:4px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+body.compact-ui #sidebar { width:260px; min-width:260px; }
+body.compact-ui .user, body.compact-ui .friendEntry { min-height:56px; padding:8px 10px; }
+body.compact-ui #messages { padding:12px; }
+body.compact-ui .message { margin-bottom:10px; }
+body.compact-ui .messageContent { padding:8px 10px; }
+body[data-theme='grape'] { --bg:#15111b; --bg2:#0b0911; --panel:rgba(29,20,38,.92); --panel-2:rgba(39,26,51,.96); --panel-3:#2b2135; --accent:#b06bff; --accent-2:#d18dff; --green:#57d39b; }
+body[data-theme='emerald'] { --bg:#0d1615; --bg2:#09100f; --panel:rgba(16,31,28,.92); --panel-2:rgba(21,39,35,.96); --panel-3:#1d312d; --accent:#2ecf8f; --accent-2:#61e2ae; --green:#56db9d; }
+body[data-theme='sunset'] { --bg:#1a1310; --bg2:#0f0a08; --panel:rgba(37,24,20,.92); --panel-2:rgba(48,31,26,.96); --panel-3:#35231d; --accent:#ff8a5b; --accent-2:#ffb36b; --green:#ffcf76; }
+body[data-theme='midnight'] { --bg:#101217; --bg2:#0b0d12; }
+@media (max-width: 700px) { .customGrid, .themePresetGrid, .wallpaperGrid { grid-template-columns:1fr; } }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
@@ -1013,6 +1058,7 @@ button:hover { transform: translateY(-1px); }
     <div id="input">
       <input type="file" id="chatFileInput" hidden>
       <button id="attachBtn" title="Файл">📎</button>
+      <button id="voiceBtn" title="Голосовое сообщение">🎤</button>
       <input id="text" placeholder="Сообщение...">
       <button id="sendBtn" title="Отправить">▶</button>
     </div>
@@ -1083,6 +1129,49 @@ button:hover { transform: translateY(-1px); }
         <div id="profileReadonlyNote" class="profileFieldLabel hidden">Просмотр профиля пользователя</div>
         <label class="profileFieldLabel" id="profileNameLabel" for="profileNicknameInput">Отображаемое имя</label>
         <input id="profileNicknameInput" class="profileInput" maxlength="32" placeholder="Введите имя">
+        <label class="profileFieldLabel" id="profileBioLabel" for="profileBioInput" style="margin-top:12px;">О себе</label>
+        <textarea id="profileBioInput" class="profileInput bioInput" maxlength="160" placeholder="Пара слов о себе"></textarea>
+        <div id="profileBioHint" class="profileHint">Это локальная подпись для твоего клиента — можно сделать себе стильный профиль.</div>
+      </div>
+
+      <div class="profileSection" id="appearanceSection">
+        <h4 id="appearanceTitle">Кастомизация</h4>
+        <div class="themePresetGrid" id="themePresetGrid">
+          <button class="themePresetBtn" type="button" data-theme="midnight"><div class="themePreviewRow"><span class="themeSwatch" style="background:linear-gradient(90deg,#6b7cff,#8592ff)"></span><span class="themeSwatch" style="background:#171b23"></span></div><span class="themeLabelMain">Midnight</span><span class="themeLabelSub">Классический тёмный</span></button>
+          <button class="themePresetBtn" type="button" data-theme="grape"><div class="themePreviewRow"><span class="themeSwatch" style="background:linear-gradient(90deg,#b06bff,#d18dff)"></span><span class="themeSwatch" style="background:#24192d"></span></div><span class="themeLabelMain">Grape</span><span class="themeLabelSub">Фиолетовый стиль</span></button>
+          <button class="themePresetBtn" type="button" data-theme="emerald"><div class="themePreviewRow"><span class="themeSwatch" style="background:linear-gradient(90deg,#2ecf8f,#61e2ae)"></span><span class="themeSwatch" style="background:#13211f"></span></div><span class="themeLabelMain">Emerald</span><span class="themeLabelSub">Зелёный стиль</span></button>
+          <button class="themePresetBtn" type="button" data-theme="sunset"><div class="themePreviewRow"><span class="themeSwatch" style="background:linear-gradient(90deg,#ff8a5b,#ffb36b)"></span><span class="themeSwatch" style="background:#2c1c16"></span></div><span class="themeLabelMain">Sunset</span><span class="themeLabelSub">Тёплый оранжевый</span></button>
+        </div>
+        <div class="customGrid" style="margin-top:12px;">
+          <label class="rangeField">
+            <span class="profileFieldLabel" id="accentColorLabel">Акцентный цвет</span>
+            <input id="accentColorInput" class="accentColorInput" type="color" value="#6b7cff">
+          </label>
+          <label class="toggleField">
+            <span class="profileFieldLabel" id="compactModeLabel">Компактный режим</span>
+            <button id="compactModeBtn" type="button" class="profileActionBtn">Выключен</button>
+          </label>
+          <label class="rangeField">
+            <span class="profileFieldLabel" id="bubbleRadiusLabel">Скругление</span>
+            <input id="bubbleRadiusInput" type="range" min="10" max="26" step="1" value="16">
+            <span id="bubbleRadiusValue" class="rangeValue">16px</span>
+          </label>
+          <label class="rangeField">
+            <span class="profileFieldLabel" id="fontSizeLabel">Размер текста</span>
+            <input id="fontSizeInput" type="range" min="13" max="18" step="1" value="14">
+            <span id="fontSizeValue" class="rangeValue">14px</span>
+          </label>
+        </div>
+      </div>
+
+      <div class="profileSection" id="wallpaperSection">
+        <h4 id="wallpaperTitle">Фон чата</h4>
+        <div class="wallpaperGrid">
+          <button class="wallpaperBtn" type="button" data-wallpaper="none">Без фона</button>
+          <button class="wallpaperBtn" type="button" data-wallpaper="dots">Точки</button>
+          <button class="wallpaperBtn" type="button" data-wallpaper="grid">Сетка</button>
+          <button class="wallpaperBtn" type="button" data-wallpaper="aurora">Aurora</button>
+        </div>
       </div>
 
       <div class="profileActions">
@@ -1151,6 +1240,23 @@ const profileSettingsTitle = document.getElementById('profileSettingsTitle');
 const profileReadonlyNote = document.getElementById('profileReadonlyNote');
 const profileNameLabel = document.getElementById('profileNameLabel');
 const profileNicknameInput = document.getElementById('profileNicknameInput');
+const profileBioLabel = document.getElementById('profileBioLabel');
+const profileBioInput = document.getElementById('profileBioInput');
+const profileBioHint = document.getElementById('profileBioHint');
+const appearanceSection = document.getElementById('appearanceSection');
+const appearanceTitle = document.getElementById('appearanceTitle');
+const accentColorLabel = document.getElementById('accentColorLabel');
+const accentColorInput = document.getElementById('accentColorInput');
+const compactModeLabel = document.getElementById('compactModeLabel');
+const compactModeBtn = document.getElementById('compactModeBtn');
+const bubbleRadiusLabel = document.getElementById('bubbleRadiusLabel');
+const bubbleRadiusInput = document.getElementById('bubbleRadiusInput');
+const bubbleRadiusValue = document.getElementById('bubbleRadiusValue');
+const fontSizeLabel = document.getElementById('fontSizeLabel');
+const fontSizeInput = document.getElementById('fontSizeInput');
+const fontSizeValue = document.getElementById('fontSizeValue');
+const wallpaperSection = document.getElementById('wallpaperSection');
+const wallpaperTitle = document.getElementById('wallpaperTitle');
 const profileLogoutBtn = document.getElementById('profileLogoutBtn');
 const profileCancelBtn = document.getElementById('profileCancelBtn');
 const profileSaveBtn = document.getElementById('profileSaveBtn');
@@ -1165,6 +1271,7 @@ const typingIndicator = document.getElementById('typingIndicator');
 const text = document.getElementById('text');
 const sendBtn = document.getElementById('sendBtn');
 const attachBtn = document.getElementById('attachBtn');
+const voiceBtn = document.getElementById('voiceBtn');
 const chatFileInput = document.getElementById('chatFileInput');
 const attachmentPreview = document.getElementById('attachmentPreview');
 const friendsBtn = document.getElementById('friendsBtn');
@@ -1223,6 +1330,8 @@ let chats = {}, requests = [], friends = [];
 let unread = {};
 let onlineUsers = [];
 let currentLanguage = localStorage.getItem('messenger_language') || 'ru';
+const defaultCustomization = { theme:'midnight', accent:'#6b7cff', radius:16, fontSize:14, wallpaper:'none', compact:false, bio:'' };
+let customization = loadCustomization();
 let rtcConfig = { iceServers:[{ urls:['stun:stun.l.google.com:19302'] }] };
 let callState = 'idle';
 let callPeerLogin = null;
@@ -1265,7 +1374,7 @@ const i18n = {
     haveNoAccount:'Нет аккаунта? Зарегистрироваться', haveAccount:'Уже есть аккаунт? Войти', loginPlaceholder:'Логин', passwordPlaceholder:'Пароль',
     sidebarSubtitle:'На связи с друзьями', friends:'Друзья', onlineFriends:'Друзья онлайн', dialogs:'Личные сообщения', avatar:'Аватар', banner:'Баннер', chooseFriend:'Выбери друга слева, чтобы открыть переписку',
     personalDialog:'Личный диалог', welcome:'Добро пожаловать в Squadovka', welcomeText:'Выбери друга слева или открой панель друзей, чтобы отправить заявку и начать переписку.',
-    messagePlaceholder:'Сообщение...', attach:'Файл', uploading:'Загрузка файла...', fileTooBig:'Файл больше 10 МБ', fileUploadFailed:'Не удалось загрузить файл', addFriendTitle:'Добавить друга (по логину)', addFriendPlaceholder:'Логин пользователя', sendRequest:'Отправить заявку',
+    messagePlaceholder:'Сообщение...', attach:'Файл', voiceMessage:'Голосовое', voiceStart:'Начать запись', voiceStop:'Остановить запись', voiceRecording:'Идёт запись…', voiceUnsupported:'Браузер не поддерживает запись звука', voiceMicDenied:'Не удалось получить доступ к микрофону', uploading:'Загрузка файла...', fileTooBig:'Файл больше 10 МБ', fileUploadFailed:'Не удалось загрузить файл', addFriendTitle:'Добавить друга (по логину)', addFriendPlaceholder:'Логин пользователя', sendRequest:'Отправить заявку',
     requests:'Заявки', noRequests:'Нет входящих заявок', friendsTitle:'Друзья', noFriends:'Список друзей пуст', call:'Звонок', open:'Открыть', hang:'Сбросить',
     accept:'Принять', decline:'Отклонить', close:'Закрыть', mute:'Выключить микрофон', unmute:'Включить микрофон', speakerMute:'Выключить звук', speakerUnmute:'Включить звук', micOn:'🎙️ Микрофон: включён', micOff:'🎙️ Микрофон: выключён', soundOn:'🔊 Звук: включён', soundOff:'🔇 Звук: выключён',
     volume:'🔊 Громкость:', groupLabel:'Группа', voiceLevel:'Уровень голоса:', natHint:'Если не соединяется у кого-то — это NAT. Для “всегда работает” нужен TURN-сервер.',
@@ -1283,7 +1392,7 @@ const i18n = {
     haveNoAccount:'Немає акаунта? Зареєструватися', haveAccount:'Уже є акаунт? Увійти', loginPlaceholder:'Логін', passwordPlaceholder:'Пароль',
     sidebarSubtitle:'На звʼязку з друзями', friends:'Друзі', onlineFriends:'Друзі онлайн', dialogs:'Особисті повідомлення', avatar:'Аватар', banner:'Банер', chooseFriend:'Обери друга зліва, щоб відкрити листування',
     personalDialog:'Особистий діалог', welcome:'Ласкаво просимо до Squadovka', welcomeText:'Обери друга зліва або відкрий панель друзів, щоб надіслати запит і почати листування.',
-    messagePlaceholder:'Повідомлення...', attach:'Файл', uploading:'Завантаження файлу...', fileTooBig:'Файл більший за 10 МБ', fileUploadFailed:'Не вдалося завантажити файл', addFriendTitle:'Додати друга (за логіном)', addFriendPlaceholder:'Логін користувача', sendRequest:'Надіслати запит',
+    messagePlaceholder:'Повідомлення...', attach:'Файл', voiceMessage:'Голосове', voiceStart:'Почати запис', voiceStop:'Зупинити запис', voiceRecording:'Триває запис…', voiceUnsupported:'Браузер не підтримує запис звуку', voiceMicDenied:'Не вдалося отримати доступ до мікрофона', uploading:'Завантаження файлу...', fileTooBig:'Файл більший за 10 МБ', fileUploadFailed:'Не вдалося завантажити файл', addFriendTitle:'Додати друга (за логіном)', addFriendPlaceholder:'Логін користувача', sendRequest:'Надіслати запит',
     requests:'Запити', noRequests:'Немає вхідних запитів', friendsTitle:'Друзі', noFriends:'Список друзів порожній', call:'Дзвінок', open:'Відкрити', hang:'Скинути',
     accept:'Прийняти', decline:'Відхилити', close:'Закрити', mute:'Вимкнути мікрофон', unmute:'Увімкнути мікрофон', speakerMute:'Вимкнути звук', speakerUnmute:'Увімкнути звук', micOn:'🎙️ Мікрофон: увімкнений', micOff:'🎙️ Мікрофон: вимкнений', soundOn:'🔊 Звук: увімкнений', soundOff:'🔇 Звук: вимкнений',
     volume:'🔊 Гучність:', groupLabel:'Група', voiceLevel:'Рівень голосу:', natHint:'Якщо в когось не з’єднується — це NAT. Щоб працювало завжди, потрібен TURN-сервер.',
@@ -1301,7 +1410,7 @@ const i18n = {
     haveNoAccount:'No account? Register', haveAccount:'Already have an account? Sign in', loginPlaceholder:'Login', passwordPlaceholder:'Password',
     sidebarSubtitle:'Stay connected with friends', friends:'Friends', onlineFriends:'Friends online', dialogs:'Direct messages', avatar:'Avatar', banner:'Banner', chooseFriend:'Choose a friend on the left to open the chat',
     personalDialog:'Direct message', welcome:'Welcome to Squadovka', welcomeText:'Choose a friend on the left or open the friends panel to send a request and start chatting.',
-    messagePlaceholder:'Message...', attach:'File', uploading:'Uploading file...', fileTooBig:'File is larger than 10 MB', fileUploadFailed:'Failed to upload file', addFriendTitle:'Add friend (by login)', addFriendPlaceholder:'User login', sendRequest:'Send request',
+    messagePlaceholder:'Message...', attach:'File', voiceMessage:'Voice message', voiceStart:'Start recording', voiceStop:'Stop recording', voiceRecording:'Recording…', voiceUnsupported:'This browser does not support audio recording', voiceMicDenied:'Could not access the microphone', uploading:'Uploading file...', fileTooBig:'File is larger than 10 MB', fileUploadFailed:'Failed to upload file', addFriendTitle:'Add friend (by login)', addFriendPlaceholder:'User login', sendRequest:'Send request',
     requests:'Requests', noRequests:'No incoming requests', friendsTitle:'Friends', noFriends:'Friends list is empty', call:'Call', open:'Open', hang:'Hang up',
     accept:'Accept', decline:'Decline', close:'Close', mute:'Mute', unmute:'Unmute', micOn:'🎙️ Microphone: on', micOff:'🎙️ Microphone: off',
     volume:'🔊 Volume:', voiceLevel:'Voice level:', natHint:'If it does not connect for someone, that is NAT. For “always works” you need a TURN server.',
@@ -1325,6 +1434,83 @@ function statusText(status, isSelf = false) {
 function normalizeClientStatus(status) {
   return ['online','idle','dnd','invisible','offline'].includes(status) ? status : 'online';
 }
+
+function loadCustomization() {
+  try {
+    const raw = JSON.parse(localStorage.getItem('messenger_customization') || '{}');
+    return { ...defaultCustomization, ...raw };
+  } catch {
+    return { ...defaultCustomization };
+  }
+}
+function saveCustomization() {
+  localStorage.setItem('messenger_customization', JSON.stringify(customization));
+}
+function getAccent2(hex) {
+  const value = String(hex || '#6b7cff').replace('#','');
+  if (value.length !== 6) return hex || '#8592ff';
+  const r = Math.min(255, parseInt(value.slice(0,2),16) + 26);
+  const g = Math.min(255, parseInt(value.slice(2,4),16) + 26);
+  const b = Math.min(255, parseInt(value.slice(4,6),16) + 26);
+  return '#' + [r,g,b].map(v => v.toString(16).padStart(2,'0')).join('');
+}
+function getWallpaperValue(name) {
+  if (name === 'dots') return 'radial-gradient(circle at 1px 1px, rgba(255,255,255,.14) 1px, transparent 0)';
+  if (name === 'grid') return 'linear-gradient(rgba(255,255,255,.06) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.06) 1px, transparent 1px)';
+  if (name === 'aurora') return 'radial-gradient(circle at 15% 20%, rgba(107,124,255,.28), transparent 24%), radial-gradient(circle at 85% 10%, rgba(46,207,143,.18), transparent 24%), radial-gradient(circle at 40% 80%, rgba(255,138,91,.16), transparent 26%)';
+  return 'none';
+}
+function updateCustomizationControls() {
+  if (accentColorInput) accentColorInput.value = customization.accent || '#6b7cff';
+  if (bubbleRadiusInput) bubbleRadiusInput.value = String(customization.radius ?? 16);
+  if (bubbleRadiusValue) bubbleRadiusValue.textContent = `${customization.radius ?? 16}px`;
+  if (fontSizeInput) fontSizeInput.value = String(customization.fontSize ?? 14);
+  if (fontSizeValue) fontSizeValue.textContent = `${customization.fontSize ?? 14}px`;
+  if (compactModeBtn) compactModeBtn.textContent = customization.compact ? appearanceText('enabled') : appearanceText('disabled');
+  document.querySelectorAll('.themePresetBtn').forEach(btn => btn.classList.toggle('active', btn.dataset.theme === customization.theme));
+  document.querySelectorAll('.wallpaperBtn').forEach(btn => btn.classList.toggle('active', btn.dataset.wallpaper === customization.wallpaper));
+}
+function applyCustomization() {
+  document.body.dataset.theme = customization.theme || 'midnight';
+  document.body.classList.toggle('compact-ui', !!customization.compact);
+  document.documentElement.style.setProperty('--accent', customization.accent || '#6b7cff');
+  document.documentElement.style.setProperty('--accent-2', getAccent2(customization.accent || '#6b7cff'));
+  document.documentElement.style.setProperty('--ui-radius', `${customization.radius ?? 16}px`);
+  document.documentElement.style.setProperty('--message-font-size', `${customization.fontSize ?? 14}px`);
+  document.documentElement.style.setProperty('--chat-wallpaper', getWallpaperValue(customization.wallpaper || 'none'));
+  document.documentElement.style.setProperty('--chat-wallpaper-opacity', customization.wallpaper === 'none' ? '.16' : '.22');
+  if (customization.wallpaper === 'dots') document.getElementById('chat')?.style.setProperty('background-size','18px 18px');
+  else if (customization.wallpaper === 'grid') document.getElementById('chat')?.style.setProperty('background-size','34px 34px');
+  else document.getElementById('chat')?.style.removeProperty('background-size');
+  if (profileBioInput && profileModalMode === 'self') profileBioInput.value = customization.bio || '';
+  saveCustomization();
+  updateCustomizationControls();
+  syncProfileMiniCard();
+}
+function appearanceText(key) {
+  const map = {
+    ru:{ appearance:'Кастомизация', accent:'Акцентный цвет', compact:'Компактный режим', radius:'Скругление', font:'Размер текста', wallpaper:'Фон чата', bio:'О себе', bioHint:'Это локальная подпись для твоего клиента — можно сделать себе стильный профиль.', enabled:'Включен', disabled:'Выключен', wallNone:'Без фона', wallDots:'Точки', wallGrid:'Сетка', wallAurora:'Aurora' },
+    uk:{ appearance:'Кастомізація', accent:'Акцентний колір', compact:'Компактний режим', radius:'Заокруглення', font:'Розмір тексту', wallpaper:'Фон чату', bio:'Про себе', bioHint:'Це локальний підпис для твого клієнта — можна зробити собі стильний профіль.', enabled:'Увімкнено', disabled:'Вимкнено', wallNone:'Без фону', wallDots:'Крапки', wallGrid:'Сітка', wallAurora:'Aurora' },
+    en:{ appearance:'Customization', accent:'Accent color', compact:'Compact mode', radius:'Bubble roundness', font:'Text size', wallpaper:'Chat wallpaper', bio:'About me', bioHint:'This is a local note for your client — a simple way to style your profile.', enabled:'Enabled', disabled:'Disabled', wallNone:'No wallpaper', wallDots:'Dots', wallGrid:'Grid', wallAurora:'Aurora' }
+  };
+  return (map[currentLanguage] || map.ru)[key] || key;
+}
+function applyAppearanceTexts() {
+  if (appearanceTitle) appearanceTitle.textContent = appearanceText('appearance');
+  if (accentColorLabel) accentColorLabel.textContent = appearanceText('accent');
+  if (compactModeLabel) compactModeLabel.textContent = appearanceText('compact');
+  if (bubbleRadiusLabel) bubbleRadiusLabel.textContent = appearanceText('radius');
+  if (fontSizeLabel) fontSizeLabel.textContent = appearanceText('font');
+  if (wallpaperTitle) wallpaperTitle.textContent = appearanceText('wallpaper');
+  if (profileBioLabel) profileBioLabel.textContent = appearanceText('bio');
+  if (profileBioHint) profileBioHint.textContent = appearanceText('bioHint');
+  document.querySelector('.wallpaperBtn[data-wallpaper="none"]')?.replaceChildren(document.createTextNode(appearanceText('wallNone')));
+  document.querySelector('.wallpaperBtn[data-wallpaper="dots"]')?.replaceChildren(document.createTextNode(appearanceText('wallDots')));
+  document.querySelector('.wallpaperBtn[data-wallpaper="grid"]')?.replaceChildren(document.createTextNode(appearanceText('wallGrid')));
+  document.querySelector('.wallpaperBtn[data-wallpaper="aurora"]')?.replaceChildren(document.createTextNode(appearanceText('wallAurora')));
+  updateCustomizationControls();
+}
+
 function defaultProfileBannerStyle() {
   return 'linear-gradient(135deg,#8792c7,#9ba2bf)';
 }
@@ -1340,7 +1526,16 @@ function updateStatusChoices() {
   document.querySelectorAll('.statusChoice').forEach(btn => btn.classList.toggle('active', btn.dataset.status === selectedProfileStatus));
 }
 function syncProfileMiniCard() {
-  if (profileStatusPill) profileStatusPill.textContent = '';
+  if (profileStatusPill) profileStatusPill.textContent = statusText(myStatus, true);
+  const existing = profileCard?.querySelector('.profileMiniBio');
+  const bio = (customization.bio || '').trim();
+  if (existing) existing.remove();
+  if (bio && profileMeta) {
+    const el = document.createElement('span');
+    el.className = 'profileMiniBio';
+    el.textContent = bio;
+    profileMeta.appendChild(el);
+  }
 }
 function setProfileModalMode(mode) {
   profileModalMode = mode === 'other' ? 'other' : 'self';
@@ -1351,8 +1546,11 @@ function setProfileModalMode(mode) {
   profileSaveBtn.classList.toggle('hidden', !isSelfMode);
   profileStatusBar.classList.toggle('hidden', !isSelfMode);
   profileReadonlyNote.classList.toggle('hidden', isSelfMode);
+  appearanceSection?.classList.toggle('hidden', !isSelfMode);
+  wallpaperSection?.classList.toggle('hidden', !isSelfMode);
   profileNicknameInput.readOnly = !isSelfMode;
   profileNicknameInput.disabled = !isSelfMode;
+  if (profileBioInput) { profileBioInput.readOnly = !isSelfMode; profileBioInput.disabled = !isSelfMode; }
   profileSettingsTitle.textContent = isSelfMode ? t('profileSettings') : t('profileViewTitle');
   profileNameLabel.textContent = t('displayName');
 }
@@ -1366,6 +1564,8 @@ function openProfileModal() {
   profileModalLoginPreview.textContent = login || '';
   profileNicknameInput.value = nickname || '';
   profileNicknameInput.placeholder = t('enterDisplayName');
+  if (profileBioInput) profileBioInput.value = customization.bio || '';
+  updateCustomizationControls();
   setProfileBanner(myBanner);
   const currentAvatarNode = document.getElementById('profileAvatar');
   const modalAvatarNode = currentAvatarNode ? currentAvatarNode.cloneNode(true) : createAvatar(myAvatar || { letter:(nickname||login||'?')[0]?.toUpperCase() || '?', color:'#5865f2' }, myStatus, true);
@@ -1387,6 +1587,7 @@ function openUserProfileModal(userLogin, fetchFresh = true) {
   profileModalLoginPreview.textContent = user.login || '';
   profileNicknameInput.value = user.nickname || user.login || '';
   profileNicknameInput.placeholder = t('displayName');
+  if (profileBioInput) profileBioInput.value = '';
   setProfileBanner(user.banner || null);
   const modalAvatarNode = createAvatar(user.avatar || { letter:(user.login||'?')[0]?.toUpperCase() || '?', color:'#5865f2' }, user.status || 'offline', true);
   const oldModalAvatar = document.getElementById('profileModalAvatar');
@@ -1745,7 +1946,8 @@ function applyLanguage() {
   document.getElementById('emptyTextLabel').textContent = t('welcomeText');
   text.placeholder = t('messagePlaceholder');
   if (attachBtn) attachBtn.title = t('attach');
-  sendBtn.title = t('save');
+  if (voiceBtn) voiceBtn.title = isRecordingVoice ? t('voiceStop') : t('voiceStart');
+  sendBtn.title = t('open');
   document.getElementById('addFriendTitle').textContent = t('addFriendTitle');
   friendNick.placeholder = t('addFriendPlaceholder');
   addFriendBtn.textContent = t('sendRequest');
@@ -1772,6 +1974,8 @@ function applyLanguage() {
   document.getElementById('statusIdleLabel').textContent = t('status_idle');
   document.getElementById('statusDndLabel').textContent = t('status_dnd');
   document.getElementById('statusInvisibleLabel').textContent = t('status_invisible');
+  updateVoiceButtonState();
+  applyAppearanceTexts();
   setProfileModalMode(profileModalMode);
   syncProfileMiniCard();
   if (currentDM) {
@@ -1885,12 +2089,19 @@ function normalizeAttachment(att) {
 }
 let pendingUploadFile = null;
 let pendingUploadPreviewUrl = '';
+let mediaRecorder = null;
+let mediaRecorderChunks = [];
+let mediaRecorderStream = null;
+let isRecordingVoice = false;
 
 function renderAttachmentHtml(attachment) {
   const att = normalizeAttachment(attachment);
   if (!att) return '';
   if (att.isImage) {
     return `<div class="messageAttachment"><a href="${escapeHtml(att.url)}" target="_blank" rel="noopener noreferrer"><img src="${escapeHtml(att.url)}" alt="${escapeHtml(att.name)}" loading="lazy"></a></div>`;
+  }
+  if (/^audio\//i.test(att.mimeType || '') || /\.(webm|ogg|mp3|wav|m4a|aac)$/i.test(att.name || '')) {
+    return `<div class="messageAttachment"><audio controls preload="metadata" src="${escapeHtml(att.url)}"></audio><a class="messageFileCard" href="${escapeHtml(att.url)}" target="_blank" rel="noopener noreferrer" download="${escapeHtml(att.name)}"><div class="messageFileIcon">🎤</div><div class="messageFileMeta"><div class="messageFileName">${escapeHtml(att.name)}</div><div class="messageFileSize">${escapeHtml(formatFileSize(att.size))}</div></div></a></div>`;
   }
   return `<div class="messageAttachment"><a class="messageFileCard" href="${escapeHtml(att.url)}" target="_blank" rel="noopener noreferrer" download="${escapeHtml(att.name)}"><div class="messageFileIcon">📄</div><div class="messageFileMeta"><div class="messageFileName">${escapeHtml(att.name)}</div><div class="messageFileSize">${escapeHtml(formatFileSize(att.size))}</div></div></a></div>`;
 }
@@ -1912,16 +2123,18 @@ function renderPendingAttachmentPreview() {
     return;
   }
   const isImage = /^image\//i.test(pendingUploadFile.type || '');
-  if (isImage && !pendingUploadPreviewUrl) {
+  const isAudio = /^audio\//i.test(pendingUploadFile.type || '') || /\.(webm|ogg|mp3|wav|m4a|aac)$/i.test(pendingUploadFile.name || '');
+  if ((isImage || isAudio) && !pendingUploadPreviewUrl) {
     try { pendingUploadPreviewUrl = URL.createObjectURL(pendingUploadFile); } catch {}
   }
   attachmentPreview.style.display = 'block';
   attachmentPreview.innerHTML = `
     <div class="attachmentPreviewCard">
-      <div class="attachmentPreviewThumb">${isImage && pendingUploadPreviewUrl ? `<img src="${escapeHtml(pendingUploadPreviewUrl)}" alt="${escapeHtml(pendingUploadFile.name || 'image')}">` : '📎'}</div>
+      <div class="attachmentPreviewThumb">${isImage && pendingUploadPreviewUrl ? `<img src="${escapeHtml(pendingUploadPreviewUrl)}" alt="${escapeHtml(pendingUploadFile.name || 'image')}">` : (isAudio ? '🎤' : '📎')}</div>
       <div class="attachmentPreviewMeta">
         <div class="attachmentPreviewName">${escapeHtml(pendingUploadFile.name || 'file')}</div>
         <div class="attachmentPreviewSize">${escapeHtml(formatFileSize(pendingUploadFile.size || 0))}</div>
+        ${isAudio && pendingUploadPreviewUrl ? `<audio class="attachmentPreviewAudio" controls preload="metadata" src="${escapeHtml(pendingUploadPreviewUrl)}"></audio>` : ''}
       </div>
       <button type="button" class="attachmentPreviewRemove" onclick="clearPendingAttachment()" title="Удалить">✕</button>
     </div>
@@ -1936,6 +2149,7 @@ async function uploadCurrentFile(file, caption = '') {
   try {
     attachBtn.disabled = true;
     sendBtn.disabled = true;
+    if (voiceBtn) voiceBtn.disabled = true;
     attachBtn.textContent = '⏳';
     const params = new URLSearchParams();
     if (currentChatType === 'group' && currentGroupId) {
@@ -1975,7 +2189,9 @@ async function uploadCurrentFile(file, caption = '') {
   } finally {
     attachBtn.disabled = false;
     sendBtn.disabled = false;
+    if (voiceBtn) voiceBtn.disabled = false;
     attachBtn.textContent = '📎';
+    updateVoiceButtonState();
   }
 }
 
@@ -2474,8 +2690,115 @@ function renderMessage(message) {
   return m;
 }
 
+
+function updateVoiceButtonState() {
+  if (!voiceBtn) return;
+  voiceBtn.classList.toggle('recording', isRecordingVoice);
+  voiceBtn.classList.toggle('locked', !((currentChatType === 'group' && currentGroupId) || currentDM));
+  voiceBtn.textContent = isRecordingVoice ? '⏹' : '🎤';
+  voiceBtn.title = isRecordingVoice ? t('voiceStop') : t('voiceStart');
+}
+
+function cleanupVoiceRecorder() {
+  if (mediaRecorderStream) {
+    mediaRecorderStream.getTracks().forEach(track => {
+      try { track.stop(); } catch {}
+    });
+  }
+  mediaRecorderStream = null;
+  mediaRecorder = null;
+  mediaRecorderChunks = [];
+  isRecordingVoice = false;
+  updateVoiceButtonState();
+}
+
+function getVoiceMimeType() {
+  if (typeof MediaRecorder === 'undefined') return '';
+  const options = ['audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus', 'audio/mp4'];
+  for (const option of options) {
+    try {
+      if (MediaRecorder.isTypeSupported(option)) return option;
+    } catch {}
+  }
+  return '';
+}
+
+async function startVoiceRecording() {
+  if (typeof MediaRecorder === 'undefined' || !navigator.mediaDevices?.getUserMedia) {
+    alert(t('voiceUnsupported'));
+    return;
+  }
+  try {
+    await unlockAudio();
+    if (pendingUploadPreviewUrl) {
+      try { URL.revokeObjectURL(pendingUploadPreviewUrl); } catch {}
+      pendingUploadPreviewUrl = '';
+    }
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    mediaRecorderStream = stream;
+    mediaRecorderChunks = [];
+    const mimeType = getVoiceMimeType();
+    mediaRecorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
+    mediaRecorder.ondataavailable = e => {
+      if (e.data && e.data.size > 0) mediaRecorderChunks.push(e.data);
+    };
+    mediaRecorder.onerror = err => {
+      console.error('Voice recorder error:', err);
+      cleanupVoiceRecorder();
+    };
+    mediaRecorder.onstop = () => {
+      try {
+        const blobType = mediaRecorder?.mimeType || getVoiceMimeType() || 'audio/webm';
+        const ext = blobType.includes('ogg') ? 'ogg' : blobType.includes('mp4') ? 'm4a' : 'webm';
+        const blob = new Blob(mediaRecorderChunks, { type: blobType });
+        if (blob.size > 0) {
+          pendingUploadFile = new File([blob], `voice-${Date.now()}.${ext}`, { type: blobType });
+          renderPendingAttachmentPreview();
+        }
+      } catch (err) {
+        console.error('Failed to build voice message:', err);
+      } finally {
+        cleanupVoiceRecorder();
+      }
+    };
+    isRecordingVoice = true;
+    updateVoiceButtonState();
+    mediaRecorder.start();
+  } catch (err) {
+    console.error('Voice recording denied:', err);
+    cleanupVoiceRecorder();
+    alert(t('voiceMicDenied'));
+  }
+}
+
+async function stopVoiceRecording() {
+  if (!mediaRecorder || mediaRecorder.state === 'inactive') {
+    cleanupVoiceRecorder();
+    return;
+  }
+  const recorder = mediaRecorder;
+  isRecordingVoice = false;
+  updateVoiceButtonState();
+  await new Promise(resolve => {
+    const prevStop = recorder.onstop;
+    recorder.onstop = (...args) => {
+      try {
+        if (typeof prevStop === 'function') prevStop(...args);
+      } finally {
+        resolve();
+      }
+    };
+    recorder.stop();
+  });
+}
+
 attachBtn.onclick = () => {
   if ((currentChatType === 'group' && currentGroupId) || currentDM) chatFileInput.click();
+};
+voiceBtn.onclick = async () => {
+  if (!((currentChatType === 'group' && currentGroupId) || currentDM)) return;
+  if (isRecordingVoice) await stopVoiceRecording();
+  else await startVoiceRecording();
 };
 chatFileInput.addEventListener('change', () => {
   const file = chatFileInput.files?.[0];
@@ -2495,6 +2818,7 @@ chatFileInput.addEventListener('change', () => {
 
 async function sendCurrentMessage() {
   await unlockAudio();
+  if (isRecordingVoice) await stopVoiceRecording();
   const message = text.value.trim();
   if (!message && !pendingUploadFile) return;
   if (pendingUploadFile) {
@@ -2817,6 +3141,7 @@ document.querySelectorAll('.statusChoice').forEach(btn => btn.onclick = () => { 
 profileSaveBtn.onclick = () => {
   const newNickname = profileNicknameInput.value.trim();
   if (!newNickname || !ws || ws.readyState !== WebSocket.OPEN) return;
+  customization.bio = (profileBioInput?.value || '').trim();
   nickname = newNickname;
   myStatus = normalizeClientStatus(selectedProfileStatus);
   profileNick.textContent = nickname;
@@ -2825,7 +3150,7 @@ profileSaveBtn.onclick = () => {
   const oldA = document.getElementById('profileAvatar');
   if (oldA) oldA.replaceWith(newA);
   newA.id = 'profileAvatar';
-  syncProfileMiniCard();
+  applyCustomization();
   applyProfileUpdateLocal({ login, nickname, avatar: myAvatar, banner: myBanner, status: myStatus === 'invisible' ? 'offline' : myStatus });
   ws.send(JSON.stringify({ type:'update_profile', nickname:newNickname, status:selectedProfileStatus }));
   closeProfileModal();
@@ -2853,9 +3178,38 @@ callVolumeSlider.oninput = () => setOpponentVolume(callVolumeSlider.value);
 callCloseBtn.onclick = () => { if (callState === 'incoming') declineIncomingCall(); else hideCallOverlay(); };
 callOverlay.addEventListener('click', e => { if (e.target === callOverlay && callState === 'idle') hideCallOverlay(); });
 
+
+document.querySelectorAll('.themePresetBtn').forEach(btn => btn.addEventListener('click', () => {
+  customization.theme = btn.dataset.theme || 'midnight';
+  applyCustomization();
+}));
+document.querySelectorAll('.wallpaperBtn').forEach(btn => btn.addEventListener('click', () => {
+  customization.wallpaper = btn.dataset.wallpaper || 'none';
+  applyCustomization();
+}));
+accentColorInput?.addEventListener('input', () => {
+  customization.accent = accentColorInput.value || '#6b7cff';
+  applyCustomization();
+});
+bubbleRadiusInput?.addEventListener('input', () => {
+  customization.radius = Number(bubbleRadiusInput.value) || 16;
+  updateCustomizationControls();
+  applyCustomization();
+});
+fontSizeInput?.addEventListener('input', () => {
+  customization.fontSize = Number(fontSizeInput.value) || 14;
+  updateCustomizationControls();
+  applyCustomization();
+});
+compactModeBtn?.addEventListener('click', () => {
+  customization.compact = !customization.compact;
+  applyCustomization();
+});
+
 window.addEventListener('load', () => {
   applyRemoteAudioSettings();
   document.body.classList.add('ui-ready');
+  applyCustomization();
   applyLanguage();
   syncMobileLayout();
   const savedToken = localStorage.getItem('messenger_token');
