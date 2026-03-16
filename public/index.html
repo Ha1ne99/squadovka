@@ -772,6 +772,63 @@ body[data-theme='midnight'] { --bg:#101217; --bg2:#0b0d12; }
 .messageMenuItem.danger { color:#ff8b8d; }
 .messageMenuItem.danger:hover { background:rgba(237,66,69,.16); color:#ffb3b5; }
 
+.userActions {
+  margin-left:auto;
+  position:relative;
+  display:flex;
+  align-items:center;
+  gap:6px;
+  z-index:30;
+}
+.userMenuTrigger {
+  width:32px;
+  height:32px;
+  border-radius:10px;
+  border:1px solid transparent;
+  background:transparent;
+  color:var(--muted);
+  cursor:pointer;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  font-size:18px;
+  line-height:1;
+  flex:0 0 32px;
+}
+.userMenuTrigger:hover, .userMenuTrigger.active {
+  background:#202633;
+  color:#fff;
+  border-color:rgba(255,255,255,.08);
+}
+.userMenu {
+  position:absolute;
+  top:0;
+  left:calc(100% + 8px);
+  min-width:168px;
+  background:#111622;
+  border:1px solid rgba(255,255,255,.08);
+  box-shadow:0 16px 40px rgba(0,0,0,.38);
+  border-radius:12px;
+  padding:6px;
+  display:none;
+  z-index:6500;
+}
+.userMenu.open { display:block; }
+.userMenuItem {
+  width:100%;
+  text-align:left;
+  background:transparent;
+  color:white;
+  border:none;
+  border-radius:8px;
+  padding:9px 10px;
+  cursor:pointer;
+  display:block;
+}
+.userMenuItem:hover { background:#202633; }
+.user.hasOpenMenu { z-index:6200; overflow:visible; }
+.user.hasOpenMenu .unread { display:none; }
+
 @media (max-width: 900px) {
   html, body { height:100%; overflow:hidden; }
   body { display:block; }
@@ -1149,6 +1206,7 @@ body[data-theme='midnight'] { --bg:#101217; --bg2:#0b0d12; }
       </div>
       <input type="file" id="avatarUploadInput" accept="image/*">
 <input type="file" id="bannerUploadInput" accept="image/*">
+      <input type="file" id="dmWallpaperUploadInput" accept="image/*" hidden>
     </div>
   </div>
 
@@ -1458,6 +1516,7 @@ const createGroupBtn = document.getElementById('createGroupBtn');
 const groupsPanelList = document.getElementById('groupsPanelList');
 const avatarUploadInput = document.getElementById('avatarUploadInput');
 const bannerUploadInput = document.getElementById('bannerUploadInput');
+const dmWallpaperUploadInput = document.getElementById('dmWallpaperUploadInput');
 const callBtn = document.getElementById('callBtn');
 const callBtnLabel = document.getElementById('callBtnLabel');
 const callOverlay = document.getElementById('callOverlay');
@@ -1502,6 +1561,9 @@ let onlineUsers = [];
 let currentLanguage = localStorage.getItem('messenger_language') || 'ru';
 const defaultCustomization = { theme:'midnight', accent:'#6b7cff', radius:16, fontSize:14, wallpaper:'none', compact:false, bio:'' };
 let customization = loadCustomization();
+let dmWallpapers = loadDmWallpapers();
+let openDmListMenuLogin = null;
+let pendingDmWallpaperLogin = null;
 let rtcConfig = { iceServers:[{ urls:['stun:stun.l.google.com:19302'] }] };
 let callState = 'idle';
 let callPeerLogin = null;
@@ -1558,7 +1620,7 @@ const i18n = {
     messageNotFound:'Сообщение не найдено', edit:'Редактировать', save:'Сохранить', cancel:'Отмена', edited:'изменено', editOwnOnly:'Можно редактировать только свои сообщения',
     serverError:'Ошибка сервера', accountCreated:'Аккаунт создан, войдите', enterLoginPassword:'Введите логин и пароль', loginTaken:'Логин занят', badLogin:'Неверный логин или пароль', authExpired:'Сессия истекла. Войди снова.',
     badAvatar:'Неверный формат аватара', bigAvatar:'Аватар слишком большой', badBanner:'Неверный формат баннера', bigBanner:'Баннер слишком большой', userNotFound:'Пользователь не найден', alreadyFriends:'Вы уже друзья',
-    allowMic:'Разрешите доступ к микрофону для звонков', userOffline:'Пользователь не в сети', delete:'Удалить', typing:'печатает', profileSettings:'Настройка профиля', displayName:'Отображаемое имя', enterDisplayName:'Введите имя', status_online:'В сети', status_idle:'Не активен', status_dnd:'Не беспокоить', status_invisible:'Невидимка', status_offline:'Не в сети', viewProfile:'Профиль', removeFriend:'Удалить', profileViewTitle:'Профиль пользователя', removeFriendConfirm:'Удалить этого пользователя из друзей?', removedFromFriends:'Пользователь удалён из друзей', logout:'Выйти из аккаунта', reply:'Ответить', replyingTo:'Ответ на сообщение', replyUnknown:'Сообщение' 
+    allowMic:'Разрешите доступ к микрофону для звонков', userOffline:'Пользователь не в сети', delete:'Удалить', typing:'печатает', profileSettings:'Настройка профиля', displayName:'Отображаемое имя', enterDisplayName:'Введите имя', status_online:'В сети', status_idle:'Не активен', status_dnd:'Не беспокоить', status_invisible:'Невидимка', status_offline:'Не в сети', viewProfile:'Профиль', removeFriend:'Удалить', profileViewTitle:'Профиль пользователя', removeFriendConfirm:'Удалить этого пользователя из друзей?', removedFromFriends:'Пользователь удалён из друзей', logout:'Выйти из аккаунта', reply:'Ответить', replyingTo:'Ответ на сообщение', replyUnknown:'Сообщение', changeBackground:'Сменить фон' 
   },
   uk: {
     loginBrandSubtitle:'Твій затишний месенджер для друзів', login:'Вхід', register:'Реєстрація', loginBtn:'Увійти', registerBtn:'Створити акаунт',
@@ -1576,7 +1638,7 @@ const i18n = {
     messageNotFound:'Повідомлення не знайдено', edit:'Редагувати', save:'Зберегти', cancel:'Скасування', edited:'змінено', editOwnOnly:'Можна редагувати лише свої повідомлення',
     serverError:'Помилка сервера', accountCreated:'Акаунт створено, увійди', enterLoginPassword:'Введи логін і пароль', loginTaken:'Логін зайнятий', badLogin:'Невірний логін або пароль', authExpired:'Сесію завершено. Увійди знову.',
     badAvatar:'Невірний формат аватара', bigAvatar:'Аватар занадто великий', userNotFound:'Користувача не знайдено', alreadyFriends:'Ви вже друзі',
-    allowMic:'Дозволь доступ до мікрофона для дзвінків', userOffline:'Користувач не в мережі', delete:'Видалити', typing:'друкує', profileSettings:'Налаштування профілю', displayName:'Відображуване ім’я', enterDisplayName:'Введи ім’я', status_online:'В мережі', status_idle:'Не активний', status_dnd:'Не турбувати', status_invisible:'Невидимка', status_offline:'Не в мережі', logout:'Вийти з акаунта', reply:'Відповісти', replyingTo:'Відповідь на повідомлення', replyUnknown:'Повідомлення' 
+    allowMic:'Дозволь доступ до мікрофона для дзвінків', userOffline:'Користувач не в мережі', delete:'Видалити', typing:'друкує', profileSettings:'Налаштування профілю', displayName:'Відображуване ім’я', enterDisplayName:'Введи ім’я', status_online:'В мережі', status_idle:'Не активний', status_dnd:'Не турбувати', status_invisible:'Невидимка', status_offline:'Не в мережі', logout:'Вийти з акаунта', reply:'Відповісти', replyingTo:'Відповідь на повідомлення', replyUnknown:'Повідомлення', changeBackground:'Змінити фон' 
   },
   en: {
     loginBrandSubtitle:'Your cozy messenger for friends', login:'Login', register:'Register', loginBtn:'Sign in', registerBtn:'Create account',
@@ -1633,6 +1695,60 @@ function getWallpaperValue(name) {
   if (name === 'aurora') return 'radial-gradient(circle at 15% 20%, rgba(107,124,255,.28), transparent 24%), radial-gradient(circle at 85% 10%, rgba(46,207,143,.18), transparent 24%), radial-gradient(circle at 40% 80%, rgba(255,138,91,.16), transparent 26%)';
   return 'none';
 }
+function loadDmWallpapers() {
+  try {
+    const raw = JSON.parse(localStorage.getItem('messenger_dm_wallpapers') || '{}');
+    return raw && typeof raw === 'object' ? raw : {};
+  } catch {
+    return {};
+  }
+}
+function saveDmWallpapers() {
+  localStorage.setItem('messenger_dm_wallpapers', JSON.stringify(dmWallpapers || {}));
+}
+function getDmWallpaper(loginValue) {
+  if (!loginValue) return null;
+  const value = dmWallpapers?.[loginValue];
+  return typeof value === 'string' && value.trim() ? value : null;
+}
+function setDmWallpaper(loginValue, imageData) {
+  if (!loginValue) return;
+  if (!dmWallpapers || typeof dmWallpapers !== 'object') dmWallpapers = {};
+  if (imageData) dmWallpapers[loginValue] = imageData;
+  else delete dmWallpapers[loginValue];
+  saveDmWallpapers();
+  applyChatWallpaper();
+}
+function applyChatWallpaper() {
+  const chatEl = document.getElementById('chat');
+  if (!chatEl) return;
+  const dmWallpaper = currentChatType === 'dm' ? getDmWallpaper(currentDM) : null;
+  const wallpaperValue = dmWallpaper ? `url(${String(dmWallpaper).replace(/"/g, '&quot;')})` : getWallpaperValue(customization.wallpaper || 'none');
+  const opacityValue = dmWallpaper ? '.22' : (customization.wallpaper === 'none' ? '.16' : '.22');
+  document.documentElement.style.setProperty('--chat-wallpaper', wallpaperValue);
+  document.documentElement.style.setProperty('--chat-wallpaper-opacity', opacityValue);
+  if (dmWallpaper) {
+    chatEl.style.setProperty('background-size', 'cover');
+    chatEl.style.setProperty('background-position', 'center');
+  } else if (customization.wallpaper === 'dots') chatEl.style.setProperty('background-size','18px 18px');
+  else if (customization.wallpaper === 'grid') chatEl.style.setProperty('background-size','34px 34px');
+  else chatEl.style.removeProperty('background-size');
+}
+function closeDmListMenu() {
+  openDmListMenuLogin = null;
+  document.querySelectorAll('.user').forEach(el => el.classList.remove('hasOpenMenu'));
+  renderOnline();
+}
+function toggleDmListMenu(userLogin) {
+  openDmListMenuLogin = openDmListMenuLogin === userLogin ? null : userLogin;
+  renderOnline();
+}
+function requestDmWallpaperChange(userLogin) {
+  if (!userLogin || !dmWallpaperUploadInput) return;
+  pendingDmWallpaperLogin = userLogin;
+  dmWallpaperUploadInput.click();
+}
+
 function updateCustomizationControls() {
   if (accentColorInput) accentColorInput.value = customization.accent || '#6b7cff';
   if (bubbleRadiusInput) bubbleRadiusInput.value = String(customization.radius ?? 16);
@@ -1650,11 +1766,7 @@ function applyCustomization() {
   document.documentElement.style.setProperty('--accent-2', getAccent2(customization.accent || '#6b7cff'));
   document.documentElement.style.setProperty('--ui-radius', `${customization.radius ?? 16}px`);
   document.documentElement.style.setProperty('--message-font-size', `${customization.fontSize ?? 14}px`);
-  document.documentElement.style.setProperty('--chat-wallpaper', getWallpaperValue(customization.wallpaper || 'none'));
-  document.documentElement.style.setProperty('--chat-wallpaper-opacity', customization.wallpaper === 'none' ? '.16' : '.22');
-  if (customization.wallpaper === 'dots') document.getElementById('chat')?.style.setProperty('background-size','18px 18px');
-  else if (customization.wallpaper === 'grid') document.getElementById('chat')?.style.setProperty('background-size','34px 34px');
-  else document.getElementById('chat')?.style.removeProperty('background-size');
+  applyChatWallpaper();
   if (profileBioInput && profileModalMode === 'self') profileBioInput.value = customization.bio || '';
   saveCustomization();
   updateCustomizationControls();
@@ -2597,6 +2709,8 @@ function resetUiToLoggedOut() {
   ws = null;
   clearSavedAuth();
   currentDM = null;
+  closeDmListMenu();
+  applyChatWallpaper();
   currentDMNick = null;
   currentDMAvatar = null;
   currentChatType = 'dm';
@@ -2919,7 +3033,7 @@ function openDM(l, n, avatar = null) {
   syncMobileLayout(true);
   currentChatType = 'dm';
   currentGroupId = null;
-  currentDM = l; currentDMNick = n; currentDMAvatar = avatar; editingMessageId = null; openMessageMenuId = null; clearReplyMessage(); emptyChat.style.display = 'none'; messages.style.display = 'block'; unread[l] = 0; saveLocalChatState();
+  currentDM = l; currentDMNick = n; currentDMAvatar = avatar; editingMessageId = null; openMessageMenuId = null; closeDmListMenu(); clearReplyMessage(); emptyChat.style.display = 'none'; messages.style.display = 'block'; unread[l] = 0; saveLocalChatState(); applyChatWallpaper();
   const peer = findFriendData(l) || { nickname:n, avatar, status:'offline' };
   updateChatHeader(l, peer.nickname || n, peer.avatar || avatar); renderTypingIndicator(); ws.send(JSON.stringify({ type:'get_messages', with:l })); ws.send(JSON.stringify({ type:'read', from:l })); scheduleRenderCurrentChat(true); renderOnline(); renderGroups();
 }
@@ -2931,12 +3045,14 @@ function openGroup(groupId) {
   currentChatType = 'group';
   currentGroupId = Number(groupId);
   currentDM = null;
+  closeDmListMenu();
   editingMessageId = null;
   openMessageMenuId = null;
   clearReplyMessage();
   emptyChat.style.display = 'none';
   messages.style.display = 'block';
   updateChatHeader();
+  applyChatWallpaper();
   scheduleRenderCurrentChat(true);
   renderOnline();
   renderGroups();
@@ -3406,15 +3522,48 @@ function renderOnline() {
       div.appendChild(info);
       div.onclick = () => openGroup(item.id);
     } else {
-      div.className = 'user' + (item.login === currentDM && currentChatType === 'dm' ? ' active' : '');
+      const isMenuOpen = openDmListMenuLogin === item.login;
+      div.className = 'user' + (item.login === currentDM && currentChatType === 'dm' ? ' active' : '') + (isMenuOpen ? ' hasOpenMenu' : '');
       div.dataset.login = item.login;
       div.appendChild(createAvatar(item.avatar || item, item.status || 'offline', true));
       const info = document.createElement('div');
       info.className = 'userInfo';
       info.innerHTML = `<div class="userName">${escapeHtml(item.nickname || item.login)}</div><div class="userSub">${escapeHtml(statusText(item.status || 'offline'))}</div>`;
       div.appendChild(info);
-      if (unread[item.login] > 0) { const b = document.createElement('div'); b.className = 'unread'; b.textContent = unread[item.login]; div.appendChild(b); }
-      div.onclick = () => openDM(item.login, item.nickname, item.avatar);
+      if (unread[item.login] > 0 && !isMenuOpen) { const b = document.createElement('div'); b.className = 'unread'; b.textContent = unread[item.login]; div.appendChild(b); }
+
+      const actions = document.createElement('div');
+      actions.className = 'userActions';
+
+      const trigger = document.createElement('button');
+      trigger.type = 'button';
+      trigger.className = 'userMenuTrigger' + (isMenuOpen ? ' active' : '');
+      trigger.textContent = '⋯';
+      trigger.title = 'Меню';
+      trigger.onclick = (e) => { e.stopPropagation(); toggleDmListMenu(item.login); };
+      actions.appendChild(trigger);
+
+      const menu = document.createElement('div');
+      menu.className = 'userMenu' + (isMenuOpen ? ' open' : '');
+      menu.onclick = (e) => e.stopPropagation();
+
+      const profileBtn = document.createElement('button');
+      profileBtn.type = 'button';
+      profileBtn.className = 'userMenuItem';
+      profileBtn.textContent = t('viewProfile');
+      profileBtn.onclick = (e) => { e.stopPropagation(); closeDmListMenu(); openUserProfileModal(item); };
+      menu.appendChild(profileBtn);
+
+      const backgroundBtn = document.createElement('button');
+      backgroundBtn.type = 'button';
+      backgroundBtn.className = 'userMenuItem';
+      backgroundBtn.textContent = t('changeBackground');
+      backgroundBtn.onclick = (e) => { e.stopPropagation(); closeDmListMenu(); requestDmWallpaperChange(item.login); };
+      menu.appendChild(backgroundBtn);
+
+      actions.appendChild(menu);
+      div.appendChild(actions);
+      div.onclick = () => { closeDmListMenu(); openDM(item.login, item.nickname, item.avatar); };
       div.ondblclick = () => openUserProfileModal(item);
     }
     online.appendChild(div);
@@ -3465,6 +3614,20 @@ avatarUploadInput.onchange = () => {
 bannerUploadInput.onchange = () => {
   const file = bannerUploadInput.files?.[0]; if (!file || !ws) return; const reader = new FileReader(); reader.onload = () => { setProfileBanner(reader.result); ws.send(JSON.stringify({ type:'update_banner', image:reader.result })); }; reader.readAsDataURL(file); bannerUploadInput.value = '';
 };
+dmWallpaperUploadInput.onchange = () => {
+  const file = dmWallpaperUploadInput.files?.[0];
+  const targetLogin = pendingDmWallpaperLogin;
+  pendingDmWallpaperLogin = null;
+  if (!file || !targetLogin) { dmWallpaperUploadInput.value = ''; return; }
+  const reader = new FileReader();
+  reader.onload = () => { setDmWallpaper(targetLogin, reader.result); };
+  reader.readAsDataURL(file);
+  dmWallpaperUploadInput.value = '';
+};
+
+document.addEventListener('click', e => {
+  if (!e.target.closest('.userActions')) closeDmListMenu();
+});
 
 callBtn.onclick = async () => {
   if (callState !== 'idle') { endCurrentCall(true); return; }
