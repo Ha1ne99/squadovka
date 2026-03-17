@@ -670,24 +670,10 @@ async function getFriends(login) {
 }
 
 async function getFriendUsers(login) {
-  const result = await pool.query(`
-    SELECT u.login, u.nickname, u.avatarImage, u.bannerImage, u.status
-    FROM users u
-    JOIN (
-      SELECT user1 AS friend FROM friends WHERE user2 = $1
-      UNION
-      SELECT user2 AS friend FROM friends WHERE user1 = $1
-    ) f ON f.friend = u.login
-    ORDER BY LOWER(u.nickname), LOWER(u.login)
-  `, [login]);
-
-  return result.rows.map(user => ({
-    login: user.login,
-    nickname: user.nickname,
-    status: getEffectiveStatus(user.login, user.status, login),
-    avatar: buildAvatar(user.login, user.nickname, user.avatarimage),
-    banner: user.bannerimage || null
-  }));
+  const friends = await getFriends(login);
+  if (!friends.length) return [];
+  const users = await Promise.all(friends.map(friendLogin => getUserPublic(friendLogin, login)));
+  return users.filter(Boolean);
 }
 
 async function getUnreadMap(login) {

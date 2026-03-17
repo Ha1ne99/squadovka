@@ -1598,9 +1598,8 @@ let activeSettingsTab = 'profile';
 let typingUsers = {};
 let typingSendTimer = null;
 let typingStopTimer = null;
-const MAX_RENDERED_MESSAGES = 80;
-const MAX_STORED_MESSAGES = 250;
-const CHAT_HISTORY_REFRESH_MS = 30000;
+const MAX_RENDERED_MESSAGES = 200;
+const MAX_STORED_MESSAGES = 500;
 const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
 let renderChatRaf = null;
 const mobileMediaQuery = window.matchMedia('(max-width: 900px)');
@@ -2457,32 +2456,6 @@ function loadLocalChatState(userLogin) {
     chats = hydrateStoredChats(JSON.parse(localStorage.getItem(getChatsStorageKey(userLogin)) || '{}'));
     unread = JSON.parse(localStorage.getItem(getUnreadStorageKey(userLogin)) || '{}');
   } catch { chats = {}; unread = {}; }
-  chatHistoryMeta = {};
-  pendingHistoryRequests = new Set();
-}
-
-function markChatHistoryFresh(key) {
-  if (!key) return;
-  chatHistoryMeta[key] = { loadedAt: Date.now() };
-  pendingHistoryRequests.delete(key);
-}
-
-function shouldRequestChatHistory(key) {
-  if (!key) return false;
-  if (pendingHistoryRequests.has(key)) return false;
-  const list = chats[key] || [];
-  if (!list.length) return true;
-  const loadedAt = Number(chatHistoryMeta[key]?.loadedAt || 0);
-  return !loadedAt || (Date.now() - loadedAt) > CHAT_HISTORY_REFRESH_MS;
-}
-
-function saveLocalChatStateSoon() {
-  if (!login) return;
-  if (localStateSaveTimer) clearTimeout(localStateSaveTimer);
-  localStateSaveTimer = setTimeout(() => {
-    localStateSaveTimer = null;
-    saveLocalChatState();
-  }, 180);
 }
 
 async function unlockAudio() {}
@@ -2831,9 +2804,6 @@ function resetUiToLoggedOut() {
   currentGroupId = null;
   groups = [];
   chats = {};
-  chatHistoryMeta = {};
-  pendingHistoryRequests = new Set();
-  if (localStateSaveTimer) { clearTimeout(localStateSaveTimer); localStateSaveTimer = null; }
   requests = [];
   friends = [];
   unread = {};
@@ -2959,7 +2929,7 @@ function handle(d) {
     upsertMessage(peer, d);
     const isIncoming = d.from !== login;
     unread[peer] = peer !== currentDM ? (d.unread || unread[peer] || 0) : 0;
-    saveLocalChatStateSoon();
+    saveLocalChatState();
     if (isIncoming) {
       soundMessage();
       if (peer === currentDM && document.visibilityState === 'visible' && ws && ws.readyState === WebSocket.OPEN) {
@@ -2974,7 +2944,7 @@ function handle(d) {
     const peer = d.from === login ? d.to : d.from;
     chats[peer] = (chats[peer] || []).filter(m => Number(m.id) !== Number(d.id));
     if (replyingToMessage && Number(replyingToMessage.id) === Number(d.id)) clearReplyMessage();
-    saveLocalChatStateSoon();
+    saveLocalChatState();
     if (peer === currentDM) scheduleRenderCurrentChat();
     return;
   }
@@ -2986,7 +2956,7 @@ function handle(d) {
   if (d.type === 'message_edited') {
     const peer = d.from === login ? d.to : d.from;
     updateMessageLocally(peer, d.id, { text:d.text, edited:d.edited, editedAt:d.editedAt });
-    saveLocalChatStateSoon();
+    saveLocalChatState();
     if (peer === currentDM) scheduleRenderCurrentChat();
     return;
   }
@@ -2998,15 +2968,14 @@ function handle(d) {
       ? { receiptStatus: 'read', deliveredAt: Date.now(), readAt: Date.now() }
       : { receiptStatus: 'sent', deliveredAt: Date.now() };
     ids.forEach(id => updateMessageLocally(peer, id, patch));
-    saveLocalChatStateSoon();
+    saveLocalChatState();
     if (peer === currentDM) scheduleRenderCurrentChat();
     return;
   }
   if (d.type === 'chat_history') {
     if (!d.with) return;
     replaceChatHistory(d.with, (d.messages || []).map(msg => ({ ...msg, attachment: normalizeAttachment(msg.attachment), replyTo: normalizeReplyPayload(msg.replyTo) })));
-    markChatHistoryFresh(d.with);
-    saveLocalChatStateSoon();
+    saveLocalChatState();
     if (currentDM === d.with) scheduleRenderCurrentChat(true);
     return;
   }
@@ -3017,7 +2986,7 @@ function handle(d) {
     if (currentDM) scheduleRenderCurrentChat();
     return;
   }
-  if (d.type === 'unread_update') { unread = d.unread || unread || {}; saveLocalChatStateSoon(); renderOnline(); return; }
+  if (d.type === 'unread_update') { unread = d.unread || unread || {}; saveLocalChatState(); renderOnline(); return; }
   if (d.type === 'avatar_updated') {
     if (d.login === login) {
       myAvatar = d.avatar || myAvatar;
@@ -3139,11 +3108,11 @@ function handle(d) {
   if (d.type === 'groups_list') { groups = Array.isArray(d.groups) ? d.groups : []; renderGroups(); renderOnline(); if (currentChatType === 'group' && currentGroupId && !findGroupData(currentGroupId)) { currentGroupId = null; currentChatType = 'dm'; emptyChat.style.display = 'flex'; messages.style.display = 'none'; updateChatHeader(); } return; }
   if (d.type === 'group_created') { if (d.group) { groups = [d.group, ...(groups || []).filter(g => Number(g.id) !== Number(d.group.id))]; renderGroups(); renderOnline(); if (login && d.group.ownerLogin === login) openGroup(d.group.id); } return; }
   if (d.type === 'group_updated') { if (d.group) { groups = (groups || []).filter(g => Number(g.id) !== Number(d.group.id)); groups.unshift(d.group); renderGroups(); renderOnline(); if (currentChatType === 'group' && Number(currentGroupId) === Number(d.group.id)) { updateChatHeader(); scheduleRenderCurrentChat(); } } return; }
-  if (d.type === 'group_left') { groups = (groups || []).filter(g => Number(g.id) !== Number(d.groupId)); delete chats[getGroupChatKey(d.groupId)]; saveLocalChatStateSoon(); if (currentChatType === 'group' && Number(currentGroupId) === Number(d.groupId)) { currentGroupId = null; currentChatType = 'dm'; emptyChat.style.display = 'flex'; messages.style.display = 'none'; updateChatHeader(); } renderGroups(); renderOnline(); return; }
-  if (d.type === 'group_message') { if (d.attachment) d.attachment = normalizeAttachment(d.attachment); if (d.replyTo) d.replyTo = normalizeReplyPayload(d.replyTo); upsertGroupMessage(d.groupId, d); saveLocalChatStateSoon(); if (currentChatType === 'group' && Number(currentGroupId) === Number(d.groupId)) scheduleRenderCurrentChat(true); return; }
-  if (d.type === 'group_message_edited') { updateGroupMessageLocally(d.groupId, d.id, { text:d.text, edited:d.edited, editedAt:d.editedAt }); saveLocalChatStateSoon(); if (currentChatType === 'group' && Number(currentGroupId) === Number(d.groupId)) scheduleRenderCurrentChat(); return; }
-  if (d.type === 'group_message_deleted') { removeGroupMessageLocally(d.groupId, d.id); if (replyingToMessage && Number(replyingToMessage.id) === Number(d.id)) clearReplyMessage(); saveLocalChatStateSoon(); if (currentChatType === 'group' && Number(currentGroupId) === Number(d.groupId)) scheduleRenderCurrentChat(); return; }
-  if (d.type === 'group_history') { const key = getGroupChatKey(d.groupId); replaceChatHistory(key, (d.messages || []).map(msg => ({ ...msg, attachment: normalizeAttachment(msg.attachment), replyTo: normalizeReplyPayload(msg.replyTo) }))); markChatHistoryFresh(key); saveLocalChatStateSoon(); if (currentChatType === 'group' && Number(currentGroupId) === Number(d.groupId)) scheduleRenderCurrentChat(true); return; }
+  if (d.type === 'group_left') { groups = (groups || []).filter(g => Number(g.id) !== Number(d.groupId)); delete chats[getGroupChatKey(d.groupId)]; saveLocalChatState(); if (currentChatType === 'group' && Number(currentGroupId) === Number(d.groupId)) { currentGroupId = null; currentChatType = 'dm'; emptyChat.style.display = 'flex'; messages.style.display = 'none'; updateChatHeader(); } renderGroups(); renderOnline(); return; }
+  if (d.type === 'group_message') { if (d.attachment) d.attachment = normalizeAttachment(d.attachment); if (d.replyTo) d.replyTo = normalizeReplyPayload(d.replyTo); upsertGroupMessage(d.groupId, d); saveLocalChatState(); if (currentChatType === 'group' && Number(currentGroupId) === Number(d.groupId)) scheduleRenderCurrentChat(true); return; }
+  if (d.type === 'group_message_edited') { updateGroupMessageLocally(d.groupId, d.id, { text:d.text, edited:d.edited, editedAt:d.editedAt }); saveLocalChatState(); if (currentChatType === 'group' && Number(currentGroupId) === Number(d.groupId)) scheduleRenderCurrentChat(); return; }
+  if (d.type === 'group_message_deleted') { removeGroupMessageLocally(d.groupId, d.id); if (replyingToMessage && Number(replyingToMessage.id) === Number(d.id)) clearReplyMessage(); saveLocalChatState(); if (currentChatType === 'group' && Number(currentGroupId) === Number(d.groupId)) scheduleRenderCurrentChat(); return; }
+  if (d.type === 'group_history') { replaceChatHistory(getGroupChatKey(d.groupId), (d.messages || []).map(msg => ({ ...msg, attachment: normalizeAttachment(msg.attachment), replyTo: normalizeReplyPayload(msg.replyTo) }))); saveLocalChatState(); if (currentChatType === 'group' && Number(currentGroupId) === Number(d.groupId)) scheduleRenderCurrentChat(true); return; }
 }
 
 function openDM(l, n, avatar = null) {
@@ -3151,19 +3120,9 @@ function openDM(l, n, avatar = null) {
   syncMobileLayout(true);
   currentChatType = 'dm';
   currentGroupId = null;
-  currentDM = l; currentDMNick = n; currentDMAvatar = avatar; editingMessageId = null; openMessageMenuId = null; closeDmListMenu(); clearReplyMessage(); emptyChat.style.display = 'none'; messages.style.display = 'block'; unread[l] = 0; saveLocalChatStateSoon(); applyChatWallpaper();
+  currentDM = l; currentDMNick = n; currentDMAvatar = avatar; editingMessageId = null; openMessageMenuId = null; closeDmListMenu(); clearReplyMessage(); emptyChat.style.display = 'none'; messages.style.display = 'block'; unread[l] = 0; saveLocalChatState(); applyChatWallpaper();
   const peer = findFriendData(l) || { nickname:n, avatar, status:'offline' };
-  updateChatHeader(l, peer.nickname || n, peer.avatar || avatar);
-  renderTypingIndicator();
-  const shouldRefresh = shouldRequestChatHistory(l);
-  if (shouldRefresh && ws && ws.readyState === WebSocket.OPEN) {
-    pendingHistoryRequests.add(l);
-    ws.send(JSON.stringify({ type:'get_messages', with:l }));
-  }
-  if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type:'read', from:l }));
-  scheduleRenderCurrentChat(true);
-  renderOnline();
-  renderGroups();
+  updateChatHeader(l, peer.nickname || n, peer.avatar || avatar); renderTypingIndicator(); ws.send(JSON.stringify({ type:'get_messages', with:l })); ws.send(JSON.stringify({ type:'read', from:l })); scheduleRenderCurrentChat(true); renderOnline(); renderGroups();
 }
 
 function openGroup(groupId) {
@@ -3184,11 +3143,7 @@ function openGroup(groupId) {
   scheduleRenderCurrentChat(true);
   renderOnline();
   renderGroups();
-  const groupKey = getGroupChatKey(currentGroupId);
-  if (shouldRequestChatHistory(groupKey) && ws && ws.readyState === WebSocket.OPEN) {
-    pendingHistoryRequests.add(groupKey);
-    ws.send(JSON.stringify({ type:'get_group_messages', groupId:currentGroupId }));
-  }
+  ws.send(JSON.stringify({ type:'get_group_messages', groupId:currentGroupId }));
 }
 
 
