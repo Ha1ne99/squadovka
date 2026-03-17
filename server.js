@@ -647,9 +647,7 @@ function getEffectiveStatus(targetLogin, rawStatus, viewerLogin = null) {
   return normalized;
 }
 
-async function getUserPublic(login, viewerLogin = null) {
-  const result = await pool.query(`SELECT login, nickname, avatarImage, bannerImage, status FROM users WHERE login = $1`, [login]);
-  const user = result.rows[0];
+function buildPublicUserFromRow(user, viewerLogin = null) {
   if (!user) return null;
   return {
     login: user.login,
@@ -658,6 +656,12 @@ async function getUserPublic(login, viewerLogin = null) {
     avatar: buildAvatar(user.login, user.nickname, user.avatarimage),
     banner: user.bannerimage || null
   };
+}
+
+async function getUserPublic(login, viewerLogin = null) {
+  const result = await pool.query(`SELECT login, nickname, avatarImage, bannerImage, status FROM users WHERE login = $1`, [login]);
+  const user = result.rows[0];
+  return buildPublicUserFromRow(user, viewerLogin);
 }
 
 async function getFriends(login) {
@@ -670,10 +674,18 @@ async function getFriends(login) {
 }
 
 async function getFriendUsers(login) {
-  const friends = await getFriends(login);
-  if (!friends.length) return [];
-  const users = await Promise.all(friends.map(friendLogin => getUserPublic(friendLogin, login)));
-  return users.filter(Boolean);
+  const result = await pool.query(`
+    SELECT u.login, u.nickname, u.avatarImage, u.bannerImage, u.status
+    FROM users u
+    JOIN (
+      SELECT user1 AS friend FROM friends WHERE user2 = $1
+      UNION
+      SELECT user2 AS friend FROM friends WHERE user1 = $1
+    ) f ON f.friend = u.login
+    ORDER BY LOWER(u.nickname) ASC, LOWER(u.login) ASC
+  `, [login]);
+
+  return result.rows.map(row => buildPublicUserFromRow(row, login)).filter(Boolean);
 }
 
 async function getUnreadMap(login) {
@@ -685,7 +697,8 @@ async function getUnreadMap(login) {
 
 async function getChatHistory(userA, userB) {
   const result = await pool.query(`
-    SELECT id, fromUser, toUser, text, time, edited, editedAt, deliveredAt, readAt, attachment, replyTo
+    SELECT m.id, m.fromUser, m.toUser, m.text, m.time, m.edited, m.editedAt, m.deliveredAt, m.readAt, m.attachment, m.replyTo,
+           u.nickname AS senderNickname, u.avatarImage AS senderAvatarImage
     FROM (
       SELECT id, fromUser, toUser, text, time, edited, editedAt, deliveredAt, readAt, attachment, replyTo
       FROM messages
@@ -693,36 +706,26 @@ async function getChatHistory(userA, userB) {
          OR (fromUser = $2 AND toUser = $1)
       ORDER BY time DESC, id DESC
       LIMIT $3
-    ) recent_messages
-    ORDER BY time ASC, id ASC
+    ) m
+    JOIN users u ON u.login = m.fromUser
+    ORDER BY m.time ASC, m.id ASC
   `, [userA, userB, CHAT_HISTORY_LIMIT]);
 
-  const senders = new Map();
-  const messages = [];
-
-  for (const row of result.rows) {
-    let sender = senders.get(row.fromuser);
-    if (!sender) {
-      sender = await getUserPublic(row.fromuser, userA);
-      senders.set(row.fromuser, sender);
-    }
-    messages.push({
-      id: Number(row.id),
-      from: row.fromuser,
-      to: row.touser,
-      text: row.text,
-      time: Number(row.time),
-      edited: Boolean(row.edited),
-      editedAt: row.editedat ? Number(row.editedat) : null,
-      deliveredAt: row.deliveredat ? Number(row.deliveredat) : null,
-      readAt: row.readat ? Number(row.readat) : null,
-      receiptStatus: getMessageReceiptStatus(row),
-      attachment: sanitizeAttachmentPayload(row.attachment),
-      replyTo: sanitizeReplyPayload(row.replyto),
-      avatar: sender?.avatar || buildAvatar(row.fromuser, row.fromuser)
-    });
-  }
-  return messages;
+  return result.rows.map(row => ({
+    id: Number(row.id),
+    from: row.fromuser,
+    to: row.touser,
+    text: row.text,
+    time: Number(row.time),
+    edited: Boolean(row.edited),
+    editedAt: row.editedat ? Number(row.editedat) : null,
+    deliveredAt: row.deliveredat ? Number(row.deliveredat) : null,
+    readAt: row.readat ? Number(row.readat) : null,
+    receiptStatus: getMessageReceiptStatus(row),
+    attachment: sanitizeAttachmentPayload(row.attachment),
+    replyTo: sanitizeReplyPayload(row.replyto),
+    avatar: buildAvatar(row.fromuser, row.sendernickname, row.senderavatarimage)
+  }));
 }
 
 
@@ -772,58 +775,78 @@ async function getGroupPublic(groupId, viewerLogin = null) {
 }
 
 async function getGroupsForUser(login) {
-  const result = await pool.query(`
-    SELECT g.id
+  const groupsResult = await pool.query(`
+    SELECT g.id, g.name, g.ownerLogin, g.createdAt
     FROM chat_groups g
     JOIN group_members gm ON gm.groupId = g.id
     WHERE gm.userLogin = $1
     ORDER BY g.createdAt DESC, g.id DESC
   `, [login]);
 
-  const groups = [];
-  for (const row of result.rows) {
-    const group = await getGroupPublic(Number(row.id), login);
-    if (group) groups.push(group);
+  if (!groupsResult.rows.length) return [];
+
+  const groupIds = groupsResult.rows.map(row => Number(row.id));
+  const membersResult = await pool.query(`
+    SELECT gm.groupId, gm.userLogin, gm.role, u.nickname, u.avatarImage, u.status
+    FROM group_members gm
+    JOIN users u ON u.login = gm.userLogin
+    WHERE gm.groupId = ANY($1::int[])
+    ORDER BY gm.groupId ASC,
+      CASE WHEN gm.role = 'owner' THEN 0 ELSE 1 END,
+      LOWER(u.nickname) ASC,
+      LOWER(u.login) ASC
+  `, [groupIds]);
+
+  const membersByGroup = new Map();
+  for (const row of membersResult.rows) {
+    const groupId = Number(row.groupid);
+    if (!membersByGroup.has(groupId)) membersByGroup.set(groupId, []);
+    membersByGroup.get(groupId).push({
+      login: row.userlogin,
+      nickname: row.nickname,
+      role: row.role,
+      status: getEffectiveStatus(row.userlogin, row.status, login),
+      avatar: buildAvatar(row.userlogin, row.nickname, row.avatarimage)
+    });
   }
-  return groups;
+
+  return groupsResult.rows.map(row => ({
+    id: Number(row.id),
+    name: row.name,
+    ownerLogin: row.ownerlogin,
+    createdAt: Number(row.createdat),
+    members: membersByGroup.get(Number(row.id)) || []
+  }));
 }
 
 async function getGroupHistory(groupId, viewerLogin = null) {
   const result = await pool.query(`
-    SELECT id, groupId, fromUser, text, time, edited, editedAt, attachment, replyTo
+    SELECT gm.id, gm.groupId, gm.fromUser, gm.text, gm.time, gm.edited, gm.editedAt, gm.attachment, gm.replyTo,
+           u.nickname AS senderNickname, u.avatarImage AS senderAvatarImage
     FROM (
       SELECT id, groupId, fromUser, text, time, edited, editedAt, attachment, replyTo
       FROM group_messages
       WHERE groupId = $1
       ORDER BY time DESC, id DESC
       LIMIT $2
-    ) recent_group_messages
-    ORDER BY time ASC, id ASC
+    ) gm
+    JOIN users u ON u.login = gm.fromUser
+    ORDER BY gm.time ASC, gm.id ASC
   `, [groupId, CHAT_HISTORY_LIMIT]);
 
-  const senders = new Map();
-  const messages = [];
-  for (const row of result.rows) {
-    let sender = senders.get(row.fromuser);
-    if (!sender) {
-      sender = await getUserPublic(row.fromuser, viewerLogin);
-      senders.set(row.fromuser, sender);
-    }
-    messages.push({
-      id: Number(row.id),
-      groupId: Number(row.groupid),
-      from: row.fromuser,
-      text: row.text,
-      time: Number(row.time),
-      edited: Boolean(row.edited),
-      editedAt: row.editedat ? Number(row.editedat) : null,
-      fromNick: sender?.nickname || row.fromuser,
-      attachment: sanitizeAttachmentPayload(row.attachment),
-      replyTo: sanitizeReplyPayload(row.replyto),
-      avatar: sender?.avatar || buildAvatar(row.fromuser, row.fromuser)
-    });
-  }
-  return messages;
+  return result.rows.map(row => ({
+    id: Number(row.id),
+    groupId: Number(row.groupid),
+    from: row.fromuser,
+    text: row.text,
+    time: Number(row.time),
+    edited: Boolean(row.edited),
+    editedAt: row.editedat ? Number(row.editedat) : null,
+    fromNick: row.sendernickname || row.fromuser,
+    attachment: sanitizeAttachmentPayload(row.attachment),
+    replyTo: sanitizeReplyPayload(row.replyto),
+    avatar: buildAvatar(row.fromuser, row.sendernickname, row.senderavatarimage)
+  }));
 }
 
 async function sendGroupList(login) {
