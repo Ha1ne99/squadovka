@@ -289,96 +289,87 @@ function isSecureRequest(req) {
 
 app.use((req, res, next) => {
   if (isProduction() && !isSecureRequest(req)) {
-    return res.redirect(301, `https://${req.headers.host}${req.originalUrl}`);
+    const host = req.headers.host;
+    if (host) return res.redirect(301, `https://${host}${req.originalUrl}`);
   }
-  res.setHeader('X-Content-Type-Options', 'nosniff');
-  res.setHeader('X-Frame-Options', 'DENY');
-  res.setHeader('Referrer-Policy', 'same-origin');
-  res.setHeader('Permissions-Policy', 'microphone=(self)');
-  res.setHeader('Content-Security-Policy', "default-src 'self' data: blob:; connect-src 'self' wss: ws:; img-src 'self' data: blob:; media-src 'self' blob: data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'");
   next();
 });
 
+app.use('/uploads', express.static(uploadsDir, {
+  maxAge: '7d',
+  etag: true,
+  fallthrough: false
+}));
 
-app.use('/uploads', express.static(uploadsDir, { maxAge: '7d' }));
-app.use(express.static(publicDir));
-app.use(express.static(__dirname));
+app.use(express.json({ limit: '2mb' }));
 
 app.post('/api/upload', async (req, res) => {
   try {
     const auth = await requireAuthFromRequest(req);
-    if (!auth?.login) return res.status(401).json({ error: 'UNAUTHORIZED' });
+    if (!auth?.login) return res.status(401).json({ ok: false, error: 'UNAUTHORIZED' });
 
-    const userLogin = auth.login;
-    const chatType = String(req.query.chatType || 'dm').trim();
-    const to = sanitizeLogin(req.query.to);
-    const groupId = Number(req.query.groupId);
-
-    if (chatType === 'dm') {
-      if (!to || to === userLogin) return res.status(400).json({ error: 'BAD_TARGET' });
-      if (!(await areFriends(userLogin, to))) return res.status(403).json({ error: 'FORBIDDEN' });
-    } else if (chatType === 'group') {
-      if (!Number.isFinite(groupId) || groupId <= 0) return res.status(400).json({ error: 'BAD_GROUP' });
-      if (!(await isGroupMember(groupId, userLogin))) return res.status(403).json({ error: 'FORBIDDEN' });
-    } else {
-      return res.status(400).json({ error: 'BAD_CHAT_TYPE' });
+    const contentType = String(req.headers['content-type'] || '').toLowerCase();
+    if (!contentType || !contentType.includes('application/octet-stream')) {
+      return res.status(400).json({ ok: false, error: 'INVALID_CONTENT_TYPE' });
     }
 
-    const rawHeaderName = typeof req.headers['x-file-name'] === 'string' ? req.headers['x-file-name'] : 'file';
-    const originalName = sanitizeFilename(decodeURIComponent(rawHeaderName));
-    const mimeType = normalizeMimeType(req.headers['content-type'], originalName);
-    const contentLength = Number(req.headers['content-length'] || 0);
-    if (Number.isFinite(contentLength) && contentLength > MAX_FILE_SIZE) {
-      return res.status(413).json({ error: 'FILE_TOO_LARGE' });
+    const originalName = sanitizeFilename(req.headers['x-file-name'] || 'file');
+    const mimeType = normalizeMimeType(req.headers['x-file-type'] || '', originalName);
+    const sizeHeader = Number(req.headers['x-file-size'] || 0);
+    if (!Number.isFinite(sizeHeader) || sizeHeader <= 0 || sizeHeader > MAX_FILE_SIZE) {
+      return res.status(400).json({ ok: false, error: 'INVALID_FILE_SIZE' });
     }
 
-    const fileBuffer = await readRequestBody(req, MAX_FILE_SIZE);
-    if (!fileBuffer.length) return res.status(400).json({ error: 'EMPTY_FILE' });
+    const body = await readRequestBody(req, MAX_FILE_SIZE);
+    if (!body.length || body.length > MAX_FILE_SIZE) {
+      return res.status(400).json({ ok: false, error: 'INVALID_FILE_SIZE' });
+    }
 
-    const ext = getExtension(originalName);
-    const diskName = `${Date.now()}_${crypto.randomBytes(8).toString('hex')}${ext}`;
-    await fsp.writeFile(path.join(uploadsDir, diskName), fileBuffer);
+    const ext = getExtension(originalName) || '';
+    const fileId = `${Date.now()}-${crypto.randomBytes(8).toString('hex')}`;
+    const savedName = `${fileId}${ext}`;
+    const fullPath = path.join(uploadsDir, savedName);
+    await fsp.writeFile(fullPath, body);
 
-    const attachment = sanitizeAttachmentPayload({
-      name: originalName,
-      url: `/uploads/${diskName}`,
-      size: fileBuffer.length,
-      mimeType
+    return res.json({
+      ok: true,
+      attachment: {
+        name: originalName,
+        url: `/uploads/${savedName}`,
+        size: body.length,
+        mimeType,
+        isImage: isImageMime(mimeType)
+      }
     });
-
-    res.json({ ok: true, attachment });
-  } catch (error) {
-    if (error?.code === 'FILE_TOO_LARGE') return res.status(413).json({ error: 'FILE_TOO_LARGE' });
-    console.error('Upload failed:', error);
-    res.status(500).json({ error: 'UPLOAD_FAILED' });
+  } catch (err) {
+    if (err?.code === 'FILE_TOO_LARGE') {
+      return res.status(413).json({ ok: false, error: 'FILE_TOO_LARGE' });
+    }
+    console.error('Upload error:', err);
+    return res.status(500).json({ ok: false, error: 'SERVER_ERROR' });
   }
 });
 
 app.get('/', (req, res) => {
-  if (fs.existsSync(publicIndex)) {
-    return res.sendFile(publicIndex);
-  }
-  return res.sendFile(rootIndex);
+  if (fs.existsSync(rootIndex)) return res.sendFile(rootIndex);
+  if (fs.existsSync(publicIndex)) return res.sendFile(publicIndex);
+  return res.status(404).send('index.html not found');
 });
 
-if (!process.env.DATABASE_URL) {
+app.use(express.static(publicDir));
+
+const connectionString = process.env.DATABASE_URL;
+if (!connectionString) {
   console.error('DATABASE_URL not found in environment variables');
   process.exit(1);
 }
 
-let databaseUrl = process.env.DATABASE_URL;
-
-try {
-  const url = new URL(databaseUrl);
-  url.searchParams.delete('sslmode');
-  databaseUrl = url.toString();
-} catch (e) {
-  console.error('Invalid DATABASE_URL:', e);
-}
-
 const pool = new Pool({
-  connectionString: databaseUrl,
-  ssl: { rejectUnauthorized: false }
+  connectionString,
+  ssl: isProduction() ? { rejectUnauthorized: false } : false,
+  max: 20,
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 10000
 });
 
 async function initDb() {
@@ -387,40 +378,12 @@ async function initDb() {
       login TEXT PRIMARY KEY,
       password TEXT NOT NULL,
       nickname TEXT NOT NULL,
-      avatarImage TEXT,
-      bannerImage TEXT,
-      status TEXT NOT NULL DEFAULT 'online'
-    )
-  `);
-
-  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS bannerImage TEXT`);
-  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'online'`);
-
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS messages (
-      id BIGSERIAL PRIMARY KEY,
-      fromUser TEXT NOT NULL,
-      toUser TEXT NOT NULL,
-      text TEXT NOT NULL,
-      time BIGINT NOT NULL,
-      edited BOOLEAN NOT NULL DEFAULT FALSE,
-      editedAt BIGINT,
-      attachment JSONB
-    )
-  `);
-
-  await pool.query(`ALTER TABLE messages ADD COLUMN IF NOT EXISTS edited BOOLEAN NOT NULL DEFAULT FALSE`);
-  await pool.query(`ALTER TABLE messages ADD COLUMN IF NOT EXISTS editedAt BIGINT`);
-  await pool.query(`ALTER TABLE messages ADD COLUMN IF NOT EXISTS deliveredAt BIGINT`);
-  await pool.query(`ALTER TABLE messages ADD COLUMN IF NOT EXISTS readAt BIGINT`);
-  await pool.query(`ALTER TABLE messages ADD COLUMN IF NOT EXISTS attachment JSONB`);
-  await pool.query(`ALTER TABLE messages ADD COLUMN IF NOT EXISTS replyTo JSONB`);
-
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS friends (
-      user1 TEXT NOT NULL,
-      user2 TEXT NOT NULL,
-      UNIQUE(user1, user2)
+      status TEXT DEFAULT '',
+      customStatus TEXT DEFAULT '',
+      avatarImage TEXT DEFAULT '',
+      bannerImage TEXT DEFAULT '',
+      profileAbout TEXT DEFAULT '',
+      presence TEXT DEFAULT 'online'
     )
   `);
 
@@ -428,7 +391,32 @@ async function initDb() {
     CREATE TABLE IF NOT EXISTS friend_requests (
       fromUser TEXT NOT NULL,
       toUser TEXT NOT NULL,
-      UNIQUE(fromUser, toUser)
+      createdAt BIGINT NOT NULL,
+      PRIMARY KEY (fromUser, toUser)
+    )
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS friends (
+      user1 TEXT NOT NULL,
+      user2 TEXT NOT NULL,
+      PRIMARY KEY (user1, user2)
+    )
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS messages (
+      id BIGSERIAL PRIMARY KEY,
+      fromUser TEXT NOT NULL,
+      toUser TEXT NOT NULL,
+      text TEXT NOT NULL DEFAULT '',
+      time BIGINT NOT NULL,
+      edited BOOLEAN NOT NULL DEFAULT FALSE,
+      editedAt BIGINT,
+      deliveredAt BIGINT,
+      readAt BIGINT,
+      attachment JSONB,
+      replyTo JSONB
     )
   `);
 
@@ -437,26 +425,27 @@ async function initDb() {
       fromUser TEXT NOT NULL,
       toUser TEXT NOT NULL,
       count INTEGER NOT NULL DEFAULT 0,
-      UNIQUE(fromUser, toUser)
+      PRIMARY KEY (fromUser, toUser)
     )
   `);
 
   await pool.query(`
-    CREATE TABLE IF NOT EXISTS chat_groups (
+    CREATE TABLE IF NOT EXISTS groups (
       id BIGSERIAL PRIMARY KEY,
       name TEXT NOT NULL,
-      ownerLogin TEXT NOT NULL,
-      createdAt BIGINT NOT NULL
+      owner TEXT NOT NULL,
+      createdAt BIGINT NOT NULL,
+      avatarImage TEXT DEFAULT '',
+      about TEXT DEFAULT ''
     )
   `);
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS group_members (
       groupId BIGINT NOT NULL,
-      userLogin TEXT NOT NULL,
-      role TEXT NOT NULL DEFAULT 'member',
-      joinedAt BIGINT NOT NULL DEFAULT 0,
-      UNIQUE(groupId, userLogin)
+      login TEXT NOT NULL,
+      joinedAt BIGINT NOT NULL,
+      PRIMARY KEY (groupId, login)
     )
   `);
 
@@ -465,18 +454,33 @@ async function initDb() {
       id BIGSERIAL PRIMARY KEY,
       groupId BIGINT NOT NULL,
       fromUser TEXT NOT NULL,
-      text TEXT NOT NULL,
+      text TEXT NOT NULL DEFAULT '',
       time BIGINT NOT NULL,
       edited BOOLEAN NOT NULL DEFAULT FALSE,
       editedAt BIGINT,
-      attachment JSONB
+      attachment JSONB,
+      replyTo JSONB
     )
   `);
 
-  await pool.query(`ALTER TABLE group_messages ADD COLUMN IF NOT EXISTS edited BOOLEAN NOT NULL DEFAULT FALSE`);
-  await pool.query(`ALTER TABLE group_messages ADD COLUMN IF NOT EXISTS editedAt BIGINT`);
-  await pool.query(`ALTER TABLE group_messages ADD COLUMN IF NOT EXISTS attachment JSONB`);
-  await pool.query(`ALTER TABLE group_messages ADD COLUMN IF NOT EXISTS replyTo JSONB`);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS group_unread (
+      groupId BIGINT NOT NULL,
+      login TEXT NOT NULL,
+      count INTEGER NOT NULL DEFAULT 0,
+      PRIMARY KEY (groupId, login)
+    )
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS dm_backgrounds (
+      ownerLogin TEXT NOT NULL,
+      peerLogin TEXT NOT NULL,
+      imageUrl TEXT NOT NULL,
+      updatedAt BIGINT NOT NULL,
+      PRIMARY KEY (ownerLogin, peerLogin)
+    )
+  `);
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS sessions (
@@ -488,42 +492,401 @@ async function initDb() {
       revoked BOOLEAN NOT NULL DEFAULT FALSE
     )
   `);
-  await pool.query(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS sessionHash TEXT`);
-  await pool.query(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS createdAt BIGINT NOT NULL DEFAULT 0`);
-  await pool.query(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS expiresAt BIGINT NOT NULL DEFAULT 0`);
-  await pool.query(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS revoked BOOLEAN NOT NULL DEFAULT FALSE`);
-  await pool.query(`CREATE INDEX IF NOT EXISTS sessions_login_idx ON sessions(login)`);
-  await pool.query(`DELETE FROM sessions WHERE revoked = TRUE OR expiresAt < $1`, [Date.now()]);
+
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS customStatus TEXT DEFAULT ''`);
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS avatarImage TEXT DEFAULT ''`);
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS bannerImage TEXT DEFAULT ''`);
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS profileAbout TEXT DEFAULT ''`);
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS presence TEXT DEFAULT 'online'`);
+  await pool.query(`ALTER TABLE groups ADD COLUMN IF NOT EXISTS avatarImage TEXT DEFAULT ''`);
+  await pool.query(`ALTER TABLE groups ADD COLUMN IF NOT EXISTS about TEXT DEFAULT ''`);
+  await pool.query(`ALTER TABLE messages ADD COLUMN IF NOT EXISTS edited BOOLEAN NOT NULL DEFAULT FALSE`);
+  await pool.query(`ALTER TABLE messages ADD COLUMN IF NOT EXISTS editedAt BIGINT`);
+  await pool.query(`ALTER TABLE messages ADD COLUMN IF NOT EXISTS deliveredAt BIGINT`);
+  await pool.query(`ALTER TABLE messages ADD COLUMN IF NOT EXISTS readAt BIGINT`);
+  await pool.query(`ALTER TABLE messages ADD COLUMN IF NOT EXISTS attachment JSONB`);
+  await pool.query(`ALTER TABLE messages ADD COLUMN IF NOT EXISTS replyTo JSONB`);
+  await pool.query(`ALTER TABLE group_messages ADD COLUMN IF NOT EXISTS edited BOOLEAN NOT NULL DEFAULT FALSE`);
+  await pool.query(`ALTER TABLE group_messages ADD COLUMN IF NOT EXISTS editedAt BIGINT`);
+  await pool.query(`ALTER TABLE group_messages ADD COLUMN IF NOT EXISTS attachment JSONB`);
+  await pool.query(`ALTER TABLE group_messages ADD COLUMN IF NOT EXISTS replyTo JSONB`);
+
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_friend_requests_to_user ON friend_requests (toUser, createdAt DESC)`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_friends_user1 ON friends (user1)`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_friends_user2 ON friends (user2)`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_messages_pair_time ON messages (fromUser, toUser, time DESC)`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_messages_pair_reverse_time ON messages (toUser, fromUser, time DESC)`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_messages_to_read ON messages (toUser, fromUser, readAt)`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_unread_to_user ON unread (toUser)`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_group_members_login ON group_members (login, groupId)`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_group_messages_group_time ON group_messages (groupId, time DESC)`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_group_unread_login ON group_unread (login, groupId)`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_sessions_login_expires ON sessions (login, expiresAt)`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_sessions_hash ON sessions (sessionHash)`);
+
+  await pool.query(`DELETE FROM sessions WHERE expiresAt < $1`, [Date.now()]);
+}
+
+function send(ws, data) {
+  if (ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify(data));
+    return true;
+  }
+  return false;
 }
 
 const clients = new Map();
 const pendingCalls = new Map();
 const activeCalls = new Map();
 
-function send(ws, data) {
-  if (ws.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify(data));
+function buildAvatar(login, nickname = '', avatarImage = '') {
+  const avatar = typeof avatarImage === 'string' ? avatarImage.trim() : '';
+  return {
+    login,
+    nickname: nickname || login,
+    image: avatar,
+    letter: (nickname || login || '?').trim().charAt(0).toUpperCase() || '?'
+  };
+}
+
+function mapUserRow(row) {
+  return {
+    login: row.login,
+    nickname: row.nickname || row.login,
+    status: row.status || '',
+    customStatus: row.customstatus || '',
+    avatarImage: row.avatarimage || '',
+    bannerImage: row.bannerimage || '',
+    about: row.profileabout || '',
+    presence: row.presence || 'online',
+    online: isUserOnline(row.login),
+    avatar: buildAvatar(row.login, row.nickname, row.avatarimage)
+  };
+}
+
+async function getUserPublic(login, viewerLogin = null) {
+  const result = await pool.query(`
+    SELECT login, nickname, status, customStatus, avatarImage, bannerImage, profileAbout, presence
+    FROM users
+    WHERE login = $1
+    LIMIT 1
+  `, [login]);
+  const row = result.rows[0];
+  if (!row) return null;
+  const user = mapUserRow(row);
+  if (!viewerLogin || viewerLogin === login || await areFriends(viewerLogin, login)) {
+    return user;
   }
+  return {
+    login: user.login,
+    nickname: user.nickname,
+    status: '',
+    customStatus: '',
+    avatarImage: user.avatarImage,
+    bannerImage: '',
+    about: '',
+    presence: user.presence,
+    online: user.online,
+    avatar: user.avatar
+  };
+}
+
+function isUserOnline(login) {
+  for (const [ws, info] of clients.entries()) {
+    if (info?.login === login && ws.readyState === WebSocket.OPEN) return true;
+  }
+  return false;
+}
+
+function getSocketsByLogin(login) {
+  const list = [];
+  for (const [ws, info] of clients.entries()) {
+    if (info?.login === login && ws.readyState === WebSocket.OPEN) list.push(ws);
+  }
+  return list;
 }
 
 function sendToUser(login, data) {
-  let delivered = false;
-  for (const [ws, info] of clients) {
-    if (info.login === login && ws.readyState === WebSocket.OPEN) {
-      send(ws, data);
-      delivered = true;
-    }
+  const sockets = getSocketsByLogin(login);
+  let sent = false;
+  for (const ws of sockets) {
+    sent = send(ws, data) || sent;
   }
-  return delivered;
+  return sent;
 }
 
-function getCallState(login) {
-  return { pendingWith: pendingCalls.get(login) || null, activeWith: activeCalls.get(login) || null };
+async function userExists(login) {
+  const result = await pool.query(`SELECT 1 FROM users WHERE login = $1 LIMIT 1`, [login]);
+  return Boolean(result.rows[0]);
 }
 
-function isUserBusy(login) {
-  const state = getCallState(login);
-  return Boolean(state.pendingWith || state.activeWith);
+async function areFriends(a, b) {
+  const result = await pool.query(`
+    SELECT 1 FROM friends
+    WHERE (user1 = $1 AND user2 = $2) OR (user1 = $2 AND user2 = $1)
+    LIMIT 1
+  `, [a, b]);
+  return Boolean(result.rows[0]);
+}
+
+async function getFriendLogins(login) {
+  const result = await pool.query(`
+    SELECT CASE WHEN user1 = $1 THEN user2 ELSE user1 END AS friend
+    FROM friends
+    WHERE user1 = $1 OR user2 = $1
+    ORDER BY friend
+  `, [login]);
+  return result.rows.map(row => row.friend);
+}
+
+async function getFriendUsers(login) {
+  const result = await pool.query(`
+    SELECT u.login, u.nickname, u.status, u.customStatus, u.avatarImage, u.bannerImage, u.profileAbout, u.presence
+    FROM users u
+    WHERE u.login IN (
+      SELECT CASE WHEN f.user1 = $1 THEN f.user2 ELSE f.user1 END
+      FROM friends f
+      WHERE f.user1 = $1 OR f.user2 = $1
+    )
+    ORDER BY LOWER(u.nickname), LOWER(u.login)
+  `, [login]);
+  return result.rows.map(mapUserRow);
+}
+
+async function getIncomingRequests(login) {
+  const result = await pool.query(`
+    SELECT u.login, u.nickname, u.status, u.customStatus, u.avatarImage, u.bannerImage, u.profileAbout, u.presence
+    FROM friend_requests r
+    JOIN users u ON u.login = r.fromUser
+    WHERE r.toUser = $1
+    ORDER BY r.createdAt DESC
+  `, [login]);
+  return result.rows.map(mapUserRow);
+}
+
+async function getUnreadMap(login) {
+  const result = await pool.query(`
+    SELECT fromUser, count
+    FROM unread
+    WHERE toUser = $1
+  `, [login]);
+  const map = {};
+  for (const row of result.rows) map[row.fromuser] = Number(row.count) || 0;
+  return map;
+}
+
+async function getDmBackgrounds(ownerLogin) {
+  const result = await pool.query(`
+    SELECT peerLogin, imageUrl
+    FROM dm_backgrounds
+    WHERE ownerLogin = $1
+  `, [ownerLogin]);
+  const backgrounds = {};
+  for (const row of result.rows) backgrounds[row.peerlogin] = row.imageurl;
+  return backgrounds;
+}
+
+async function getDialogList(login) {
+  const friends = await getFriendUsers(login);
+  const unreadMap = await getUnreadMap(login);
+
+  const [messageAgg, groupRows] = await Promise.all([
+    pool.query(`
+      WITH latest AS (
+        SELECT DISTINCT ON (
+          CASE WHEN fromUser = $1 THEN toUser ELSE fromUser END
+        )
+          CASE WHEN fromUser = $1 THEN toUser ELSE fromUser END AS peer,
+          id,
+          fromUser,
+          toUser,
+          text,
+          time,
+          edited,
+          editedAt,
+          deliveredAt,
+          readAt,
+          attachment,
+          replyTo
+        FROM messages
+        WHERE fromUser = $1 OR toUser = $1
+        ORDER BY
+          CASE WHEN fromUser = $1 THEN toUser ELSE fromUser END,
+          time DESC,
+          id DESC
+      )
+      SELECT *
+      FROM latest
+    `, [login]),
+    pool.query(`
+      SELECT
+        g.id,
+        g.name,
+        g.owner,
+        g.createdAt,
+        g.avatarImage,
+        g.about,
+        gu.count AS unread,
+        (
+          SELECT gm.text
+          FROM group_messages gm
+          WHERE gm.groupId = g.id
+          ORDER BY gm.time DESC, gm.id DESC
+          LIMIT 1
+        ) AS lastText,
+        (
+          SELECT gm.time
+          FROM group_messages gm
+          WHERE gm.groupId = g.id
+          ORDER BY gm.time DESC, gm.id DESC
+          LIMIT 1
+        ) AS lastTime
+      FROM groups g
+      JOIN group_members gmbr ON gmbr.groupId = g.id
+      LEFT JOIN group_unread gu ON gu.groupId = g.id AND gu.login = $1
+      WHERE gmbr.login = $1
+      ORDER BY COALESCE((
+        SELECT gm2.time
+        FROM group_messages gm2
+        WHERE gm2.groupId = g.id
+        ORDER BY gm2.time DESC, gm2.id DESC
+        LIMIT 1
+      ), g.createdAt) DESC
+    `, [login])
+  ]);
+
+  const latestByPeer = new Map();
+  for (const row of messageAgg.rows) {
+    latestByPeer.set(row.peer, {
+      id: Number(row.id),
+      from: row.fromuser,
+      to: row.touser,
+      text: row.text || '',
+      time: Number(row.time) || 0,
+      edited: Boolean(row.edited),
+      editedAt: row.editedat ? Number(row.editedat) : null,
+      deliveredAt: row.deliveredat ? Number(row.deliveredat) : null,
+      readAt: row.readat ? Number(row.readat) : null,
+      attachment: row.attachment || null,
+      replyTo: row.replyto || null
+    });
+  }
+
+  const dms = friends.map(friend => ({
+    type: 'dm',
+    with: friend.login,
+    user: friend,
+    unread: unreadMap[friend.login] || 0,
+    lastMessage: latestByPeer.get(friend.login) || null
+  }));
+
+  const groups = groupRows.rows.map(row => ({
+    type: 'group',
+    id: Number(row.id),
+    name: row.name,
+    owner: row.owner,
+    createdAt: Number(row.createdat) || 0,
+    avatarImage: row.avatarimage || '',
+    about: row.about || '',
+    unread: Number(row.unread) || 0,
+    lastMessage: row.lasttime ? {
+      text: row.lasttext || '',
+      time: Number(row.lasttime) || 0
+    } : null
+  }));
+
+  dms.sort((a, b) => (b.lastMessage?.time || 0) - (a.lastMessage?.time || 0));
+  return { dms, groups };
+}
+
+async function getMessagesForUsers(a, b, limit = CHAT_HISTORY_LIMIT) {
+  const safeLimit = Math.max(20, Math.min(Number(limit) || CHAT_HISTORY_LIMIT, CHAT_HISTORY_LIMIT));
+  const result = await pool.query(`
+    SELECT id, fromUser, toUser, text, time, edited, editedAt, deliveredAt, readAt, attachment, replyTo
+    FROM messages
+    WHERE (fromUser = $1 AND toUser = $2) OR (fromUser = $2 AND toUser = $1)
+    ORDER BY time DESC, id DESC
+    LIMIT $3
+  `, [a, b, safeLimit]);
+
+  const users = await pool.query(`
+    SELECT login, nickname, avatarImage
+    FROM users
+    WHERE login = $1 OR login = $2
+  `, [a, b]);
+  const usersMap = new Map(users.rows.map(row => [row.login, row]));
+
+  return result.rows.reverse().map(row => {
+    const author = usersMap.get(row.fromuser) || { login: row.fromuser, nickname: row.fromuser, avatarimage: '' };
+    let receiptStatus = 'pending';
+    if (row.readat) receiptStatus = 'read';
+    else if (row.deliveredat) receiptStatus = 'sent';
+
+    return {
+      id: Number(row.id),
+      from: row.fromuser,
+      to: row.touser,
+      text: row.text || '',
+      time: Number(row.time) || 0,
+      edited: Boolean(row.edited),
+      editedAt: row.editedat ? Number(row.editedat) : null,
+      deliveredAt: row.deliveredat ? Number(row.deliveredat) : null,
+      readAt: row.readat ? Number(row.readat) : null,
+      receiptStatus,
+      attachment: row.attachment || null,
+      replyTo: row.replyto || null,
+      fromNick: author.nickname || row.fromuser,
+      avatar: buildAvatar(author.login, author.nickname, author.avatarimage)
+    };
+  });
+}
+
+async function getGroupMembers(groupId) {
+  const result = await pool.query(`
+    SELECT u.login, u.nickname, u.status, u.customStatus, u.avatarImage, u.bannerImage, u.profileAbout, u.presence
+    FROM group_members gm
+    JOIN users u ON u.login = gm.login
+    WHERE gm.groupId = $1
+    ORDER BY LOWER(u.nickname), LOWER(u.login)
+  `, [groupId]);
+  return result.rows.map(mapUserRow);
+}
+
+async function getGroupMessages(groupId, limit = CHAT_HISTORY_LIMIT) {
+  const safeLimit = Math.max(20, Math.min(Number(limit) || CHAT_HISTORY_LIMIT, CHAT_HISTORY_LIMIT));
+  const result = await pool.query(`
+    SELECT gm.id, gm.groupId, gm.fromUser, gm.text, gm.time, gm.edited, gm.editedAt, gm.attachment, gm.replyTo,
+           u.nickname, u.avatarImage
+    FROM group_messages gm
+    JOIN users u ON u.login = gm.fromUser
+    WHERE gm.groupId = $1
+    ORDER BY gm.time DESC, gm.id DESC
+    LIMIT $2
+  `, [groupId, safeLimit]);
+
+  return result.rows.reverse().map(row => ({
+    id: Number(row.id),
+    groupId: Number(row.groupid),
+    from: row.fromuser,
+    text: row.text || '',
+    time: Number(row.time) || 0,
+    edited: Boolean(row.edited),
+    editedAt: row.editedat ? Number(row.editedat) : null,
+    attachment: row.attachment || null,
+    replyTo: row.replyto || null,
+    fromNick: row.nickname || row.fromuser,
+    avatar: buildAvatar(row.fromuser, row.nickname, row.avatarimage)
+  }));
+}
+
+async function notifyReceiptUpdate(fromUser, toUser, ids, status) {
+  if (!Array.isArray(ids) || !ids.length) return;
+  sendToUser(fromUser, {
+    type: 'receipt_update',
+    with: toUser,
+    ids,
+    status
+  });
 }
 
 function clearPendingBetween(a, b) {
@@ -536,703 +899,498 @@ function clearActiveBetween(a, b) {
   if (activeCalls.get(b) === a) activeCalls.delete(b);
 }
 
-function clearAnyCallState(login) {
-  const pendingPeer = pendingCalls.get(login);
-  if (pendingPeer) clearPendingBetween(login, pendingPeer);
-  for (const [key, value] of pendingCalls) {
-    if (value === login) pendingCalls.delete(key);
+async function broadcastOnlineFriends() {
+  const uniqueLogins = new Set();
+  for (const info of clients.values()) {
+    if (info?.login) uniqueLogins.add(info.login);
   }
-  const activePeer = activeCalls.get(login);
-  if (activePeer) clearActiveBetween(login, activePeer);
-}
 
-function getMessageReceiptStatus(message) {
-  if (message?.readat) return 'read';
-  if (message?.deliveredat) return 'sent';
-  return 'pending';
-}
-
-async function notifyReceiptUpdate(senderLogin, peerLogin, ids, status) {
-  if (!senderLogin || !peerLogin || !Array.isArray(ids) || !ids.length) return;
-  sendToUser(senderLogin, {
-    type: 'receipt_update',
-    with: peerLogin,
-    ids: ids.map(Number),
-    status
-  });
-}
-
-
-async function loginSocket(ws, user) {
-  const normalizedStatus = normalizeStatus(user.status);
-  const token = await issueSessionToken(user.login);
-  const verifiedToken = await verifySessionToken(token);
-
-  clients.set(ws, {
-    login: user.login,
-    nickname: user.nickname,
-    avatarImage: user.avatarimage,
-    bannerImage: user.bannerimage,
-    status: normalizedStatus,
-    sessionId: verifiedToken?.sessionId || null
-  });
-
-  send(ws, {
-    type: 'login_ok',
-    login: user.login,
-    nickname: user.nickname,
-    status: normalizedStatus,
-    avatar: buildAvatar(user.login, user.nickname, user.avatarimage),
-    banner: user.bannerimage || null,
-    friends: await getFriendUsers(user.login),
-    unread: await getUnreadMap(user.login),
-    groups: await getGroupsForUser(user.login),
-    token,
-    iceServers: getIceServers()
-  });
-
-  const requests = await pool.query(`SELECT fromUser FROM friend_requests WHERE toUser = $1`, [user.login]);
-  for (const r of requests.rows) {
-    send(ws, { type: 'friend_request', from: r.fromuser });
-  }
-}
-
-async function userExists(login) {
-  if (!login) return false;
-  const result = await pool.query(`SELECT 1 FROM users WHERE login = $1 LIMIT 1`, [login]);
-  return Boolean(result.rows.length);
-}
-
-async function areFriends(userA, userB) {
-  if (!userA || !userB || userA === userB) return false;
-  const result = await pool.query(`
-    SELECT 1 FROM friends
-    WHERE (user1 = $1 AND user2 = $2) OR (user1 = $2 AND user2 = $1)
-    LIMIT 1
-  `, [userA, userB]);
-  return Boolean(result.rows.length);
-}
-
-function requireActionAllowed(ws, ip, action) {
-  if (!recordActionAttempt(ip, action)) return true;
-  send(ws, { type: 'error', message: 'Слишком много действий. Попробуй чуть позже.' });
-  return false;
-}
-
-function avatarColor(str) {
-  let hash = 0;
-  for (let i = 0; i < str.length; i++) {
-    hash = str.charCodeAt(i) + ((hash << 5) - hash);
-  }
-  return `hsl(${Math.abs(hash) % 360},70%,55%)`;
-}
-
-function buildAvatar(login, nickname, avatarImage = null) {
-  return {
-    letter: (nickname?.[0] || login?.[0] || '?').toUpperCase(),
-    color: avatarColor(login || nickname || '?'),
-    image: avatarImage || null
-  };
-}
-
-function normalizeStatus(status) {
-  return ['online', 'idle', 'dnd', 'invisible'].includes(status) ? status : 'online';
-}
-
-function getEffectiveStatus(targetLogin, rawStatus, viewerLogin = null) {
-  const isOnline = [...clients.values()].some(c => c.login === targetLogin);
-  if (!isOnline) return 'offline';
-  const normalized = normalizeStatus(rawStatus);
-  if (normalized === 'invisible' && viewerLogin !== targetLogin) return 'offline';
-  return normalized;
-}
-
-async function getUserPublic(login, viewerLogin = null) {
-  const result = await pool.query(`SELECT login, nickname, avatarImage, bannerImage, status FROM users WHERE login = $1`, [login]);
-  const user = result.rows[0];
-  if (!user) return null;
-  return {
-    login: user.login,
-    nickname: user.nickname,
-    status: getEffectiveStatus(user.login, user.status, viewerLogin),
-    avatar: buildAvatar(user.login, user.nickname, user.avatarimage),
-    banner: user.bannerimage || null
-  };
-}
-
-async function getFriends(login) {
-  const result = await pool.query(`
-    SELECT user1 AS friend FROM friends WHERE user2 = $1
-    UNION
-    SELECT user2 AS friend FROM friends WHERE user1 = $1
-  `, [login]);
-  return result.rows.map(r => r.friend);
-}
-
-async function getFriendUsers(login) {
-  const friends = await getFriends(login);
-  if (!friends.length) return [];
-  const users = await Promise.all(friends.map(friendLogin => getUserPublic(friendLogin, login)));
-  return users.filter(Boolean);
-}
-
-async function getUnreadMap(login) {
-  const result = await pool.query(`SELECT fromUser, count FROM unread WHERE toUser = $1`, [login]);
-  const unread = {};
-  for (const row of result.rows) unread[row.fromuser] = row.count;
-  return unread;
-}
-
-async function getChatHistory(userA, userB) {
-  const result = await pool.query(`
-    SELECT id, fromUser, toUser, text, time, edited, editedAt, deliveredAt, readAt, attachment, replyTo
-    FROM (
-      SELECT id, fromUser, toUser, text, time, edited, editedAt, deliveredAt, readAt, attachment, replyTo
-      FROM messages
-      WHERE (fromUser = $1 AND toUser = $2)
-         OR (fromUser = $2 AND toUser = $1)
-      ORDER BY time DESC, id DESC
-      LIMIT $3
-    ) recent_messages
-    ORDER BY time ASC, id ASC
-  `, [userA, userB, CHAT_HISTORY_LIMIT]);
-
-  const senders = new Map();
-  const messages = [];
-
-  for (const row of result.rows) {
-    let sender = senders.get(row.fromuser);
-    if (!sender) {
-      sender = await getUserPublic(row.fromuser, userA);
-      senders.set(row.fromuser, sender);
-    }
-    messages.push({
-      id: Number(row.id),
-      from: row.fromuser,
-      to: row.touser,
-      text: row.text,
-      time: Number(row.time),
-      edited: Boolean(row.edited),
-      editedAt: row.editedat ? Number(row.editedat) : null,
-      deliveredAt: row.deliveredat ? Number(row.deliveredat) : null,
-      readAt: row.readat ? Number(row.readat) : null,
-      receiptStatus: getMessageReceiptStatus(row),
-      attachment: sanitizeAttachmentPayload(row.attachment),
-      replyTo: sanitizeReplyPayload(row.replyto),
-      avatar: sender?.avatar || buildAvatar(row.fromuser, row.fromuser)
+  await Promise.all([...uniqueLogins].map(async login => {
+    const friends = await getFriendUsers(login);
+    sendToUser(login, {
+      type: 'friends_list',
+      friends
     });
-  }
-  return messages;
-}
-
-
-async function isGroupMember(groupId, login) {
-  const result = await pool.query(`
-    SELECT 1 FROM group_members WHERE groupId = $1 AND userLogin = $2 LIMIT 1
-  `, [groupId, login]);
-  return Boolean(result.rows.length);
-}
-
-async function getGroupMembers(groupId, viewerLogin = null) {
-  const result = await pool.query(`
-    SELECT gm.userLogin, gm.role, u.nickname, u.avatarImage, u.status
-    FROM group_members gm
-    JOIN users u ON u.login = gm.userLogin
-    WHERE gm.groupId = $1
-    ORDER BY CASE WHEN gm.role = 'owner' THEN 0 ELSE 1 END, u.nickname ASC, u.login ASC
-  `, [groupId]);
-
-  return result.rows.map(row => ({
-    login: row.userlogin,
-    nickname: row.nickname,
-    role: row.role,
-    status: getEffectiveStatus(row.userlogin, row.status, viewerLogin),
-    avatar: buildAvatar(row.userlogin, row.nickname, row.avatarimage)
   }));
 }
 
-async function getGroupPublic(groupId, viewerLogin = null) {
-  const result = await pool.query(`
-    SELECT id, name, ownerLogin, createdAt
-    FROM chat_groups
-    WHERE id = $1
-    LIMIT 1
-  `, [groupId]);
-  const group = result.rows[0];
-  if (!group) return null;
-
-  const members = await getGroupMembers(Number(group.id), viewerLogin);
-  return {
-    id: Number(group.id),
-    name: group.name,
-    ownerLogin: group.ownerlogin,
-    createdAt: Number(group.createdat),
-    members
-  };
-}
-
-async function getGroupsForUser(login) {
-  const result = await pool.query(`
-    SELECT g.id
-    FROM chat_groups g
-    JOIN group_members gm ON gm.groupId = g.id
-    WHERE gm.userLogin = $1
-    ORDER BY g.createdAt DESC, g.id DESC
-  `, [login]);
-
-  const groups = [];
-  for (const row of result.rows) {
-    const group = await getGroupPublic(Number(row.id), login);
-    if (group) groups.push(group);
+function requireActionAllowed(ws, ip, action) {
+  if (recordActionAttempt(ip, action)) {
+    send(ws, { type: 'error', message: 'Слишком много действий. Попробуй позже.' });
+    return false;
   }
-  return groups;
+  return true;
 }
-
-async function getGroupHistory(groupId, viewerLogin = null) {
-  const result = await pool.query(`
-    SELECT id, groupId, fromUser, text, time, edited, editedAt, attachment, replyTo
-    FROM (
-      SELECT id, groupId, fromUser, text, time, edited, editedAt, attachment, replyTo
-      FROM group_messages
-      WHERE groupId = $1
-      ORDER BY time DESC, id DESC
-      LIMIT $2
-    ) recent_group_messages
-    ORDER BY time ASC, id ASC
-  `, [groupId, CHAT_HISTORY_LIMIT]);
-
-  const senders = new Map();
-  const messages = [];
-  for (const row of result.rows) {
-    let sender = senders.get(row.fromuser);
-    if (!sender) {
-      sender = await getUserPublic(row.fromuser, viewerLogin);
-      senders.set(row.fromuser, sender);
-    }
-    messages.push({
-      id: Number(row.id),
-      groupId: Number(row.groupid),
-      from: row.fromuser,
-      text: row.text,
-      time: Number(row.time),
-      edited: Boolean(row.edited),
-      editedAt: row.editedat ? Number(row.editedat) : null,
-      fromNick: sender?.nickname || row.fromuser,
-      attachment: sanitizeAttachmentPayload(row.attachment),
-      replyTo: sanitizeReplyPayload(row.replyto),
-      avatar: sender?.avatar || buildAvatar(row.fromuser, row.fromuser)
-    });
-  }
-  return messages;
-}
-
-async function sendGroupList(login) {
-  sendToUser(login, { type: 'groups_list', groups: await getGroupsForUser(login) });
-}
-
-async function sendGroupToMembers(groupId, data) {
-  const result = await pool.query(`SELECT userLogin FROM group_members WHERE groupId = $1`, [groupId]);
-  for (const row of result.rows) {
-    sendToUser(row.userlogin, data);
-  }
-}
-
-async function broadcastOnlineFriends() {
-  for (const [ws, info] of clients) {
-    const friendLogins = await getFriends(info.login);
-    const onlineMap = new Map();
-
-    for (const [, other] of clients) {
-      if (!friendLogins.includes(other.login)) continue;
-
-      const effectiveStatus = getEffectiveStatus(other.login, other.status, info.login);
-      if (effectiveStatus === 'offline') continue;
-
-      if (!onlineMap.has(other.login)) {
-        onlineMap.set(other.login, {
-          login: other.login,
-          nickname: other.nickname,
-          status: effectiveStatus,
-          avatar: buildAvatar(other.login, other.nickname, other.avatarImage),
-          banner: other.bannerImage || null
-        });
-      }
-    }
-
-    send(ws, { type: 'online_friends', users: Array.from(onlineMap.values()) });
-  }
-}
-
-
-server.on('upgrade', (req, socket, head) => {
-  if (isProduction() && !isSecureRequest(req)) {
-    socket.write('HTTP/1.1 400 Bad Request\r\n\r\n');
-    socket.destroy();
-    return;
-  }
-
-  const origin = req.headers.origin;
-  const host = req.headers.host;
-  if (origin && host) {
-    try {
-      const originUrl = new URL(origin);
-      if (originUrl.host !== host) {
-        socket.write('HTTP/1.1 403 Forbidden\r\n\r\n');
-        socket.destroy();
-        return;
-      }
-    } catch {
-      socket.write('HTTP/1.1 403 Forbidden\r\n\r\n');
-      socket.destroy();
-      return;
-    }
-  }
-});
 
 wss.on('connection', (ws, req) => {
-  let userLogin = null;
   const clientIp = getClientIp(req);
+  let userLogin = null;
 
-  ws.on('message', async msg => {
-    let data;
+  ws.on('message', async raw => {
     try {
-      data = JSON.parse(msg);
-    } catch {
-      return;
-    }
-
-    try {
-
-      if (data.type === 'register') {
-        const login = sanitizeLogin(data.login);
-        const password = typeof data.password === 'string' ? data.password : '';
-
-        if (!login || !password) {
-          send(ws, { type: 'error', message: 'Введите логин и пароль' });
-          return;
-        }
-        if (password.length < 6) {
-          send(ws, { type: 'error', message: 'Пароль слишком короткий' });
-          return;
-        }
-
-        const exists = await pool.query(`SELECT login FROM users WHERE login = $1`, [login]);
-        if (exists.rows.length) {
-          send(ws, { type: 'error', message: 'Логин занят' });
-          return;
-        }
-
-        const hashedPassword = await bcrypt.hash(password, 12);
-        await pool.query(`INSERT INTO users (login, password, nickname, avatarImage, status) VALUES ($1, $2, $3, $4, $5)`, [login, hashedPassword, login, null, 'online']);
-        send(ws, { type: 'register_ok' });
+      let data = null;
+      try {
+        data = JSON.parse(String(raw));
+      } catch {
         return;
       }
+      if (!data || typeof data !== 'object') return;
 
-      if (data.type === 'login') {
+      if (data.type === 'register') {
+        if (isRateLimited(clientIp)) {
+          send(ws, { type: 'error', message: 'Слишком много попыток. Попробуй позже.' });
+          return;
+        }
+
         const login = sanitizeLogin(data.login);
         const password = typeof data.password === 'string' ? data.password : '';
+        const nickname = sanitizeName(data.nickname || login, MAX_NICKNAME_LENGTH) || login;
 
-        if (isRateLimited(clientIp)) {
-          send(ws, { type: 'error', message: 'Слишком много попыток входа. Попробуй чуть позже.' });
-          return;
-        }
-
-        if (!login || !password) {
-          send(ws, { type: 'error', message: 'Введите логин и пароль' });
-          return;
-        }
-
-        const result = await pool.query(`SELECT login, password, nickname, avatarImage, bannerImage, status FROM users WHERE login = $1`, [login]);
-        const user = result.rows[0];
-
-        if (!user) {
+        if (!login || password.length < 4) {
           recordAuthAttempt(clientIp, false);
-          send(ws, { type: 'error', message: 'Неверный логин или пароль' });
+          send(ws, { type: 'error', message: 'Неверные данные регистрации' });
           return;
         }
 
-        let ok = false;
-        if (typeof user.password === 'string' && user.password.startsWith('$2')) {
-          ok = await bcrypt.compare(password, user.password);
-        } else {
-          ok = password === user.password;
-          if (ok) {
-            const upgradedHash = await bcrypt.hash(password, 12);
-            await pool.query(`UPDATE users SET password = $1 WHERE login = $2`, [upgradedHash, user.login]);
-          }
-        }
-
-        if (!ok) {
+        const exists = await pool.query(`SELECT 1 FROM users WHERE login = $1 LIMIT 1`, [login]);
+        if (exists.rows[0]) {
           recordAuthAttempt(clientIp, false);
-          send(ws, { type: 'error', message: 'Неверный логин или пароль' });
+          send(ws, { type: 'error', message: 'Логин уже занят' });
           return;
         }
+
+        const hash = await bcrypt.hash(password, 10);
+        await pool.query(`
+          INSERT INTO users (login, password, nickname, status, customStatus, avatarImage, bannerImage, profileAbout, presence)
+          VALUES ($1, $2, $3, '', '', '', '', '', 'online')
+        `, [login, hash, nickname]);
+
+        const token = await issueSessionToken(login);
+        const me = await getUserPublic(login, login);
+
+        userLogin = login;
+        clients.set(ws, { login, sessionId: token.split('.').slice(-3, -2)[0] });
 
         recordAuthAttempt(clientIp, true);
-        userLogin = user.login;
-        await loginSocket(ws, user);
+
+        send(ws, {
+          type: 'login_ok',
+          me,
+          token,
+          iceServers: getIceServers(),
+          dialogs: { dms: [], groups: [] },
+          unread: {},
+          requests: [],
+          backgrounds: {}
+        });
+
         await broadcastOnlineFriends();
         return;
       }
 
-      if (data.type === 'auth_token') {
-        const verified = await verifySessionToken(typeof data.token === 'string' ? data.token : '');
-        if (!verified) {
-          send(ws, { type: 'auth_expired' });
+      if (data.type === 'login') {
+        if (isRateLimited(clientIp)) {
+          send(ws, { type: 'error', message: 'Слишком много попыток. Попробуй позже.' });
           return;
         }
 
-        const result = await pool.query(`SELECT login, nickname, avatarImage, bannerImage, status FROM users WHERE login = $1`, [verified.login]);
-        const user = result.rows[0];
-        if (!user) {
-          send(ws, { type: 'auth_expired' });
+        const login = sanitizeLogin(data.login);
+        const password = typeof data.password === 'string' ? data.password : '';
+
+        if (!login || !password) {
+          recordAuthAttempt(clientIp, false);
+          send(ws, { type: 'error', message: 'Неверный логин или пароль' });
           return;
         }
 
-        userLogin = user.login;
-        await loginSocket(ws, user);
+        const result = await pool.query(`
+          SELECT login, password, nickname, status, customStatus, avatarImage, bannerImage, profileAbout, presence
+          FROM users
+          WHERE login = $1
+          LIMIT 1
+        `, [login]);
+        const row = result.rows[0];
+        if (!row) {
+          recordAuthAttempt(clientIp, false);
+          send(ws, { type: 'error', message: 'Неверный логин или пароль' });
+          return;
+        }
+
+        const valid = await bcrypt.compare(password, row.password);
+        if (!valid) {
+          recordAuthAttempt(clientIp, false);
+          send(ws, { type: 'error', message: 'Неверный логин или пароль' });
+          return;
+        }
+
+        const token = await issueSessionToken(login);
+        const me = mapUserRow(row);
+
+        userLogin = login;
+        clients.set(ws, { login, sessionId: token.split('.').slice(-3, -2)[0] });
+
+        recordAuthAttempt(clientIp, true);
+
+        const [dialogs, unread, requests, backgrounds] = await Promise.all([
+          getDialogList(login),
+          getUnreadMap(login),
+          getIncomingRequests(login),
+          getDmBackgrounds(login)
+        ]);
+
+        send(ws, {
+          type: 'login_ok',
+          me,
+          token,
+          iceServers: getIceServers(),
+          dialogs,
+          unread,
+          requests,
+          backgrounds
+        });
+
+        await broadcastOnlineFriends();
+        return;
+      }
+
+      if (data.type === 'restore_session') {
+        const token = typeof data.token === 'string' ? data.token.trim() : '';
+        const session = await verifySessionToken(token);
+        if (!session?.login) {
+          send(ws, { type: 'session_invalid' });
+          return;
+        }
+
+        const result = await pool.query(`
+          SELECT login, nickname, status, customStatus, avatarImage, bannerImage, profileAbout, presence
+          FROM users
+          WHERE login = $1
+          LIMIT 1
+        `, [session.login]);
+        const row = result.rows[0];
+        if (!row) {
+          send(ws, { type: 'session_invalid' });
+          return;
+        }
+
+        userLogin = session.login;
+        clients.set(ws, { login: session.login, sessionId: session.sessionId });
+
+        const me = mapUserRow(row);
+        const [dialogs, unread, requests, backgrounds] = await Promise.all([
+          getDialogList(session.login),
+          getUnreadMap(session.login),
+          getIncomingRequests(session.login),
+          getDmBackgrounds(session.login)
+        ]);
+
+        send(ws, {
+          type: 'login_ok',
+          me,
+          token,
+          iceServers: getIceServers(),
+          dialogs,
+          unread,
+          requests,
+          backgrounds
+        });
+
         await broadcastOnlineFriends();
         return;
       }
 
       if (!userLogin) return;
+
+      const meResult = await pool.query(`
+        SELECT login, nickname, status, customStatus, avatarImage, bannerImage, profileAbout, presence
+        FROM users
+        WHERE login = $1
+        LIMIT 1
+      `, [userLogin]);
+      const me = mapUserRow(meResult.rows[0] || { login: userLogin, nickname: userLogin });
+
       if (data.type === 'logout') {
-        const sessionId = clients.get(ws)?.sessionId || null;
+        const sessionId = clients.get(ws)?.sessionId;
         if (sessionId) {
-          await pool.query(`UPDATE sessions SET revoked = TRUE WHERE id = $1`, [sessionId]);
+          await pool.query(`UPDATE sessions SET revoked = TRUE WHERE id = $1 AND login = $2`, [sessionId, userLogin]);
         }
         send(ws, { type: 'logged_out' });
-        try { ws.close(); } catch {}
-        return;
-      }
-      const me = clients.get(ws);
-      if (!me) return;
-
-      if (data.type === 'update_avatar') {
-        if (!requireActionAllowed(ws, clientIp, 'update_avatar')) return;
-        const image = typeof data.image === 'string' ? data.image : '';
-        if (!/^data:image\/(png|jpeg|jpg|webp|gif);base64,/i.test(image)) {
-          send(ws, { type: 'error', message: 'Неверный формат аватара' });
-          return;
-        }
-        if (image.length > 1400000) {
-          send(ws, { type: 'error', message: 'Аватар слишком большой' });
-          return;
-        }
-        const rawSizeEstimate = Math.floor((image.split(',')[1]?.length || 0) * 0.75);
-        if (rawSizeEstimate > 1024 * 1024) {
-          send(ws, { type: 'error', message: 'Аватар слишком большой' });
-          return;
-        }
-
-        await pool.query(`UPDATE users SET avatarImage = $1 WHERE login = $2`, [image, userLogin]);
-        const updatedResult = await pool.query(`SELECT login, nickname, avatarImage, bannerImage, status FROM users WHERE login = $1`, [userLogin]);
-        const updatedUser = updatedResult.rows[0];
-
-        if (updatedUser) {
-          clients.set(ws, {
-            login: updatedUser.login,
-            nickname: updatedUser.nickname,
-            avatarImage: updatedUser.avatarimage,
-            bannerImage: updatedUser.bannerimage,
-            status: normalizeStatus(updatedUser.status)
-          });
-
-          for (const [clientWs, info] of clients) {
-            const publicUser = await getUserPublic(updatedUser.login, info.login);
-            send(clientWs, { type: 'profile_updated', user: publicUser });
-            if (info.login === updatedUser.login) {
-              send(clientWs, {
-                type: 'my_profile_updated',
-                nickname: updatedUser.nickname,
-                status: normalizeStatus(updatedUser.status),
-                avatar: buildAvatar(updatedUser.login, updatedUser.nickname, updatedUser.avatarimage),
-                banner: updatedUser.bannerimage || null
-              });
-            }
-          }
-          await broadcastOnlineFriends();
-        }
+        ws.close();
         return;
       }
 
-      if (data.type === 'update_banner') {
-        if (!requireActionAllowed(ws, clientIp, 'update_banner')) return;
-        const image = typeof data.image === 'string' ? data.image : '';
-        if (!/^data:image\/(png|jpeg|jpg|webp|gif);base64,/i.test(image)) {
-          send(ws, { type: 'error', message: 'Неверный формат баннера' });
+      if (data.type === 'refresh_sidebar') {
+        const [dialogs, unread, requests] = await Promise.all([
+          getDialogList(userLogin),
+          getUnreadMap(userLogin),
+          getIncomingRequests(userLogin)
+        ]);
+        send(ws, { type: 'dialogs', ...dialogs });
+        send(ws, { type: 'unread_update', unread });
+        send(ws, { type: 'friend_requests', requests });
+        return;
+      }
+
+      if (data.type === 'search_users') {
+        const query = sanitizeLogin(data.query || '');
+        if (!query) {
+          send(ws, { type: 'search_results', users: [] });
           return;
         }
-        if (image.length > 2100000) {
-          send(ws, { type: 'error', message: 'Баннер слишком большой' });
+        const result = await pool.query(`
+          SELECT login, nickname, status, customStatus, avatarImage, bannerImage, profileAbout, presence
+          FROM users
+          WHERE login ILIKE $1 OR nickname ILIKE $1
+          ORDER BY login
+          LIMIT 20
+        `, [`%${query}%`]);
+
+        const friends = new Set(await getFriendLogins(userLogin));
+        const incoming = new Set((await getIncomingRequests(userLogin)).map(u => u.login));
+        const outgoingRes = await pool.query(`SELECT toUser FROM friend_requests WHERE fromUser = $1`, [userLogin]);
+        const outgoing = new Set(outgoingRes.rows.map(r => r.touser));
+
+        const users = result.rows
+          .filter(row => row.login !== userLogin)
+          .map(row => ({
+            ...mapUserRow(row),
+            isFriend: friends.has(row.login),
+            incomingRequest: incoming.has(row.login),
+            outgoingRequest: outgoing.has(row.login)
+          }));
+
+        send(ws, { type: 'search_results', users });
+        return;
+      }
+
+      if (data.type === 'friend_request') {
+        if (!requireActionAllowed(ws, clientIp, 'friend_request')) return;
+        const targetLogin = sanitizeLogin(data.to);
+        if (!targetLogin || targetLogin === userLogin) return;
+        if (!(await userExists(targetLogin))) {
+          send(ws, { type: 'error', message: 'Пользователь не найден' });
           return;
         }
-        const rawSizeEstimate = Math.floor((image.split(',')[1]?.length || 0) * 0.75);
-        if (rawSizeEstimate > 1536 * 1024) {
-          send(ws, { type: 'error', message: 'Баннер слишком большой' });
+        if (await areFriends(userLogin, targetLogin)) {
+          send(ws, { type: 'error', message: 'Вы уже друзья' });
           return;
         }
 
-        await pool.query(`UPDATE users SET bannerImage = $1 WHERE login = $2`, [image, userLogin]);
-        const updatedResult = await pool.query(`SELECT login, nickname, avatarImage, bannerImage, status FROM users WHERE login = $1`, [userLogin]);
-        const updatedUser = updatedResult.rows[0];
+        await pool.query(`
+          INSERT INTO friend_requests (fromUser, toUser, createdAt)
+          VALUES ($1, $2, $3)
+          ON CONFLICT (fromUser, toUser) DO NOTHING
+        `, [userLogin, targetLogin, Date.now()]);
 
-        if (updatedUser) {
-          clients.set(ws, {
-            login: updatedUser.login,
-            nickname: updatedUser.nickname,
-            avatarImage: updatedUser.avatarimage,
-            bannerImage: updatedUser.bannerimage,
-            status: normalizeStatus(updatedUser.status)
-          });
+        sendToUser(targetLogin, {
+          type: 'friend_requests',
+          requests: await getIncomingRequests(targetLogin)
+        });
+        return;
+      }
 
-          for (const [clientWs, info] of clients) {
-            const publicUser = await getUserPublic(updatedUser.login, info.login);
-            send(clientWs, { type: 'profile_updated', user: publicUser });
-            if (info.login === updatedUser.login) {
-              send(clientWs, {
-                type: 'my_profile_updated',
-                nickname: updatedUser.nickname,
-                status: normalizeStatus(updatedUser.status),
-                avatar: buildAvatar(updatedUser.login, updatedUser.nickname, updatedUser.avatarimage),
-                banner: updatedUser.bannerimage || null
-              });
-            }
-          }
-          await broadcastOnlineFriends();
-        }
+      if (data.type === 'accept_friend') {
+        const otherLogin = sanitizeLogin(data.from);
+        if (!otherLogin || otherLogin === userLogin) return;
+
+        const reqExists = await pool.query(`
+          SELECT 1 FROM friend_requests
+          WHERE fromUser = $1 AND toUser = $2
+          LIMIT 1
+        `, [otherLogin, userLogin]);
+
+        if (!reqExists.rows[0]) return;
+
+        await pool.query(`DELETE FROM friend_requests WHERE fromUser = $1 AND toUser = $2`, [otherLogin, userLogin]);
+        await pool.query(`
+          INSERT INTO friends (user1, user2)
+          VALUES ($1, $2), ($2, $1)
+          ON CONFLICT DO NOTHING
+        `, [userLogin, otherLogin]);
+
+        send(ws, { type: 'friend_requests', requests: await getIncomingRequests(userLogin) });
+        send(ws, { type: 'friends_list', friends: await getFriendUsers(userLogin) });
+        sendToUser(otherLogin, { type: 'friends_list', friends: await getFriendUsers(otherLogin) });
+        sendToUser(otherLogin, { type: 'friend_request_accepted', by: userLogin });
+        await broadcastOnlineFriends();
+        return;
+      }
+
+      if (data.type === 'decline_friend') {
+        const otherLogin = sanitizeLogin(data.from);
+        if (!otherLogin || otherLogin === userLogin) return;
+        await pool.query(`DELETE FROM friend_requests WHERE fromUser = $1 AND toUser = $2`, [otherLogin, userLogin]);
+        send(ws, { type: 'friend_requests', requests: await getIncomingRequests(userLogin) });
         return;
       }
 
       if (data.type === 'update_profile') {
         if (!requireActionAllowed(ws, clientIp, 'update_profile')) return;
-        const newNickname = sanitizeName(data.nickname, MAX_NICKNAME_LENGTH);
-        const newStatus = normalizeStatus(typeof data.status === 'string' ? data.status : 'online');
-        if (!newNickname) {
-          send(ws, { type: 'error', message: 'Введите имя профиля' });
-          return;
-        }
+        const nickname = sanitizeName(data.nickname || userLogin, MAX_NICKNAME_LENGTH) || userLogin;
+        const status = sanitizeText(data.status || '', 80);
+        const customStatus = sanitizeText(data.customStatus || '', 120);
+        const about = sanitizeText(data.about || '', 600);
+        const presenceAllowed = new Set(['online', 'idle', 'dnd', 'invisible']);
+        const presence = presenceAllowed.has(String(data.presence || '').trim()) ? String(data.presence).trim() : 'online';
 
-        await pool.query(`UPDATE users SET nickname = $1, status = $2 WHERE login = $3`, [newNickname, newStatus, userLogin]);
-        const updatedResult = await pool.query(`SELECT login, nickname, avatarImage, bannerImage, status FROM users WHERE login = $1`, [userLogin]);
-        const updatedUser = updatedResult.rows[0];
-        clients.set(ws, {
-          login: updatedUser.login,
-          nickname: updatedUser.nickname,
-          avatarImage: updatedUser.avatarimage,
-          bannerImage: updatedUser.bannerimage,
-          status: normalizeStatus(updatedUser.status)
-        });
+        await pool.query(`
+          UPDATE users
+          SET nickname = $1,
+              status = $2,
+              customStatus = $3,
+              profileAbout = $4,
+              presence = $5
+          WHERE login = $6
+        `, [nickname, status, customStatus, about, presence, userLogin]);
 
-        for (const [clientWs, info] of clients) {
-          const publicUser = await getUserPublic(updatedUser.login, info.login);
-          send(clientWs, { type: 'profile_updated', user: publicUser });
-          if (info.login === updatedUser.login) {
-            send(clientWs, {
-              type: 'my_profile_updated',
-              nickname: updatedUser.nickname,
-              status: normalizeStatus(updatedUser.status),
-              avatar: buildAvatar(updatedUser.login, updatedUser.nickname, updatedUser.avatarimage)
-            });
-          }
-        }
+        const updated = await getUserPublic(userLogin, userLogin);
+        send(ws, { type: 'profile_updated', me: updated });
         await broadcastOnlineFriends();
         return;
       }
 
-      if (data.type === 'get_messages') {
-        if (!requireActionAllowed(ws, clientIp, 'get_messages')) return;
+      if (data.type === 'update_avatar') {
+        if (!requireActionAllowed(ws, clientIp, 'update_avatar')) return;
+        const avatarImage = typeof data.avatarImage === 'string' ? data.avatarImage.trim().slice(0, 500) : '';
+        await pool.query(`UPDATE users SET avatarImage = $1 WHERE login = $2`, [avatarImage, userLogin]);
+        const updated = await getUserPublic(userLogin, userLogin);
+        send(ws, { type: 'profile_updated', me: updated });
+        await broadcastOnlineFriends();
+        return;
+      }
+
+      if (data.type === 'update_banner') {
+        if (!requireActionAllowed(ws, clientIp, 'update_banner')) return;
+        const bannerImage = typeof data.bannerImage === 'string' ? data.bannerImage.trim().slice(0, 500) : '';
+        await pool.query(`UPDATE users SET bannerImage = $1 WHERE login = $2`, [bannerImage, userLogin]);
+        const updated = await getUserPublic(userLogin, userLogin);
+        send(ws, { type: 'profile_updated', me: updated });
+        return;
+      }
+
+      if (data.type === 'set_dm_background') {
         const peerLogin = sanitizeLogin(data.with);
-        if (!peerLogin) return;
-        if (!(await areFriends(userLogin, peerLogin))) {
-          send(ws, { type: 'error', message: 'Личные сообщения доступны только друзьям' });
-          return;
-        }
+        const imageUrl = typeof data.imageUrl === 'string' ? data.imageUrl.trim().slice(0, 500) : '';
+        if (!peerLogin || !imageUrl) return;
+        if (!(await areFriends(userLogin, peerLogin))) return;
 
-        const deliveredAt = Date.now();
-        const deliveredResult = await pool.query(`
-          UPDATE messages
-          SET deliveredAt = COALESCE(deliveredAt, $3)
-          WHERE fromUser = $1 AND toUser = $2 AND deliveredAt IS NULL
-          RETURNING id
-        `, [peerLogin, userLogin, deliveredAt]);
+        await pool.query(`
+          INSERT INTO dm_backgrounds (ownerLogin, peerLogin, imageUrl, updatedAt)
+          VALUES ($1, $2, $3, $4)
+          ON CONFLICT (ownerLogin, peerLogin)
+          DO UPDATE SET imageUrl = EXCLUDED.imageUrl, updatedAt = EXCLUDED.updatedAt
+        `, [userLogin, peerLogin, imageUrl, Date.now()]);
 
-        if (deliveredResult.rows.length) {
-          await notifyReceiptUpdate(peerLogin, userLogin, deliveredResult.rows.map(row => row.id), 'sent');
-        }
-
-        send(ws, { type: 'chat_history', with: peerLogin, messages: await getChatHistory(userLogin, peerLogin) });
+        send(ws, {
+          type: 'dm_backgrounds',
+          backgrounds: await getDmBackgrounds(userLogin)
+        });
         return;
       }
 
       if (data.type === 'create_group') {
         if (!requireActionAllowed(ws, clientIp, 'create_group')) return;
         const name = sanitizeName(data.name, MAX_GROUP_NAME_LENGTH);
-        const memberLogins = Array.isArray(data.members) ? data.members.map(sanitizeLogin).filter(Boolean) : [];
-        if (!name) {
-          send(ws, { type: 'error', message: 'Введите название группы' });
+        const members = Array.isArray(data.members) ? data.members.map(sanitizeLogin).filter(Boolean) : [];
+        const uniqueMembers = [...new Set([userLogin, ...members.filter(login => login !== userLogin)])];
+
+        if (!name || uniqueMembers.length < 2) {
+          send(ws, { type: 'error', message: 'Неверные данные группы' });
           return;
         }
 
-        const uniqueMembers = Array.from(new Set([userLogin, ...memberLogins.filter(v => v !== userLogin)]));
-        const existingUsers = await pool.query(`SELECT login FROM users WHERE login = ANY($1::text[])`, [uniqueMembers]);
-        const existingSet = new Set(existingUsers.rows.map(r => r.login));
-        const finalMembers = uniqueMembers.filter(loginItem => existingSet.has(loginItem));
-
-        const createdAt = Date.now();
-        const created = await pool.query(`
-          INSERT INTO chat_groups (name, ownerLogin, createdAt)
-          VALUES ($1, $2, $3)
-          RETURNING id
-        `, [name, userLogin, createdAt]);
-
-        const groupId = Number(created.rows[0].id);
-
-        for (const member of finalMembers) {
-          await pool.query(`
-            INSERT INTO group_members (groupId, userLogin, role, joinedAt)
-            VALUES ($1, $2, $3, $4)
-            ON CONFLICT (groupId, userLogin) DO NOTHING
-          `, [groupId, member, member === userLogin ? 'owner' : 'member', createdAt]);
+        const friendLogins = new Set(await getFriendLogins(userLogin));
+        for (const member of uniqueMembers) {
+          if (member !== userLogin && !friendLogins.has(member)) {
+            send(ws, { type: 'error', message: 'В группу можно добавить только друзей' });
+            return;
+          }
         }
 
-        const group = await getGroupPublic(groupId, userLogin);
-        await sendGroupToMembers(groupId, { type: 'group_created', group });
-        for (const member of finalMembers) await sendGroupList(member);
+        const createdAt = Date.now();
+        const groupResult = await pool.query(`
+          INSERT INTO groups (name, owner, createdAt, avatarImage, about)
+          VALUES ($1, $2, $3, '', '')
+          RETURNING id
+        `, [name, userLogin, createdAt]);
+        const groupId = Number(groupResult.rows[0].id);
+
+        for (const login of uniqueMembers) {
+          await pool.query(`
+            INSERT INTO group_members (groupId, login, joinedAt)
+            VALUES ($1, $2, $3)
+            ON CONFLICT DO NOTHING
+          `, [groupId, login, createdAt]);
+          await pool.query(`
+            INSERT INTO group_unread (groupId, login, count)
+            VALUES ($1, $2, 0)
+            ON CONFLICT DO NOTHING
+          `, [groupId, login]);
+        }
+
+        for (const login of uniqueMembers) {
+          const dialogs = await getDialogList(login);
+          sendToUser(login, { type: 'dialogs', ...dialogs });
+        }
         return;
       }
 
       if (data.type === 'get_group_messages') {
         if (!requireActionAllowed(ws, clientIp, 'get_group_messages')) return;
         const groupId = Number(data.groupId);
-        if (!Number.isFinite(groupId) || !(await isGroupMember(groupId, userLogin))) return;
-        send(ws, { type: 'group_history', groupId, messages: await getGroupHistory(groupId, userLogin) });
+        if (!Number.isFinite(groupId)) return;
+
+        const memberRes = await pool.query(`
+          SELECT 1 FROM group_members WHERE groupId = $1 AND login = $2 LIMIT 1
+        `, [groupId, userLogin]);
+        if (!memberRes.rows[0]) return;
+
+        const messages = await getGroupMessages(groupId);
+        send(ws, { type: 'group_messages', groupId, messages });
+
+        await pool.query(`
+          UPDATE group_unread SET count = 0 WHERE groupId = $1 AND login = $2
+        `, [groupId, userLogin]);
+        const dialogs = await getDialogList(userLogin);
+        send(ws, { type: 'dialogs', ...dialogs });
         return;
       }
 
       if (data.type === 'group_message') {
         if (!requireActionAllowed(ws, clientIp, 'group_message')) return;
         const groupId = Number(data.groupId);
-        const messageText = sanitizeText(data.text);
+        const text = sanitizeText(data.text);
         const attachment = sanitizeAttachmentPayload(data.attachment);
         const replyTo = sanitizeReplyPayload(data.replyTo);
-        if (!groupId || (!messageText && !attachment)) return;
-        if (!(await isGroupMember(groupId, userLogin))) return;
+        if (!Number.isFinite(groupId) || (!text && !attachment)) return;
 
-        const messageTime = Date.now();
-        const insertResult = await pool.query(`
+        const groupRes = await pool.query(`SELECT id FROM groups WHERE id = $1 LIMIT 1`, [groupId]);
+        if (!groupRes.rows[0]) return;
+
+        const memberRes = await pool.query(`SELECT 1 FROM group_members WHERE groupId = $1 AND login = $2 LIMIT 1`, [groupId, userLogin]);
+        if (!memberRes.rows[0]) return;
+
+        const time = Date.now();
+        const inserted = await pool.query(`
           INSERT INTO group_messages (groupId, fromUser, text, time, edited, editedAt, attachment, replyTo)
           VALUES ($1, $2, $3, $4, FALSE, NULL, $5::jsonb, $6::jsonb)
           RETURNING id
-        `, [groupId, userLogin, messageText, messageTime, attachment ? JSON.stringify(attachment) : null, replyTo ? JSON.stringify(replyTo) : null]);
+        `, [groupId, userLogin, text, time, attachment ? JSON.stringify(attachment) : null, replyTo ? JSON.stringify(replyTo) : null]);
+        const messageId = Number(inserted.rows[0].id);
 
-        const msgData = {
+        await pool.query(`
+          UPDATE group_unread
+          SET count = count + 1
+          WHERE groupId = $1 AND login <> $2
+        `, [groupId, userLogin]);
+
+        const payload = {
           type: 'group_message',
-          id: Number(insertResult.rows[0].id),
+          id: messageId,
           groupId,
           from: userLogin,
-          text: messageText,
-          time: messageTime,
+          text,
+          time,
           edited: false,
           editedAt: null,
           attachment,
@@ -1241,74 +1399,109 @@ wss.on('connection', (ws, req) => {
           avatar: buildAvatar(userLogin, me.nickname, me.avatarImage)
         };
 
-        await sendGroupToMembers(groupId, msgData);
+        const membersRes = await pool.query(`SELECT login FROM group_members WHERE groupId = $1`, [groupId]);
+        for (const row of membersRes.rows) {
+          sendToUser(row.login, payload);
+          const dialogs = await getDialogList(row.login);
+          sendToUser(row.login, { type: 'dialogs', ...dialogs });
+        }
         return;
       }
 
       if (data.type === 'edit_group_message') {
         if (!requireActionAllowed(ws, clientIp, 'edit_group_message')) return;
-        const messageId = Number(data.id);
+        const id = Number(data.id);
         const newText = sanitizeText(data.text);
-        if (!messageId || !newText) return;
+        if (!Number.isFinite(id) || !newText) return;
 
-        const messageResult = await pool.query(`
-          SELECT id, groupId, fromUser FROM group_messages WHERE id = $1 LIMIT 1
-        `, [messageId]);
-        const message = messageResult.rows[0];
-        if (!message || message.fromuser !== userLogin) return;
-        if (!(await isGroupMember(Number(message.groupid), userLogin))) return;
+        const result = await pool.query(`
+          SELECT id, groupId, fromUser
+          FROM group_messages
+          WHERE id = $1
+          LIMIT 1
+        `, [id]);
+        const row = result.rows[0];
+        if (!row || row.fromuser !== userLogin) return;
 
         const editedAt = Date.now();
-        await pool.query(`UPDATE group_messages SET text = $1, edited = TRUE, editedAt = $2 WHERE id = $3`, [newText, editedAt, messageId]);
+        await pool.query(`
+          UPDATE group_messages
+          SET text = $1, edited = TRUE, editedAt = $2
+          WHERE id = $3
+        `, [newText, editedAt, id]);
 
-        await sendGroupToMembers(Number(message.groupid), {
-          type: 'group_message_edited',
-          id: messageId,
-          groupId: Number(message.groupid),
-          text: newText,
-          edited: true,
-          editedAt,
-          from: userLogin
-        });
+        const membersRes = await pool.query(`SELECT login FROM group_members WHERE groupId = $1`, [row.groupid]);
+        for (const member of membersRes.rows) {
+          sendToUser(member.login, {
+            type: 'group_message_edited',
+            id,
+            groupId: Number(row.groupid),
+            text: newText,
+            edited: true,
+            editedAt
+          });
+        }
         return;
       }
 
       if (data.type === 'delete_group_message') {
         if (!requireActionAllowed(ws, clientIp, 'delete_group_message')) return;
-        const messageId = Number(data.id);
-        if (!Number.isFinite(messageId)) return;
+        const id = Number(data.id);
+        if (!Number.isFinite(id)) return;
 
-        const existing = await pool.query(`
-          SELECT id, groupId, fromUser FROM group_messages WHERE id = $1 LIMIT 1
-        `, [messageId]);
-        const message = existing.rows[0];
-        if (!message || message.fromuser !== userLogin) return;
+        const result = await pool.query(`
+          SELECT id, groupId, fromUser
+          FROM group_messages
+          WHERE id = $1
+          LIMIT 1
+        `, [id]);
+        const row = result.rows[0];
+        if (!row || row.fromuser !== userLogin) return;
 
-        await pool.query(`DELETE FROM group_messages WHERE id = $1`, [messageId]);
-        await sendGroupToMembers(Number(message.groupid), {
-          type: 'group_message_deleted',
-          id: messageId,
-          groupId: Number(message.groupid),
-          from: userLogin
-        });
+        await pool.query(`DELETE FROM group_messages WHERE id = $1`, [id]);
+
+        const membersRes = await pool.query(`SELECT login FROM group_members WHERE groupId = $1`, [row.groupid]);
+        for (const member of membersRes.rows) {
+          sendToUser(member.login, {
+            type: 'group_message_deleted',
+            id,
+            groupId: Number(row.groupid)
+          });
+        }
         return;
       }
 
       if (data.type === 'update_group') {
         if (!requireActionAllowed(ws, clientIp, 'update_group')) return;
         const groupId = Number(data.groupId);
+        if (!Number.isFinite(groupId)) return;
+
+        const groupRes = await pool.query(`
+          SELECT id, owner
+          FROM groups
+          WHERE id = $1
+          LIMIT 1
+        `, [groupId]);
+        const group = groupRes.rows[0];
+        if (!group || group.owner !== userLogin) return;
+
         const name = sanitizeName(data.name, MAX_GROUP_NAME_LENGTH);
-        if (!Number.isFinite(groupId) || !name) return;
+        const about = sanitizeText(data.about, 600);
+        const avatarImage = typeof data.avatarImage === 'string' ? data.avatarImage.trim().slice(0, 500) : '';
 
-        const groupResult = await pool.query(`SELECT ownerLogin FROM chat_groups WHERE id = $1 LIMIT 1`, [groupId]);
-        const group = groupResult.rows[0];
-        if (!group || group.ownerlogin !== userLogin) return;
+        await pool.query(`
+          UPDATE groups
+          SET name = COALESCE(NULLIF($1, ''), name),
+              about = $2,
+              avatarImage = $3
+          WHERE id = $4
+        `, [name, about, avatarImage, groupId]);
 
-        await pool.query(`UPDATE chat_groups SET name = $1 WHERE id = $2`, [name, groupId]);
-        const updated = await getGroupPublic(groupId, userLogin);
-        await sendGroupToMembers(groupId, { type: 'group_updated', group: updated });
-        const members = updated?.members || [];
-        for (const member of members) await sendGroupList(member.login);
+        const membersRes = await pool.query(`SELECT login FROM group_members WHERE groupId = $1`, [groupId]);
+        for (const member of membersRes.rows) {
+          const dialogs = await getDialogList(member.login);
+          sendToUser(member.login, { type: 'dialogs', ...dialogs });
+        }
         return;
       }
 
@@ -1318,187 +1511,181 @@ wss.on('connection', (ws, req) => {
         const members = Array.isArray(data.members) ? data.members.map(sanitizeLogin).filter(Boolean) : [];
         if (!Number.isFinite(groupId) || !members.length) return;
 
-        const groupResult = await pool.query(`SELECT ownerLogin FROM chat_groups WHERE id = $1 LIMIT 1`, [groupId]);
-        const group = groupResult.rows[0];
-        if (!group || group.ownerlogin !== userLogin) return;
+        const groupRes = await pool.query(`
+          SELECT id, owner
+          FROM groups
+          WHERE id = $1
+          LIMIT 1
+        `, [groupId]);
+        const group = groupRes.rows[0];
+        if (!group || group.owner !== userLogin) return;
 
-        const existingUsers = await pool.query(`SELECT login FROM users WHERE login = ANY($1::text[])`, [members]);
-        for (const row of existingUsers.rows) {
-          await pool.query(`
-            INSERT INTO group_members (groupId, userLogin, role, joinedAt)
-            VALUES ($1, $2, 'member', $3)
-            ON CONFLICT (groupId, userLogin) DO NOTHING
-          `, [groupId, row.login, Date.now()]);
+        const friendLogins = new Set(await getFriendLogins(userLogin));
+        for (const login of members) {
+          if (!friendLogins.has(login)) {
+            send(ws, { type: 'error', message: 'В группу можно добавить только друзей' });
+            return;
+          }
         }
 
-        const updated = await getGroupPublic(groupId, userLogin);
-        await sendGroupToMembers(groupId, { type: 'group_updated', group: updated });
-        for (const member of updated?.members || []) await sendGroupList(member.login);
+        const joinedAt = Date.now();
+        for (const login of [...new Set(members)]) {
+          await pool.query(`
+            INSERT INTO group_members (groupId, login, joinedAt)
+            VALUES ($1, $2, $3)
+            ON CONFLICT DO NOTHING
+          `, [groupId, login, joinedAt]);
+          await pool.query(`
+            INSERT INTO group_unread (groupId, login, count)
+            VALUES ($1, $2, 0)
+            ON CONFLICT DO NOTHING
+          `, [groupId, login]);
+        }
+
+        const membersRes = await pool.query(`SELECT login FROM group_members WHERE groupId = $1`, [groupId]);
+        for (const member of membersRes.rows) {
+          const dialogs = await getDialogList(member.login);
+          sendToUser(member.login, { type: 'dialogs', ...dialogs });
+        }
         return;
       }
 
       if (data.type === 'remove_group_member') {
         if (!requireActionAllowed(ws, clientIp, 'remove_group_member')) return;
         const groupId = Number(data.groupId);
-        const targetLogin = sanitizeLogin(data.userLogin);
+        const targetLogin = sanitizeLogin(data.login);
         if (!Number.isFinite(groupId) || !targetLogin) return;
 
-        const groupResult = await pool.query(`SELECT ownerLogin FROM chat_groups WHERE id = $1 LIMIT 1`, [groupId]);
-        const group = groupResult.rows[0];
-        if (!group || group.ownerlogin !== userLogin || targetLogin === userLogin) return;
+        const groupRes = await pool.query(`
+          SELECT id, owner
+          FROM groups
+          WHERE id = $1
+          LIMIT 1
+        `, [groupId]);
+        const group = groupRes.rows[0];
+        if (!group || group.owner !== userLogin || targetLogin === userLogin) return;
 
-        await pool.query(`DELETE FROM group_members WHERE groupId = $1 AND userLogin = $2`, [groupId, targetLogin]);
+        await pool.query(`DELETE FROM group_members WHERE groupId = $1 AND login = $2`, [groupId, targetLogin]);
+        await pool.query(`DELETE FROM group_unread WHERE groupId = $1 AND login = $2`, [groupId, targetLogin]);
 
-        const updated = await getGroupPublic(groupId, userLogin);
-        if (updated) {
-          await sendGroupToMembers(groupId, { type: 'group_updated', group: updated });
-          for (const member of updated.members) await sendGroupList(member.login);
+        const membersRes = await pool.query(`SELECT login FROM group_members WHERE groupId = $1`, [groupId]);
+        for (const member of membersRes.rows) {
+          const dialogs = await getDialogList(member.login);
+          sendToUser(member.login, { type: 'dialogs', ...dialogs });
         }
-        sendToUser(targetLogin, { type: 'group_left', groupId });
-        await sendGroupList(targetLogin);
+        const dialogs = await getDialogList(targetLogin);
+        sendToUser(targetLogin, { type: 'dialogs', ...dialogs });
         return;
       }
 
       if (data.type === 'leave_group') {
         if (!requireActionAllowed(ws, clientIp, 'leave_group')) return;
         const groupId = Number(data.groupId);
-        if (!Number.isFinite(groupId) || !(await isGroupMember(groupId, userLogin))) return;
+        if (!Number.isFinite(groupId)) return;
 
-        const groupResult = await pool.query(`SELECT ownerLogin FROM chat_groups WHERE id = $1 LIMIT 1`, [groupId]);
-        const group = groupResult.rows[0];
-        if (!group) return;
-
-        if (group.ownerlogin === userLogin) {
-          await pool.query(`DELETE FROM group_messages WHERE groupId = $1`, [groupId]);
-          await pool.query(`DELETE FROM group_members WHERE groupId = $1`, [groupId]);
-          await pool.query(`DELETE FROM chat_groups WHERE id = $1`, [groupId]);
-          sendToUser(userLogin, { type: 'group_left', groupId });
-          await sendGroupList(userLogin);
-          return;
-        }
-
-        await pool.query(`DELETE FROM group_members WHERE groupId = $1 AND userLogin = $2`, [groupId, userLogin]);
-        await sendGroupToMembers(groupId, { type: 'group_updated', group: await getGroupPublic(groupId, userLogin) });
-        sendToUser(userLogin, { type: 'group_left', groupId });
-        await sendGroupList(userLogin);
-        return;
-      }
-
-
-      if (data.type === 'friend_request') {
-        if (!requireActionAllowed(ws, clientIp, 'friend_request')) return;
-        const targetLogin = sanitizeLogin(data.to);
-        if (!targetLogin || targetLogin === userLogin) return;
-
-        const target = await pool.query(`SELECT login FROM users WHERE login = $1`, [targetLogin]);
-        if (!target.rows.length) {
-          send(ws, { type: 'error', message: 'Пользователь не найден' });
-          return;
-        }
-
-        const alreadyFriends = await pool.query(`
-          SELECT 1 FROM friends
-          WHERE (user1 = $1 AND user2 = $2) OR (user1 = $2 AND user2 = $1)
+        const groupRes = await pool.query(`
+          SELECT id, owner
+          FROM groups
+          WHERE id = $1
           LIMIT 1
-        `, [userLogin, targetLogin]);
-
-        if (alreadyFriends.rows.length) {
-          send(ws, { type: 'error', message: 'Вы уже друзья' });
+        `, [groupId]);
+        const group = groupRes.rows[0];
+        if (!group) return;
+        if (group.owner === userLogin) {
+          send(ws, { type: 'error', message: 'Владелец не может выйти из группы' });
           return;
         }
 
-        await pool.query(`
-          INSERT INTO friend_requests (fromUser, toUser)
-          VALUES ($1, $2)
-          ON CONFLICT (fromUser, toUser) DO NOTHING
-        `, [userLogin, targetLogin]);
+        await pool.query(`DELETE FROM group_members WHERE groupId = $1 AND login = $2`, [groupId, userLogin]);
+        await pool.query(`DELETE FROM group_unread WHERE groupId = $1 AND login = $2`, [groupId, userLogin]);
 
-        sendToUser(targetLogin, { type: 'friend_request', from: userLogin, fromNick: me.nickname });
+        const membersRes = await pool.query(`SELECT login FROM group_members WHERE groupId = $1`, [groupId]);
+        for (const member of membersRes.rows) {
+          const dialogs = await getDialogList(member.login);
+          sendToUser(member.login, { type: 'dialogs', ...dialogs });
+        }
+        const dialogs = await getDialogList(userLogin);
+        send(ws, { type: 'dialogs', ...dialogs });
         return;
       }
 
+      if (data.type === 'get_messages') {
+        if (!requireActionAllowed(ws, clientIp, 'get_messages')) return;
+        const peerLogin = sanitizeLogin(data.with);
+        if (!peerLogin || peerLogin === userLogin) return;
+        if (!(await areFriends(userLogin, peerLogin))) return;
 
-      if (data.type === 'friend_accept') {
-        const fromLogin = sanitizeLogin(data.from);
-        if (!fromLogin || fromLogin === userLogin) return;
+        const messages = await getMessagesForUsers(userLogin, peerLogin);
+        send(ws, { type: 'messages', with: peerLogin, messages });
 
-        const requestExists = await pool.query(`SELECT 1 FROM friend_requests WHERE fromUser = $1 AND toUser = $2 LIMIT 1`, [fromLogin, userLogin]);
-        if (!requestExists.rows.length) return;
+        const now = Date.now();
+        const readResult = await pool.query(`
+          UPDATE messages
+          SET deliveredAt = COALESCE(deliveredAt, $3),
+              readAt = COALESCE(readAt, $3)
+          WHERE fromUser = $1 AND toUser = $2 AND readAt IS NULL
+          RETURNING id
+        `, [peerLogin, userLogin, now]);
 
-        await pool.query(`INSERT INTO friends (user1, user2) VALUES ($1, $2) ON CONFLICT (user1, user2) DO NOTHING`, [fromLogin, userLogin]);
-        await pool.query(`DELETE FROM friend_requests WHERE fromUser = $1 AND toUser = $2`, [fromLogin, userLogin]);
+        if (readResult.rows.length) {
+          await notifyReceiptUpdate(peerLogin, userLogin, readResult.rows.map(row => row.id), 'read');
+        }
 
-        const acceptedMe = await getUserPublic(userLogin);
-        sendToUser(fromLogin, { type: 'friend_accept', from: userLogin, fromNick: me.nickname, friend: acceptedMe });
-
-        send(ws, { type: 'friends_list', friends: await getFriendUsers(userLogin) });
-        sendToUser(fromLogin, { type: 'friends_list', friends: await getFriendUsers(fromLogin) });
-        await broadcastOnlineFriends();
+        await pool.query(`DELETE FROM unread WHERE fromUser = $1 AND toUser = $2`, [peerLogin, userLogin]);
+        send(ws, { type: 'unread_update', unread: await getUnreadMap(userLogin) });
         return;
       }
-
 
       if (data.type === 'call_start') {
         if (!requireActionAllowed(ws, clientIp, 'call_start')) return;
         const targetLogin = sanitizeLogin(data.to);
         if (!targetLogin || targetLogin === userLogin) return;
-        if (!(await areFriends(userLogin, targetLogin))) {
-          send(ws, { type: 'error', message: 'Звонки доступны только друзьям' });
+        if (!(await areFriends(userLogin, targetLogin))) return;
+
+        const busy = activeCalls.has(userLogin) || activeCalls.has(targetLogin) || pendingCalls.has(userLogin) || pendingCalls.has(targetLogin);
+        if (busy) {
+          send(ws, { type: 'call_ended', reason: 'busy', with: targetLogin });
           return;
         }
-        if (!sendToUser(targetLogin, { type: 'call_probe' })) {
-          send(ws, { type: 'call_unavailable', reason: 'offline', to: targetLogin });
-          return;
-        }
-        if (isUserBusy(userLogin) || isUserBusy(targetLogin)) {
-          send(ws, { type: 'call_unavailable', reason: 'busy', to: targetLogin });
-          return;
-        }
+
         pendingCalls.set(userLogin, targetLogin);
         pendingCalls.set(targetLogin, userLogin);
-        send(ws, { type: 'call_outgoing', to: targetLogin });
-        sendToUser(targetLogin, {
-          type: 'call_incoming',
+
+        const sent = sendToUser(targetLogin, {
+          type: 'incoming_call',
           from: userLogin,
           fromNick: me.nickname,
           avatar: buildAvatar(userLogin, me.nickname, me.avatarImage)
         });
+
+        if (!sent) {
+          clearPendingBetween(userLogin, targetLogin);
+          send(ws, { type: 'call_ended', reason: 'offline', with: targetLogin });
+        }
         return;
       }
 
-      if (data.type === 'call_accept') {
+      if (data.type === 'call_response') {
         if (!requireActionAllowed(ws, clientIp, 'call_response')) return;
         const otherLogin = sanitizeLogin(data.with);
-        if (!otherLogin || pendingCalls.get(userLogin) !== otherLogin || pendingCalls.get(otherLogin) !== userLogin) return;
+        const accepted = Boolean(data.accepted);
+        if (!otherLogin) return;
+        if (pendingCalls.get(userLogin) !== otherLogin || pendingCalls.get(otherLogin) !== userLogin) return;
+
         clearPendingBetween(userLogin, otherLogin);
+
+        if (!accepted) {
+          sendToUser(otherLogin, { type: 'call_ended', reason: 'declined', with: userLogin });
+          send(ws, { type: 'call_ended', reason: 'declined', with: otherLogin });
+          return;
+        }
+
         activeCalls.set(userLogin, otherLogin);
         activeCalls.set(otherLogin, userLogin);
-        send(ws, { type: 'call_joined', with: otherLogin });
-        sendToUser(otherLogin, { type: 'call_accepted', by: userLogin });
-        return;
-      }
 
-      if (data.type === 'call_decline') {
-        if (!requireActionAllowed(ws, clientIp, 'call_response')) return;
-        const otherLogin = sanitizeLogin(data.with);
-        if (!otherLogin) return;
-        const wasPending = pendingCalls.get(userLogin) === otherLogin || pendingCalls.get(otherLogin) === userLogin;
-        if (!wasPending) return;
-        clearPendingBetween(userLogin, otherLogin);
-        send(ws, { type: 'call_ended', reason: 'declined', with: otherLogin });
-        sendToUser(otherLogin, { type: 'call_ended', reason: 'declined', with: userLogin });
-        return;
-      }
-
-      if (data.type === 'call_cancel') {
-        if (!requireActionAllowed(ws, clientIp, 'call_end')) return;
-        const otherLogin = sanitizeLogin(data.with);
-        if (!otherLogin) return;
-        const wasPending = pendingCalls.get(userLogin) === otherLogin || pendingCalls.get(otherLogin) === userLogin;
-        if (!wasPending) return;
-        clearPendingBetween(userLogin, otherLogin);
-        send(ws, { type: 'call_ended', reason: 'cancelled', with: otherLogin });
-        sendToUser(otherLogin, { type: 'call_ended', reason: 'cancelled', with: userLogin });
+        const iceServers = getIceServers();
+        send(ws, { type: 'call_accepted', with: otherLogin, initiator: false, iceServers });
+        sendToUser(otherLogin, { type: 'call_accepted', with: userLogin, initiator: true, iceServers });
         return;
       }
 
@@ -1557,7 +1744,6 @@ wss.on('connection', (ws, req) => {
         await broadcastOnlineFriends();
         return;
       }
-
 
       if (data.type === 'message') {
         if (!requireActionAllowed(ws, clientIp, 'message')) return;
