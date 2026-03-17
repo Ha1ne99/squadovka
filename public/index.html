@@ -1598,9 +1598,8 @@ let activeSettingsTab = 'profile';
 let typingUsers = {};
 let typingSendTimer = null;
 let typingStopTimer = null;
-const MAX_RENDERED_MESSAGES = 120;
-const MAX_STORED_MESSAGES = 250;
-const LOCAL_STATE_SAVE_DELAY = 350;
+const MAX_RENDERED_MESSAGES = 200;
+const MAX_STORED_MESSAGES = 500;
 const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
 let renderChatRaf = null;
 const mobileMediaQuery = window.matchMedia('(max-width: 900px)');
@@ -2424,8 +2423,7 @@ function buildCompactChatsForStorage() {
   }
   return compactChats;
 }
-let localStateSaveTimer = null;
-function persistLocalChatState() {
+function saveLocalChatState() {
   if (!login) return;
   try {
     localStorage.setItem(getChatsStorageKey(login), JSON.stringify(buildCompactChatsForStorage()));
@@ -2437,21 +2435,6 @@ function persistLocalChatState() {
       localStorage.setItem(getUnreadStorageKey(login), JSON.stringify(unread || {}));
     } catch {}
   }
-}
-function saveLocalChatState() {
-  if (!login) return;
-  if (localStateSaveTimer) clearTimeout(localStateSaveTimer);
-  localStateSaveTimer = setTimeout(() => {
-    localStateSaveTimer = null;
-    persistLocalChatState();
-  }, LOCAL_STATE_SAVE_DELAY);
-}
-function flushLocalChatState() {
-  if (localStateSaveTimer) {
-    clearTimeout(localStateSaveTimer);
-    localStateSaveTimer = null;
-  }
-  persistLocalChatState();
 }
 function hydrateStoredChats(rawChats) {
   const restored = {};
@@ -2811,7 +2794,6 @@ function clearSavedAuth() {
 function resetUiToLoggedOut() {
   if (ws) { try { ws.close(); } catch {} }
   ws = null;
-  if (localStateSaveTimer) { clearTimeout(localStateSaveTimer); localStateSaveTimer = null; }
   clearSavedAuth();
   currentDM = null;
   closeDmListMenu();
@@ -2925,24 +2907,12 @@ function handle(d) {
   }
   if (d.type === 'logged_out') { resetUiToLoggedOut(); return; }
   if (d.type === 'login_ok') {
-    login = d.login; nickname = d.nickname; myStatus = normalizeClientStatus(d.status || 'online'); rtcConfig = { iceServers:Array.isArray(d.iceServers) && d.iceServers.length ? d.iceServers : [{ urls:['stun:stun.l.google.com:19302'] }] }; localStorage.setItem('login', login); authToken = typeof d.token === 'string' ? d.token : authToken; if (authToken) localStorage.setItem('messenger_token', authToken); localStorage.removeItem('password'); chats = {}; friends = Array.isArray(d.friends) ? d.friends : friends; groups = Array.isArray(d.groups) ? d.groups : groups; unread = d.unread || unread || {};
+    login = d.login; nickname = d.nickname; myStatus = normalizeClientStatus(d.status || 'online'); rtcConfig = { iceServers:Array.isArray(d.iceServers) && d.iceServers.length ? d.iceServers : [{ urls:['stun:stun.l.google.com:19302'] }] }; localStorage.setItem('login', login); authToken = typeof d.token === 'string' ? d.token : authToken; if (authToken) localStorage.setItem('messenger_token', authToken); localStorage.removeItem('password'); loadLocalChatState(login); friends = Array.isArray(d.friends) ? d.friends : friends; groups = Array.isArray(d.groups) ? d.groups : groups; unread = d.unread || unread || {};
     loginDiv.style.display = 'none'; appDiv.style.display = 'flex'; profileNick.textContent = nickname; profileLogin.textContent = login;
     myAvatar = d.avatar || { letter:(nickname || login || '?')[0]?.toUpperCase() || '?', color:'#5865f2' }; myBanner = d.banner || null; const avatarEl = createAvatar(myAvatar, myStatus, true); const old = document.getElementById('profileAvatar'); old.replaceWith(avatarEl); avatarEl.id = 'profileAvatar';
     profileModalLoginPreview.textContent = login;
     syncPresenceFromOnline();
-    renderFriends(); renderRequests(); renderOnline(); renderGroups(); applyLanguage(); syncMobileLayout();
-    const hydrateCachedChats = () => {
-      loadLocalChatState(login);
-      unread = { ...(unread || {}), ...(d.unread || {}) };
-      syncPresenceFromOnline();
-      renderFriends();
-      renderOnline();
-      renderGroups();
-      if (currentDM || (currentChatType === 'group' && currentGroupId)) scheduleRenderCurrentChat();
-    };
-    if (typeof requestIdleCallback === 'function') requestIdleCallback(hydrateCachedChats, { timeout: 800 });
-    else setTimeout(hydrateCachedChats, 0);
-    return;
+    renderFriends(); renderRequests(); renderOnline(); renderGroups(); applyLanguage(); syncMobileLayout(); return;
   }
   if (d.type === 'online_friends') {
     onlineUsers = Array.isArray(d.users) ? d.users : [];
@@ -3613,16 +3583,9 @@ function renderOnline() {
   online.innerHTML = '';
   const dmItems = dedupeUsers(friends).map(user => ({ kind:'dm', ...user }));
   const groupItems = (Array.isArray(groups) ? groups : []).map(group => ({ kind:'group', id:Number(group.id), name:group.name, members:group.members || [] }));
-  const sortMeta = new Map();
-  [...dmItems, ...groupItems].forEach(item => {
-    const meta = getChatSortMeta(item);
-    sortMeta.set(meta.key, meta);
-  });
   const items = [...dmItems, ...groupItems].sort((a, b) => {
-    const keyA = a.kind === 'group' ? getGroupChatKey(a.id) : a.login;
-    const keyB = b.kind === 'group' ? getGroupChatKey(b.id) : b.login;
-    const metaA = sortMeta.get(keyA) || { last: 0 };
-    const metaB = sortMeta.get(keyB) || { last: 0 };
+    const metaA = getChatSortMeta(a);
+    const metaB = getChatSortMeta(b);
     if (metaB.last !== metaA.last) return metaB.last - metaA.last;
     if (a.kind !== b.kind) {
       if (a.kind === 'dm' && normalizeClientStatus(a.status || 'offline') !== 'offline') return -1;
@@ -3806,5 +3769,3 @@ document.addEventListener('visibilitychange', () => {
 
 </body>
 </html>
-
-window.addEventListener('beforeunload', () => { try { flushLocalChatState(); } catch {} });
