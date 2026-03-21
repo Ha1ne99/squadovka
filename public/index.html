@@ -2078,9 +2078,42 @@ function updateCallUi() {
     callHintText.textContent = (isMicMuted ? t('micOff') : t('micOn')) + ' · ' + (isSpeakerMuted ? t('soundOff') : t('soundOn'));
   }
 }
+function buildProcessedAudioConstraints() {
+  const supported = navigator.mediaDevices?.getSupportedConstraints?.() || {};
+  const audio = {
+    echoCancellation: true,
+    noiseSuppression: true,
+    autoGainControl: true,
+    channelCount: 1
+  };
+  if (supported.sampleRate) audio.sampleRate = 48000;
+  if (supported.sampleSize) audio.sampleSize = 16;
+  if (supported.latency) audio.latency = { ideal: 0.02 };
+  return { audio, video: false };
+}
+async function enhanceAudioTrack(track) {
+  if (!track?.applyConstraints) return;
+  const supported = navigator.mediaDevices?.getSupportedConstraints?.() || {};
+  const advanced = {};
+  if (supported.echoCancellation) advanced.echoCancellation = true;
+  if (supported.noiseSuppression) advanced.noiseSuppression = true;
+  if (supported.autoGainControl) advanced.autoGainControl = true;
+  if (supported.channelCount) advanced.channelCount = 1;
+  if (supported.sampleRate) advanced.sampleRate = 48000;
+  if (supported.sampleSize) advanced.sampleSize = 16;
+  if (supported.latency) advanced.latency = { ideal: 0.02 };
+  if (supported.voiceIsolation) advanced.voiceIsolation = true;
+  if (!Object.keys(advanced).length) return;
+  try {
+    await track.applyConstraints(advanced);
+  } catch (err) {
+    console.warn('Audio processing constraints were not fully applied:', err);
+  }
+}
 async function ensureLocalCallStream() {
   if (localCallStream) return localCallStream;
-  const stream = await navigator.mediaDevices.getUserMedia({ audio:true, video:false });
+  const stream = await navigator.mediaDevices.getUserMedia(buildProcessedAudioConstraints());
+  await Promise.allSettled(stream.getAudioTracks().map(enhanceAudioTrack));
   localCallStream = stream;
   isMicMuted = false;
   startVoiceMeter(stream);
@@ -3230,7 +3263,8 @@ async function startVoiceRecording() {
       try { URL.revokeObjectURL(pendingUploadPreviewUrl); } catch {}
       pendingUploadPreviewUrl = '';
     }
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    const stream = await navigator.mediaDevices.getUserMedia(buildProcessedAudioConstraints());
+    await Promise.allSettled(stream.getAudioTracks().map(enhanceAudioTrack));
     mediaRecorderStream = stream;
     mediaRecorderChunks = [];
     const mimeType = getVoiceMimeType();
