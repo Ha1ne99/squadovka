@@ -399,12 +399,16 @@ async function initDb() {
       nickname TEXT NOT NULL,
       avatarImage TEXT,
       bannerImage TEXT,
-      status TEXT NOT NULL DEFAULT 'online'
+      status TEXT NOT NULL DEFAULT 'online',
+      createdAt BIGINT NOT NULL DEFAULT 0,
+      badgeCode TEXT
     )
   `);
 
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS bannerImage TEXT`);
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'online'`);
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS createdAt BIGINT NOT NULL DEFAULT 0`);
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS badgeCode TEXT`);
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS messages (
@@ -600,6 +604,9 @@ async function loginSocket(ws, user) {
     status: normalizedStatus,
     avatar: buildAvatar(user.login, user.nickname, user.avatarimage),
     banner: user.bannerimage || null,
+    createdAt: Number(user.createdat || 0) || null,
+    badgeCode: user.badgecode || null,
+    badges: user.badgecode ? [user.badgecode] : [],
     friends: await getFriendUsers(user.login),
     unread: await getUnreadMap(user.login),
     groups: await getGroupsForUser(user.login),
@@ -663,16 +670,33 @@ function getEffectiveStatus(targetLogin, rawStatus, viewerLogin = null) {
   return normalized;
 }
 
+async function getCommonFriends(viewerLogin, targetLogin) {
+  if (!viewerLogin || !targetLogin || viewerLogin === targetLogin) return [];
+  const viewerFriends = new Set(await getFriends(viewerLogin));
+  const targetFriends = await getFriends(targetLogin);
+  const commonLogins = targetFriends.filter(login => viewerFriends.has(login)).slice(0, 8);
+  if (!commonLogins.length) return [];
+  const users = await Promise.all(commonLogins.map(friendLogin => getUserPublic(friendLogin, viewerLogin)));
+  return users.filter(Boolean);
+}
+
 async function getUserPublic(login, viewerLogin = null) {
-  const result = await pool.query(`SELECT login, nickname, avatarImage, bannerImage, status FROM users WHERE login = $1`, [login]);
+  const result = await pool.query(`SELECT login, nickname, avatarImage, bannerImage, status, createdAt, badgeCode FROM users WHERE login = $1`, [login]);
   const user = result.rows[0];
   if (!user) return null;
+  const commonFriends = viewerLogin && viewerLogin !== login ? await getCommonFriends(viewerLogin, login) : [];
+  const badges = user.badgecode ? [user.badgecode] : [];
   return {
     login: user.login,
     nickname: user.nickname,
     status: getEffectiveStatus(user.login, user.status, viewerLogin),
     avatar: buildAvatar(user.login, user.nickname, user.avatarimage),
-    banner: user.bannerimage || null
+    banner: user.bannerimage || null,
+    createdAt: Number(user.createdat || 0) || null,
+    badgeCode: user.badgecode || null,
+    badges,
+    commonFriends,
+    commonFriendsCount: commonFriends.length
   };
 }
 
@@ -945,7 +969,7 @@ wss.on('connection', (ws, req) => {
         }
 
         const hashedPassword = await bcrypt.hash(password, 12);
-        await pool.query(`INSERT INTO users (login, password, nickname, avatarImage, status) VALUES ($1, $2, $3, $4, $5)`, [login, hashedPassword, login, null, 'online']);
+        await pool.query(`INSERT INTO users (login, password, nickname, avatarImage, status, createdAt, badgeCode) VALUES ($1, $2, $3, $4, $5, $6, $7)`, [login, hashedPassword, login, null, 'online', Date.now(), null]);
         send(ws, { type: 'register_ok' });
         return;
       }
@@ -964,7 +988,7 @@ wss.on('connection', (ws, req) => {
           return;
         }
 
-        const result = await pool.query(`SELECT login, password, nickname, avatarImage, bannerImage, status FROM users WHERE login = $1`, [login]);
+        const result = await pool.query(`SELECT login, password, nickname, avatarImage, bannerImage, status, createdAt, badgeCode FROM users WHERE login = $1`, [login]);
         const user = result.rows[0];
 
         if (!user) {
@@ -1004,7 +1028,7 @@ wss.on('connection', (ws, req) => {
           return;
         }
 
-        const result = await pool.query(`SELECT login, nickname, avatarImage, bannerImage, status FROM users WHERE login = $1`, [verified.login]);
+        const result = await pool.query(`SELECT login, nickname, avatarImage, bannerImage, status, createdAt, badgeCode FROM users WHERE login = $1`, [verified.login]);
         const user = result.rows[0];
         if (!user) {
           send(ws, { type: 'auth_expired' });
@@ -1048,7 +1072,7 @@ wss.on('connection', (ws, req) => {
         }
 
         await pool.query(`UPDATE users SET avatarImage = $1 WHERE login = $2`, [image, userLogin]);
-        const updatedResult = await pool.query(`SELECT login, nickname, avatarImage, bannerImage, status FROM users WHERE login = $1`, [userLogin]);
+        const updatedResult = await pool.query(`SELECT login, nickname, avatarImage, bannerImage, status, createdAt, badgeCode FROM users WHERE login = $1`, [userLogin]);
         const updatedUser = updatedResult.rows[0];
 
         if (updatedUser) {
@@ -1069,7 +1093,10 @@ wss.on('connection', (ws, req) => {
                 nickname: updatedUser.nickname,
                 status: normalizeStatus(updatedUser.status),
                 avatar: buildAvatar(updatedUser.login, updatedUser.nickname, updatedUser.avatarimage),
-                banner: updatedUser.bannerimage || null
+                banner: updatedUser.bannerimage || null,
+                createdAt: Number(updatedUser.createdat || 0) || null,
+                badgeCode: updatedUser.badgecode || null,
+                badges: updatedUser.badgecode ? [updatedUser.badgecode] : []
               });
             }
           }
@@ -1096,7 +1123,7 @@ wss.on('connection', (ws, req) => {
         }
 
         await pool.query(`UPDATE users SET bannerImage = $1 WHERE login = $2`, [image, userLogin]);
-        const updatedResult = await pool.query(`SELECT login, nickname, avatarImage, bannerImage, status FROM users WHERE login = $1`, [userLogin]);
+        const updatedResult = await pool.query(`SELECT login, nickname, avatarImage, bannerImage, status, createdAt, badgeCode FROM users WHERE login = $1`, [userLogin]);
         const updatedUser = updatedResult.rows[0];
 
         if (updatedUser) {
@@ -1117,7 +1144,10 @@ wss.on('connection', (ws, req) => {
                 nickname: updatedUser.nickname,
                 status: normalizeStatus(updatedUser.status),
                 avatar: buildAvatar(updatedUser.login, updatedUser.nickname, updatedUser.avatarimage),
-                banner: updatedUser.bannerimage || null
+                banner: updatedUser.bannerimage || null,
+                createdAt: Number(updatedUser.createdat || 0) || null,
+                badgeCode: updatedUser.badgecode || null,
+                badges: updatedUser.badgecode ? [updatedUser.badgecode] : []
               });
             }
           }
@@ -1136,7 +1166,7 @@ wss.on('connection', (ws, req) => {
         }
 
         await pool.query(`UPDATE users SET nickname = $1, status = $2 WHERE login = $3`, [newNickname, newStatus, userLogin]);
-        const updatedResult = await pool.query(`SELECT login, nickname, avatarImage, bannerImage, status FROM users WHERE login = $1`, [userLogin]);
+        const updatedResult = await pool.query(`SELECT login, nickname, avatarImage, bannerImage, status, createdAt, badgeCode FROM users WHERE login = $1`, [userLogin]);
         const updatedUser = updatedResult.rows[0];
         clients.set(ws, {
           login: updatedUser.login,
