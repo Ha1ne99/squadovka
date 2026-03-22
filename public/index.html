@@ -797,6 +797,24 @@ body[data-theme='midnight'] { --bg:#101217; --bg2:#0b0d12; }
 .messageMenuItem:hover { background:#202633; }
 .messageMenuItem.danger { color:#ff8b8d; }
 .messageMenuItem.danger:hover { background:rgba(237,66,69,.16); color:#ffb3b5; }
+#pinnedBar { display:none; margin:12px 18px 0; padding:10px 12px; border:1px solid rgba(255,255,255,.08); background:rgba(255,255,255,.04); border-radius:14px; align-items:center; justify-content:space-between; gap:12px; }
+.pinnedBarMeta { min-width:0; flex:1; }
+.pinnedBarLabel { font-size:12px; color:var(--accent-2); font-weight:700; margin-bottom:2px; }
+.pinnedBarText { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-size:13px; }
+.pinnedBarActions { display:flex; gap:8px; flex-shrink:0; }
+.forwardedBadge { margin-bottom:8px; font-size:12px; color:var(--accent-2); font-weight:700; }
+.modalOverlay { position:fixed; inset:0; background:rgba(0,0,0,.55); backdrop-filter: blur(6px); display:none; align-items:center; justify-content:center; z-index:180; padding:18px; }
+.simpleModal { width:min(92vw, 460px); max-height:min(80vh, 680px); overflow:auto; background:#111622; border:1px solid rgba(255,255,255,.08); border-radius:18px; box-shadow:0 18px 46px rgba(0,0,0,.42); padding:16px; }
+.simpleModalHeader { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:10px; }
+.simpleModalHeader button { width:34px; height:34px; border-radius:10px; background:#202633; color:#fff; border:1px solid var(--line); cursor:pointer; }
+.forwardTargets { display:flex; flex-direction:column; gap:8px; margin-top:12px; }
+.forwardTargetBtn { width:100%; text-align:left; padding:12px 14px; border-radius:14px; background:#171b23; border:1px solid var(--line); color:#fff; cursor:pointer; }
+.forwardTargetBtn:hover { background:#1d2330; border-color:rgba(107,124,255,.35); }
+.forwardTargetTitle { font-weight:700; display:block; }
+.forwardTargetSub { display:block; color:var(--muted); font-size:12px; margin-top:4px; }
+.callToggleGrid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; margin-top:12px; }
+.callSettingToggle { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:12px 14px; border-radius:14px; background:#171b23; border:1px solid var(--line); }
+.callSettingToggle .profileFieldLabel { margin:0; }
 
 .userActions {
   margin-left:auto;
@@ -1270,6 +1288,7 @@ body[data-theme='midnight'] { --bg:#101217; --bg2:#0b0d12; }
       </div>
     </div>
 
+    <div id="pinnedBar"></div>
     <div id="messages"></div>
 
     <div id="typingIndicator"></div>
@@ -1438,6 +1457,21 @@ body[data-theme='midnight'] { --bg:#101217; --bg2:#0b0d12; }
               <h4 id="hotkeysTitle">Управление звонком</h4>
               <div class="profileHint" id="hotkeysHint">Можно назначить одну клавишу или сочетание. Например: Ctrl+Shift+M.</div>
 
+              <div class="profileSection" id="callEnhancementSection" style="margin-bottom:14px;">
+                <h4 id="callEnhancementTitle">Обработка микрофона</h4>
+                <div class="profileHint" id="callEnhancementHint">Отдельно включай шумоподавление и эхо-подавление для звонков.</div>
+                <div class="callToggleGrid">
+                  <label class="callSettingToggle">
+                    <span class="profileFieldLabel" id="noiseSuppressionLabel">Шумоподавление</span>
+                    <button id="noiseSuppressionBtn" type="button" class="profileActionBtn">Включено</button>
+                  </label>
+                  <label class="callSettingToggle">
+                    <span class="profileFieldLabel" id="echoCancellationLabel">Эхо-подавление</span>
+                    <button id="echoCancellationBtn" type="button" class="profileActionBtn">Включено</button>
+                  </label>
+                </div>
+              </div>
+
               <div class="hotkeyList">
                 <div class="hotkeyRow" data-hotkey-action="muteMic">
                   <div class="hotkeyInfo">
@@ -1486,6 +1520,17 @@ body[data-theme='midnight'] { --bg:#101217; --bg2:#0b0d12; }
         </div>
       </div>
     </div>
+  </div>
+</div>
+
+<div id="forwardModalOverlay" class="modalOverlay" style="display:none;">
+  <div id="forwardModal" class="simpleModal">
+    <div class="simpleModalHeader">
+      <b id="forwardModalTitle">Переслать сообщение</b>
+      <button id="forwardModalCloseBtn" type="button">×</button>
+    </div>
+    <div class="profileHint" id="forwardModalHint">Выбери чат, куда переслать сообщение.</div>
+    <div id="forwardTargets" class="forwardTargets"></div>
   </div>
 </div>
 
@@ -1651,6 +1696,8 @@ const callVolumeLabel = document.getElementById('callVolumeLabel');
 const callVolumeSlider = document.getElementById('callVolumeSlider');
 const callHangupBtn = document.getElementById('callHangupBtn');
 const callCloseBtn = document.getElementById('callCloseBtn');
+const noiseSuppressionBtn = document.getElementById('noiseSuppressionBtn');
+const echoCancellationBtn = document.getElementById('echoCancellationBtn');
 const remoteAudio = document.getElementById('remoteAudio');
 
 let ws;
@@ -1673,7 +1720,7 @@ let chats = {}, requests = [], friends = [];
 let unread = {};
 let onlineUsers = [];
 let currentLanguage = localStorage.getItem('messenger_language') || 'ru';
-const defaultCustomization = { theme:'midnight', accent:'#6b7cff', radius:16, fontSize:14, wallpaper:'none', compact:false, bio:'', hotkeys:{ muteMic:null, muteSound:null, hangup:null } };
+const defaultCustomization = { theme:'midnight', accent:'#6b7cff', radius:16, fontSize:14, wallpaper:'none', compact:false, bio:'', hotkeys:{ muteMic:null, muteSound:null, hangup:null }, callAudio:{ noiseSuppression:true, echoCancellation:true } };
 let customization = loadCustomization();
 let dmWallpapers = loadDmWallpapers();
 let suppressProfileOpenUntil = 0;
@@ -1712,6 +1759,10 @@ let activeHotkeyCaptureAction = null;
 let typingUsers = {};
 let typingSendTimer = null;
 let typingStopTimer = null;
+let forwardingMessage = null;
+const APP_SOUNDS = { accept:'accept.mp3', call:'call.mp3', decline:'decline.mp3', message:'message.mp3' };
+const soundPlayers = {};
+let callLoopSoundKey = null;
 const MAX_RENDERED_MESSAGES = 200;
 const MAX_STORED_MESSAGES = 500;
 const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
@@ -1747,7 +1798,7 @@ const i18n = {
     messageNotFound:'Сообщение не найдено', edit:'Редактировать', save:'Сохранить', cancel:'Отмена', edited:'изменено', editOwnOnly:'Можно редактировать только свои сообщения',
     serverError:'Ошибка сервера', accountCreated:'Аккаунт создан, войдите', enterLoginPassword:'Введите логин и пароль', loginTaken:'Логин занят', badLogin:'Неверный логин или пароль', authExpired:'Сессия истекла. Войди снова.',
     badAvatar:'Неверный формат аватара', bigAvatar:'Аватар слишком большой', badBanner:'Неверный формат баннера', bigBanner:'Баннер слишком большой', userNotFound:'Пользователь не найден', alreadyFriends:'Вы уже друзья',
-    allowMic:'Разрешите доступ к микрофону для звонков', userOffline:'Пользователь не в сети', delete:'Удалить', typing:'печатает', profileSettings:'Настройка профиля', displayName:'Отображаемое имя', enterDisplayName:'Введите имя', status_online:'В сети', status_idle:'Не активен', status_dnd:'Не беспокоить', status_invisible:'Невидимка', status_offline:'Не в сети', viewProfile:'Профиль', removeFriend:'Удалить', profileViewTitle:'Профиль пользователя', removeFriendConfirm:'Удалить этого пользователя из друзей?', removedFromFriends:'Пользователь удалён из друзей', logout:'Выйти из аккаунта', reply:'Ответить', replyingTo:'Ответ на сообщение', replyUnknown:'Сообщение', changeBackground:'Сменить фон', hotkeys:'Горячие клавиши', hotkeysTitle:'Управление звонком', hotkeysHint:'Можно назначить одну клавишу или сочетание. Например: Ctrl+Shift+M.', hotkeyMuteMic:'Выключить микрофон', hotkeyMuteMicSub:'Включает и выключает микрофон в звонке', hotkeyMuteSound:'Выключить звук', hotkeyMuteSoundSub:'Включает и выключает звук собеседника', hotkeyHangup:'Сбросить звонок', hotkeyHangupSub:'Завершает текущий звонок или отклоняет входящий', hotkeySet:'Назначить', hotkeyClear:'Сбросить', hotkeyNone:'Не назначено', hotkeyListening:'Нажми сочетание...', hotkeyExists:'Это сочетание уже назначено другому действию', hotkeyOnlyModifiers:'Нужно добавить обычную клавишу, не только Ctrl/Shift/Alt', language:'Язык интерфейса', languageHint:'Выбери язык приложения — настройка сохранится на этом устройстве.' 
+    allowMic:'Разрешите доступ к микрофону для звонков', userOffline:'Пользователь не в сети', delete:'Удалить', typing:'печатает', profileSettings:'Настройка профиля', displayName:'Отображаемое имя', enterDisplayName:'Введите имя', status_online:'В сети', status_idle:'Не активен', status_dnd:'Не беспокоить', status_invisible:'Невидимка', status_offline:'Не в сети', viewProfile:'Профиль', removeFriend:'Удалить', profileViewTitle:'Профиль пользователя', removeFriendConfirm:'Удалить этого пользователя из друзей?', removedFromFriends:'Пользователь удалён из друзей', logout:'Выйти из аккаунта', reply:'Ответить', replyingTo:'Ответ на сообщение', replyUnknown:'Сообщение', changeBackground:'Сменить фон', hotkeys:'Горячие клавиши', hotkeysTitle:'Управление звонком', hotkeysHint:'Можно назначить одну клавишу или сочетание. Например: Ctrl+Shift+M.', hotkeyMuteMic:'Выключить микрофон', hotkeyMuteMicSub:'Включает и выключает микрофон в звонке', hotkeyMuteSound:'Выключить звук', hotkeyMuteSoundSub:'Включает и выключает звук собеседника', hotkeyHangup:'Сбросить звонок', hotkeyHangupSub:'Завершает текущий звонок или отклоняет входящий', hotkeySet:'Назначить', hotkeyClear:'Сбросить', hotkeyNone:'Не назначено', hotkeyListening:'Нажми сочетание...', hotkeyExists:'Это сочетание уже назначено другому действию', hotkeyOnlyModifiers:'Нужно добавить обычную клавишу, не только Ctrl/Shift/Alt', language:'Язык интерфейса', languageHint:'Выбери язык приложения — настройка сохранится на этом устройстве.', forward:'Переслать', pinned:'Закреплено', pin:'Закрепить', unpin:'Открепить', forwardTitle:'Переслать сообщение', forwardHint:'Выбери чат, куда переслать сообщение.', forwardedFrom:'Переслано', forwardedDone:'Сообщение переслано', noForwardTargets:'Нет доступных чатов для пересылки', callEnhancementTitle:'Обработка микрофона', callEnhancementHint:'Отдельно включай шумоподавление и эхо-подавление для звонков.', noiseSuppression:'Шумоподавление', echoCancellation:'Эхо-подавление', enabled:'Включено', disabled:'Выключено' 
   },
   uk: {
     loginBrandSubtitle:'Твій затишний месенджер для друзів', login:'Вхід', register:'Реєстрація', loginBtn:'Увійти', registerBtn:'Створити акаунт',
@@ -1765,7 +1816,7 @@ const i18n = {
     messageNotFound:'Повідомлення не знайдено', edit:'Редагувати', save:'Зберегти', cancel:'Скасування', edited:'змінено', editOwnOnly:'Можна редагувати лише свої повідомлення',
     serverError:'Помилка сервера', accountCreated:'Акаунт створено, увійди', enterLoginPassword:'Введи логін і пароль', loginTaken:'Логін зайнятий', badLogin:'Невірний логін або пароль', authExpired:'Сесію завершено. Увійди знову.',
     badAvatar:'Невірний формат аватара', bigAvatar:'Аватар занадто великий', userNotFound:'Користувача не знайдено', alreadyFriends:'Ви вже друзі',
-    allowMic:'Дозволь доступ до мікрофона для дзвінків', userOffline:'Користувач не в мережі', delete:'Видалити', typing:'друкує', profileSettings:'Налаштування профілю', displayName:'Відображуване ім’я', enterDisplayName:'Введи ім’я', status_online:'В мережі', status_idle:'Не активний', status_dnd:'Не турбувати', status_invisible:'Невидимка', status_offline:'Не в мережі', logout:'Вийти з акаунта', reply:'Відповісти', replyingTo:'Відповідь на повідомлення', replyUnknown:'Повідомлення', changeBackground:'Змінити фон', hotkeys:'Гарячі клавіші', hotkeysTitle:'Керування дзвінком', hotkeysHint:'Можна призначити одну клавішу або комбінацію. Наприклад: Ctrl+Shift+M.', hotkeyMuteMic:'Вимкнути мікрофон', hotkeyMuteMicSub:'Вмикає й вимикає мікрофон у дзвінку', hotkeyMuteSound:'Вимкнути звук', hotkeyMuteSoundSub:'Вмикає й вимикає звук співрозмовника', hotkeyHangup:'Скинути дзвінок', hotkeyHangupSub:'Завершує поточний дзвінок або відхиляє вхідний', hotkeySet:'Призначити', hotkeyClear:'Скинути', hotkeyNone:'Не призначено', hotkeyListening:'Натисни комбінацію...', hotkeyExists:'Цю комбінацію вже призначено іншій дії', hotkeyOnlyModifiers:'Потрібно додати звичайну клавішу, не лише Ctrl/Shift/Alt', language:'Мова інтерфейсу', languageHint:'Вибери мову застосунку — налаштування збережеться на цьому пристрої.' 
+    allowMic:'Дозволь доступ до мікрофона для дзвінків', userOffline:'Користувач не в мережі', delete:'Видалити', typing:'друкує', profileSettings:'Налаштування профілю', displayName:'Відображуване ім’я', enterDisplayName:'Введи ім’я', status_online:'В мережі', status_idle:'Не активний', status_dnd:'Не турбувати', status_invisible:'Невидимка', status_offline:'Не в мережі', logout:'Вийти з акаунта', reply:'Відповісти', replyingTo:'Відповідь на повідомлення', replyUnknown:'Повідомлення', changeBackground:'Змінити фон', hotkeys:'Гарячі клавіші', hotkeysTitle:'Керування дзвінком', hotkeysHint:'Можна призначити одну клавішу або комбінацію. Наприклад: Ctrl+Shift+M.', hotkeyMuteMic:'Вимкнути мікрофон', hotkeyMuteMicSub:'Вмикає й вимикає мікрофон у дзвінку', hotkeyMuteSound:'Вимкнути звук', hotkeyMuteSoundSub:'Вмикає й вимикає звук співрозмовника', hotkeyHangup:'Скинути дзвінок', hotkeyHangupSub:'Завершує поточний дзвінок або відхиляє вхідний', hotkeySet:'Призначити', hotkeyClear:'Скинути', hotkeyNone:'Не призначено', hotkeyListening:'Натисни комбінацію...', hotkeyExists:'Цю комбінацію вже призначено іншій дії', hotkeyOnlyModifiers:'Потрібно додати звичайну клавішу, не лише Ctrl/Shift/Alt', language:'Мова інтерфейсу', languageHint:'Вибери мову застосунку — налаштування збережеться на цьому пристрої.', forward:'Переслати', pinned:'Закріплено', pin:'Закріпити', unpin:'Відкріпити', forwardTitle:'Переслати повідомлення', forwardHint:'Обери чат, куди переслати повідомлення.', forwardedFrom:'Переслано', forwardedDone:'Повідомлення переслано', noForwardTargets:'Немає доступних чатів для пересилання', callEnhancementTitle:'Обробка мікрофона', callEnhancementHint:'Окремо вмикай шумозаглушення та ехоприглушення для дзвінків.', noiseSuppression:'Шумозаглушення', echoCancellation:'Ехоприглушення', enabled:'Увімкнено', disabled:'Вимкнено' 
   },
   en: {
     loginBrandSubtitle:'Your cozy messenger for friends', login:'Login', register:'Register', loginBtn:'Sign in', registerBtn:'Create account',
@@ -2190,6 +2241,84 @@ function handleGlobalHotkeys(e) {
   triggerHotkeyAction(action);
 }
 
+function getCallAudioSettings() {
+  return {
+    noiseSuppression: customization?.callAudio?.noiseSuppression !== false,
+    echoCancellation: customization?.callAudio?.echoCancellation !== false
+  };
+}
+function updateCallProcessingButtons() {
+  const settings = getCallAudioSettings();
+  if (noiseSuppressionBtn) noiseSuppressionBtn.textContent = settings.noiseSuppression ? t('enabled') : t('disabled');
+  if (echoCancellationBtn) echoCancellationBtn.textContent = settings.echoCancellation ? t('enabled') : t('disabled');
+}
+function toggleCallProcessingSetting(key) {
+  customization.callAudio = { ...getCallAudioSettings(), [key]: !getCallAudioSettings()[key] };
+  saveCustomization();
+  updateCallProcessingButtons();
+}
+function createSoundPlayer(key, loop=false) {
+  const audio = new Audio(APP_SOUNDS[key]);
+  audio.preload = 'auto';
+  audio.loop = loop;
+  return audio;
+}
+async function playAppSound(key, opts = {}) {
+  const { loop = false, restart = true } = opts;
+  try {
+    if (!soundPlayers[key] || soundPlayers[key].loop !== loop) soundPlayers[key] = createSoundPlayer(key, loop);
+    const audio = soundPlayers[key];
+    audio.loop = loop;
+    if (restart) audio.currentTime = 0;
+    await audio.play();
+    return audio;
+  } catch { return null; }
+}
+function stopAppSound(key) {
+  const audio = soundPlayers[key];
+  if (!audio) return;
+  try { audio.pause(); audio.currentTime = 0; } catch {}
+}
+function startCallLoopSound(key) {
+  if (callLoopSoundKey === key) return;
+  stopCallLoopSound();
+  callLoopSoundKey = key;
+  playAppSound(key, { loop:true, restart:true });
+}
+function stopCallLoopSound() {
+  if (!callLoopSoundKey) return;
+  stopAppSound(callLoopSoundKey);
+  callLoopSoundKey = null;
+}
+function openForwardModal(messageId) {
+  const list = getCurrentRenderedMessages();
+  const found = list.find(m => Number(m.id) === Number(messageId));
+  if (!found) return;
+  forwardingMessage = found;
+  if (forwardTargets) {
+    const dmTargets = (friends || []).map(f => typeof f === 'string' ? { type:'dm', login:f, nickname:f } : { type:'dm', login:f.login, nickname:f.nickname || f.login }).filter(f => f.login && f.login !== login);
+    const groupTargets = (groups || []).map(g => ({ type:'group', groupId:Number(g.id), title:g.name || `${t('groupLabel')} ${g.id}` }));
+    const targets = [...dmTargets, ...groupTargets].filter(Boolean);
+    if (!targets.length) forwardTargets.innerHTML = `<div class="profileHint">${escapeHtml(t('noForwardTargets'))}</div>`;
+    else forwardTargets.innerHTML = targets.map(target => target.type === 'dm'
+      ? `<button type="button" class="forwardTargetBtn" onclick="forwardMessageToTarget('dm','${escapeHtml(target.login)}')"><span class="forwardTargetTitle">${escapeHtml(target.nickname || target.login)}</span><span class="forwardTargetSub">@${escapeHtml(target.login)}</span></button>`
+      : `<button type="button" class="forwardTargetBtn" onclick="forwardMessageToTarget('group','${Number(target.groupId)}')"><span class="forwardTargetTitle">${escapeHtml(target.title)}</span><span class="forwardTargetSub">${escapeHtml(t('groupLabel'))}</span></button>`
+    ).join('');
+  }
+  if (forwardModalOverlay) forwardModalOverlay.style.display = 'flex';
+}
+function closeForwardModal() {
+  forwardingMessage = null;
+  if (forwardModalOverlay) forwardModalOverlay.style.display = 'none';
+}
+function forwardMessageToTarget(type, target) {
+  if (!forwardingMessage || !ws || ws.readyState !== WebSocket.OPEN) return;
+  const payload = { text:String(forwardingMessage.text || ''), attachment:forwardingMessage.attachment || null, replyTo:null, forwardedFrom:buildForwardPayload(forwardingMessage) };
+  if (type === 'group') ws.send(JSON.stringify({ type:'group_message', groupId:Number(target), ...payload }));
+  else ws.send(JSON.stringify({ type:'message', from:login, to:String(target), ...payload }));
+  closeForwardModal();
+  alert(t('forwardedDone'));
+}
 function defaultProfileBannerStyle() {
   return 'linear-gradient(135deg,#8792c7,#9ba2bf)';
 }
@@ -2363,7 +2492,8 @@ function updateCallUi() {
 }
 async function ensureLocalCallStream() {
   if (localCallStream) return localCallStream;
-  const rawStream = await navigator.mediaDevices.getUserMedia({ audio:{ echoCancellation:true, noiseSuppression:true, autoGainControl:true, channelCount:1 }, video:false });
+  const callAudioSettings = getCallAudioSettings();
+  const rawStream = await navigator.mediaDevices.getUserMedia({ audio:{ echoCancellation:!!callAudioSettings.echoCancellation, noiseSuppression:!!callAudioSettings.noiseSuppression, autoGainControl:true, channelCount:1 }, video:false });
   localCallSourceStream = rawStream;
   isMicMuted = false;
   const AudioContextRef = window.AudioContext || window.webkitAudioContext;
@@ -2490,6 +2620,7 @@ function stopLocalCallStream() {
   stopVoiceMeter();
 }
 function resetCallState(closeOverlay = true) {
+  stopCallLoopSound();
   cleanupPeerConnection();
   stopLocalCallStream();
   pendingIncomingCall = null;
@@ -2817,8 +2948,12 @@ function loadLocalChatState(userLogin) {
   } catch { chats = {}; unread = {}; }
 }
 
-async function unlockAudio() {}
-function soundMessage() {}
+async function unlockAudio() {
+  try {
+    Object.keys(APP_SOUNDS).forEach(key => { if (!soundPlayers[key]) soundPlayers[key] = createSoundPlayer(key, key === 'call'); });
+  } catch {}
+}
+function soundMessage() { playAppSound('message'); }
 
 
 function createAvatar(user, status = 'online', showPresence = true) {
@@ -2917,6 +3052,35 @@ function getCurrentRenderedMessages() {
   if (currentChatType === 'group' && currentGroupId) return chats[getGroupChatKey(currentGroupId)] || [];
   if (currentDM) return chats[currentDM] || [];
   return [];
+}
+function normalizeForwardPayload(forwarded) {
+  if (!forwarded || typeof forwarded !== 'object') return null;
+  const from = typeof forwarded.from === 'string' ? forwarded.from : '';
+  const fromNick = typeof forwarded.fromNick === 'string' ? forwarded.fromNick : '';
+  const originalId = Number(forwarded.originalId);
+  if (!from && !fromNick && !Number.isFinite(originalId)) return null;
+  return { from, fromNick, originalId: Number.isFinite(originalId) ? originalId : null };
+}
+function buildForwardPayload(message) {
+  if (!message) return null;
+  return normalizeForwardPayload({ originalId:Number(message.id), from:message.from || '', fromNick:message.fromNick || message.from || '' });
+}
+function getPinnedMessages() {
+  return getCurrentRenderedMessages().filter(m => !!m.pinned).sort((a,b) => Number(b.pinnedAt || b.time || 0) - Number(a.pinnedAt || a.time || 0));
+}
+function scrollToMessage(messageId) {
+  const node = document.querySelector(`.message[data-id="${Number(messageId)}"]`);
+  if (!node) return;
+  node.scrollIntoView({ behavior:'smooth', block:'center' });
+}
+function renderPinnedBar() {
+  if (!pinnedBar) return;
+  const pinned = getPinnedMessages();
+  if (!pinned.length || !hasOpenedChat()) { pinnedBar.style.display = 'none'; pinnedBar.innerHTML = ''; return; }
+  const message = pinned[0];
+  const snippet = escapeHtml(getReplySnippet(buildReplyPayload(message)));
+  pinnedBar.style.display = 'flex';
+  pinnedBar.innerHTML = `<div class="pinnedBarMeta"><div class="pinnedBarLabel">📌 ${escapeHtml(t('pinned'))}${pinned.length > 1 ? ` (${pinned.length})` : ''}</div><div class="pinnedBarText">${snippet}</div></div><div class="pinnedBarActions"><button type="button" class="profileActionBtn" onclick="scrollToMessage(${Number(message.id)})">${escapeHtml(t('open'))}</button>${message.from === login ? `<button type="button" class="profileActionBtn" onclick="togglePinMessage(${Number(message.id)}, false)">${escapeHtml(t('unpin'))}</button>` : ''}</div>`;
 }
 function renderReplyBlockHtml(reply) {
   const payload = normalizeReplyPayload(reply);
@@ -3126,6 +3290,7 @@ function rerenderCurrentChat(forceBottom = false) {
   messages.innerHTML = '';
   visible.forEach(m => fragment.appendChild(renderMessage(m)));
   messages.appendChild(fragment);
+  renderPinnedBar();
   if (wasNearBottom) scrollMessagesToBottom();
 }
 
@@ -3177,6 +3342,7 @@ function resetUiToLoggedOut() {
   emptyChat.style.display = 'flex';
   messages.style.display = 'none';
   messages.innerHTML = '';
+  if (pinnedBar) { pinnedBar.style.display = 'none'; pinnedBar.innerHTML = ''; }
   typingIndicator.innerHTML = '';
   text.value = '';
   loginInput.value = '';
@@ -3285,6 +3451,7 @@ function handle(d) {
     setTypingState(peer, '', false);
     if (d.attachment) d.attachment = normalizeAttachment(d.attachment);
     if (d.replyTo) d.replyTo = normalizeReplyPayload(d.replyTo);
+    if (d.forwardedFrom) d.forwardedFrom = normalizeForwardPayload(d.forwardedFrom);
     upsertMessage(peer, d);
     const isIncoming = d.from !== login;
     unread[peer] = peer !== currentDM ? (d.unread || unread[peer] || 0) : 0;
@@ -3333,7 +3500,7 @@ function handle(d) {
   }
   if (d.type === 'chat_history') {
     if (!d.with) return;
-    replaceChatHistory(d.with, (d.messages || []).map(msg => ({ ...msg, attachment: normalizeAttachment(msg.attachment), replyTo: normalizeReplyPayload(msg.replyTo) })));
+    replaceChatHistory(d.with, (d.messages || []).map(msg => ({ ...msg, attachment: normalizeAttachment(msg.attachment), replyTo: normalizeReplyPayload(msg.replyTo), forwardedFrom: normalizeForwardPayload(msg.forwardedFrom) })));
     saveLocalChatState();
     if (currentDM === d.with) scheduleRenderCurrentChat(true);
     return;
@@ -3414,6 +3581,7 @@ function handle(d) {
     callPeerLogin = d.to;
     callPeerData = findFriendData(d.to) || { login:d.to, nickname:d.to };
     callState = 'calling';
+    startCallLoopSound('call');
     showCallOverlay();
     updateCallUi();
     return;
@@ -3456,6 +3624,7 @@ function handle(d) {
   if (d.type === 'call_ended') {
     const reason = d.reason;
     const shouldAlert = callState !== 'idle';
+    playAppSound(reason === 'ended' ? 'decline' : 'decline');
     resetCallState();
     if (shouldAlert) {
       if (reason === 'declined') alert(t('callDeclined'));
@@ -3464,14 +3633,16 @@ function handle(d) {
     }
     return;
   }
+  if (d.type === 'message_pinned') { updateMessagePinLocally(d.with || currentDM, d.id, d.pinned, d.pinnedAt); saveLocalChatState(); if (currentChatType === 'dm' && (d.with === currentDM || d.from === currentDM || d.to === currentDM)) scheduleRenderCurrentChat(); return; }
+  if (d.type === 'group_message_pinned') { updateMessagePinLocally(getGroupChatKey(d.groupId), d.id, d.pinned, d.pinnedAt); saveLocalChatState(); if (currentChatType === 'group' && Number(currentGroupId) === Number(d.groupId)) scheduleRenderCurrentChat(); return; }
   if (d.type === 'groups_list') { groups = Array.isArray(d.groups) ? d.groups : []; renderGroups(); renderOnline(); if (currentChatType === 'group' && currentGroupId && !findGroupData(currentGroupId)) { currentGroupId = null; currentChatType = 'dm'; emptyChat.style.display = 'flex'; messages.style.display = 'none'; updateChatHeader(); } return; }
   if (d.type === 'group_created') { if (d.group) { groups = [d.group, ...(groups || []).filter(g => Number(g.id) !== Number(d.group.id))]; renderGroups(); renderOnline(); if (login && d.group.ownerLogin === login) openGroup(d.group.id); } return; }
   if (d.type === 'group_updated') { if (d.group) { groups = (groups || []).filter(g => Number(g.id) !== Number(d.group.id)); groups.unshift(d.group); renderGroups(); renderOnline(); if (currentChatType === 'group' && Number(currentGroupId) === Number(d.group.id)) { updateChatHeader(); scheduleRenderCurrentChat(); } } return; }
   if (d.type === 'group_left') { groups = (groups || []).filter(g => Number(g.id) !== Number(d.groupId)); delete chats[getGroupChatKey(d.groupId)]; saveLocalChatState(); if (currentChatType === 'group' && Number(currentGroupId) === Number(d.groupId)) { currentGroupId = null; currentChatType = 'dm'; emptyChat.style.display = 'flex'; messages.style.display = 'none'; updateChatHeader(); } renderGroups(); renderOnline(); return; }
-  if (d.type === 'group_message') { if (d.attachment) d.attachment = normalizeAttachment(d.attachment); if (d.replyTo) d.replyTo = normalizeReplyPayload(d.replyTo); upsertGroupMessage(d.groupId, d); saveLocalChatState(); if (currentChatType === 'group' && Number(currentGroupId) === Number(d.groupId)) scheduleRenderCurrentChat(true); return; }
+  if (d.type === 'group_message') { if (d.attachment) d.attachment = normalizeAttachment(d.attachment); if (d.replyTo) d.replyTo = normalizeReplyPayload(d.replyTo); if (d.forwardedFrom) d.forwardedFrom = normalizeForwardPayload(d.forwardedFrom); upsertGroupMessage(d.groupId, d); if (d.from !== login) playAppSound('message'); saveLocalChatState(); if (currentChatType === 'group' && Number(currentGroupId) === Number(d.groupId)) scheduleRenderCurrentChat(true); return; }
   if (d.type === 'group_message_edited') { updateGroupMessageLocally(d.groupId, d.id, { text:d.text, edited:d.edited, editedAt:d.editedAt }); saveLocalChatState(); if (currentChatType === 'group' && Number(currentGroupId) === Number(d.groupId)) scheduleRenderCurrentChat(); return; }
   if (d.type === 'group_message_deleted') { removeGroupMessageLocally(d.groupId, d.id); if (replyingToMessage && Number(replyingToMessage.id) === Number(d.id)) clearReplyMessage(); saveLocalChatState(); if (currentChatType === 'group' && Number(currentGroupId) === Number(d.groupId)) scheduleRenderCurrentChat(); return; }
-  if (d.type === 'group_history') { replaceChatHistory(getGroupChatKey(d.groupId), (d.messages || []).map(msg => ({ ...msg, attachment: normalizeAttachment(msg.attachment), replyTo: normalizeReplyPayload(msg.replyTo) }))); saveLocalChatState(); if (currentChatType === 'group' && Number(currentGroupId) === Number(d.groupId)) scheduleRenderCurrentChat(true); return; }
+  if (d.type === 'group_history') { replaceChatHistory(getGroupChatKey(d.groupId), (d.messages || []).map(msg => ({ ...msg, attachment: normalizeAttachment(msg.attachment), replyTo: normalizeReplyPayload(msg.replyTo), forwardedFrom: normalizeForwardPayload(msg.forwardedFrom) }))); saveLocalChatState(); if (currentChatType === 'group' && Number(currentGroupId) === Number(d.groupId)) scheduleRenderCurrentChat(true); return; }
 }
 
 function openDM(l, n, avatar = null) {
@@ -3479,7 +3650,7 @@ function openDM(l, n, avatar = null) {
   syncMobileLayout(true);
   currentChatType = 'dm';
   currentGroupId = null;
-  currentDM = l; currentDMNick = n; currentDMAvatar = avatar; editingMessageId = null; openMessageMenuId = null; closeDmListMenu(); clearReplyMessage(); emptyChat.style.display = 'none'; messages.style.display = 'block'; unread[l] = 0; saveLocalChatState(); applyChatWallpaper();
+  currentDM = l; currentDMNick = n; currentDMAvatar = avatar; editingMessageId = null; openMessageMenuId = null; closeDmListMenu(); clearReplyMessage(); if (pinnedBar) { pinnedBar.style.display='none'; pinnedBar.innerHTML=''; } emptyChat.style.display = 'none'; messages.style.display = 'block'; unread[l] = 0; saveLocalChatState(); applyChatWallpaper();
   const peer = findFriendData(l) || { nickname:n, avatar, status:'offline' };
   updateChatHeader(l, peer.nickname || n, peer.avatar || avatar); renderTypingIndicator(); ws.send(JSON.stringify({ type:'get_messages', with:l })); ws.send(JSON.stringify({ type:'read', from:l })); scheduleRenderCurrentChat(true); renderOnline(); renderGroups();
 }
@@ -3495,6 +3666,7 @@ function openGroup(groupId) {
   editingMessageId = null;
   openMessageMenuId = null;
   clearReplyMessage();
+  if (pinnedBar) { pinnedBar.style.display='none'; pinnedBar.innerHTML=''; }
   emptyChat.style.display = 'none';
   messages.style.display = 'block';
   updateChatHeader();
@@ -3517,7 +3689,16 @@ function deleteMessage(messageId) {
   if (editingMessageId === Number(messageId)) editingMessageId = null;
   if (replyingToMessage && Number(replyingToMessage.id) === Number(messageId)) clearReplyMessage();
 }
-window.beginEditMessage = beginEditMessage; window.cancelEditMessage = cancelEditMessage; window.saveEditMessage = saveEditMessage; window.deleteMessage = deleteMessage; window.setReplyMessage = setReplyMessage; window.clearReplyMessage = clearReplyMessage; window.toggleMessageMenu = toggleMessageMenu; window.closeMessageMenu = closeMessageMenu;
+function updateMessagePinLocally(chatKey, messageId, pinned, pinnedAt) {
+  if (!chatKey || !Array.isArray(chats[chatKey])) return;
+  chats[chatKey] = chats[chatKey].map(msg => Number(msg.id) === Number(messageId) ? { ...msg, pinned:!!pinned, pinnedAt: pinned ? Number(pinnedAt || Date.now()) : null } : msg);
+}
+function togglePinMessage(messageId, pinned) {
+  if (!ws || ws.readyState !== WebSocket.OPEN) return;
+  if (currentChatType === 'group' && currentGroupId) ws.send(JSON.stringify({ type:'pin_group_message', id:Number(messageId), pinned:!!pinned, groupId:Number(currentGroupId) }));
+  else if (currentDM) ws.send(JSON.stringify({ type:'pin_message', id:Number(messageId), pinned:!!pinned, with:currentDM }));
+}
+window.beginEditMessage = beginEditMessage; window.cancelEditMessage = cancelEditMessage; window.saveEditMessage = saveEditMessage; window.deleteMessage = deleteMessage; window.setReplyMessage = setReplyMessage; window.clearReplyMessage = clearReplyMessage; window.toggleMessageMenu = toggleMessageMenu; window.closeMessageMenu = closeMessageMenu; window.openForwardModal = openForwardModal; window.closeForwardModal = closeForwardModal; window.forwardMessageToTarget = forwardMessageToTarget; window.scrollToMessage = scrollToMessage;
 
 function renderMessage(message) {
   const m = document.createElement('div'); m.className = 'message' + (openMessageMenuId === Number(message.id) ? ' menuMenuOpen' : ''); m.dataset.id = message.id;
@@ -3529,13 +3710,18 @@ function renderMessage(message) {
   const receiptHtml = isOwn ? `<span class="messageReceipt ${receiptStatus}" title="${escapeHtml(getReceiptTitle(receiptStatus))}">${getReceiptIcon(receiptStatus)}</span>` : '';
   const attachmentHtml = renderAttachmentHtml(message.attachment);
   const replyHtml = renderReplyBlockHtml(message.replyTo);
+  const forwarded = normalizeForwardPayload(message.forwardedFrom);
+  const forwardedHtml = forwarded ? `<div class="forwardedBadge">↪ ${escapeHtml(t('forwardedFrom'))}: ${escapeHtml(forwarded.fromNick || forwarded.from || '')}</div>` : '';
   const menuOpen = openMessageMenuId === Number(message.id);
-  const menuHtml = `<div class="messageMenuWrap">${receiptHtml}<button class="messageMenuTrigger ${menuOpen ? 'active' : ''}" onclick="toggleMessageMenu(${message.id}); event.stopPropagation();" title="Меню">⋯</button><div class="messageMenu ${menuOpen ? 'open' : ''}" onclick="event.stopPropagation()"><button class="messageMenuItem" onclick="setReplyMessage(${message.id}); closeMessageMenu();">${escapeHtml(t('reply'))}</button>${isOwn ? `<button class="messageMenuItem" onclick="beginEditMessage(${message.id}); closeMessageMenu();">${escapeHtml(t('edit'))}</button><button class="messageMenuItem danger" onclick="deleteMessage(${message.id}); closeMessageMenu();">${escapeHtml(t('delete'))}</button>` : ''}</div></div>`;
+  const pinActionLabel = message.pinned ? t('unpin') : t('pin');
+  const menuHtml = `<div class="messageMenuWrap">${receiptHtml}<button class="messageMenuTrigger ${menuOpen ? 'active' : ''}" onclick="toggleMessageMenu(${message.id}); event.stopPropagation();" title="Меню">⋯</button><div class="messageMenu ${menuOpen ? 'open' : ''}" onclick="event.stopPropagation()"><button class="messageMenuItem" onclick="setReplyMessage(${message.id}); closeMessageMenu();">${escapeHtml(t('reply'))}</button><button class="messageMenuItem" onclick="openForwardModal(${message.id}); closeMessageMenu();">${escapeHtml(t('forward'))}</button><button class="messageMenuItem" onclick="togglePinMessage(${message.id}, ${message.pinned ? 'false' : 'true'}); closeMessageMenu();">${escapeHtml(pinActionLabel)}</button>${isOwn ? `<button class="messageMenuItem" onclick="beginEditMessage(${message.id}); closeMessageMenu();">${escapeHtml(t('edit'))}</button><button class="messageMenuItem danger" onclick="deleteMessage(${message.id}); closeMessageMenu();">${escapeHtml(t('delete'))}</button>` : ''}</div></div>`;
   let inner = `<div class="messageHeader"><b>${escapeHtml(message.fromNick || message.from)}</b><span class="messageTime">${escapeHtml(formatMessageTime(message.time))}</span>${editedLabel}${menuHtml}</div>`;
   if (editingMessageId === Number(message.id) && isOwn) {
+    inner += forwardedHtml;
     inner += replyHtml;
     inner += `<div class="editBox"><input class="editInput" data-message-id="${message.id}" value="${escapeHtml(message.text || '')}"><button class="messageActionBtn" onclick="saveEditMessage(${message.id})">${escapeHtml(t('save'))}</button><button class="messageActionBtn" onclick="cancelEditMessage()">${escapeHtml(t('cancel'))}</button></div>`;
   } else {
+    inner += forwardedHtml;
     inner += replyHtml;
     if (message.text) inner += `<div class="messageText">${escapeHtml(message.text)}</div>`;
     inner += attachmentHtml;
