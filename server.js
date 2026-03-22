@@ -42,8 +42,6 @@ const ACTION_LIMITS = {
   group_message: 120,
   edit_group_message: 40,
   delete_group_message: 40,
-  pin_message: 40,
-  pin_group_message: 40,
   update_group: 20,
   add_group_members: 20,
   remove_group_member: 20,
@@ -262,14 +260,6 @@ function sanitizeReplyPayload(reply) {
   if (!from && !fromNick && !text && !attachment) return null;
   return { id, text, from, fromNick, attachment };
 }
-function sanitizeForwardPayload(forwarded) {
-  if (!forwarded || typeof forwarded !== 'object') return null;
-  const originalId = Number(forwarded.originalId);
-  const from = typeof forwarded.from === 'string' ? sanitizeLogin(forwarded.from) : '';
-  const fromNick = typeof forwarded.fromNick === 'string' ? sanitizeName(forwarded.fromNick, MAX_NICKNAME_LENGTH) : '';
-  if (!Number.isFinite(originalId) && !from && !fromNick) return null;
-  return { originalId: Number.isFinite(originalId) ? originalId : null, from, fromNick };
-}
 
 async function readRequestBody(req, maxBytes = MAX_FILE_SIZE) {
   const chunks = [];
@@ -399,16 +389,12 @@ async function initDb() {
       nickname TEXT NOT NULL,
       avatarImage TEXT,
       bannerImage TEXT,
-      status TEXT NOT NULL DEFAULT 'online',
-      createdAt BIGINT NOT NULL DEFAULT 0,
-      badgeCode TEXT
+      status TEXT NOT NULL DEFAULT 'online'
     )
   `);
 
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS bannerImage TEXT`);
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'online'`);
-  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS createdAt BIGINT NOT NULL DEFAULT 0`);
-  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS badgeCode TEXT`);
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS messages (
@@ -429,9 +415,6 @@ async function initDb() {
   await pool.query(`ALTER TABLE messages ADD COLUMN IF NOT EXISTS readAt BIGINT`);
   await pool.query(`ALTER TABLE messages ADD COLUMN IF NOT EXISTS attachment JSONB`);
   await pool.query(`ALTER TABLE messages ADD COLUMN IF NOT EXISTS replyTo JSONB`);
-  await pool.query(`ALTER TABLE messages ADD COLUMN IF NOT EXISTS pinned BOOLEAN NOT NULL DEFAULT FALSE`);
-  await pool.query(`ALTER TABLE messages ADD COLUMN IF NOT EXISTS pinnedAt BIGINT`);
-  await pool.query(`ALTER TABLE messages ADD COLUMN IF NOT EXISTS forwardedFrom JSONB`);
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS friends (
@@ -494,9 +477,6 @@ async function initDb() {
   await pool.query(`ALTER TABLE group_messages ADD COLUMN IF NOT EXISTS editedAt BIGINT`);
   await pool.query(`ALTER TABLE group_messages ADD COLUMN IF NOT EXISTS attachment JSONB`);
   await pool.query(`ALTER TABLE group_messages ADD COLUMN IF NOT EXISTS replyTo JSONB`);
-  await pool.query(`ALTER TABLE group_messages ADD COLUMN IF NOT EXISTS pinned BOOLEAN NOT NULL DEFAULT FALSE`);
-  await pool.query(`ALTER TABLE group_messages ADD COLUMN IF NOT EXISTS pinnedAt BIGINT`);
-  await pool.query(`ALTER TABLE group_messages ADD COLUMN IF NOT EXISTS forwardedFrom JSONB`);
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS sessions (
@@ -604,9 +584,6 @@ async function loginSocket(ws, user) {
     status: normalizedStatus,
     avatar: buildAvatar(user.login, user.nickname, user.avatarimage),
     banner: user.bannerimage || null,
-    createdAt: Number(user.createdat || 0) || null,
-    badgeCode: user.badgecode || null,
-    badges: user.badgecode ? [user.badgecode] : [],
     friends: await getFriendUsers(user.login),
     unread: await getUnreadMap(user.login),
     groups: await getGroupsForUser(user.login),
@@ -670,33 +647,16 @@ function getEffectiveStatus(targetLogin, rawStatus, viewerLogin = null) {
   return normalized;
 }
 
-async function getCommonFriends(viewerLogin, targetLogin) {
-  if (!viewerLogin || !targetLogin || viewerLogin === targetLogin) return [];
-  const viewerFriends = new Set(await getFriends(viewerLogin));
-  const targetFriends = await getFriends(targetLogin);
-  const commonLogins = targetFriends.filter(login => viewerFriends.has(login)).slice(0, 8);
-  if (!commonLogins.length) return [];
-  const users = await Promise.all(commonLogins.map(friendLogin => getUserPublic(friendLogin, viewerLogin)));
-  return users.filter(Boolean);
-}
-
 async function getUserPublic(login, viewerLogin = null) {
-  const result = await pool.query(`SELECT login, nickname, avatarImage, bannerImage, status, createdAt, badgeCode FROM users WHERE login = $1`, [login]);
+  const result = await pool.query(`SELECT login, nickname, avatarImage, bannerImage, status FROM users WHERE login = $1`, [login]);
   const user = result.rows[0];
   if (!user) return null;
-  const commonFriends = viewerLogin && viewerLogin !== login ? await getCommonFriends(viewerLogin, login) : [];
-  const badges = user.badgecode ? [user.badgecode] : [];
   return {
     login: user.login,
     nickname: user.nickname,
     status: getEffectiveStatus(user.login, user.status, viewerLogin),
     avatar: buildAvatar(user.login, user.nickname, user.avatarimage),
-    banner: user.bannerimage || null,
-    createdAt: Number(user.createdat || 0) || null,
-    badgeCode: user.badgecode || null,
-    badges,
-    commonFriends,
-    commonFriendsCount: commonFriends.length
+    banner: user.bannerimage || null
   };
 }
 
@@ -725,9 +685,9 @@ async function getUnreadMap(login) {
 
 async function getChatHistory(userA, userB) {
   const result = await pool.query(`
-    SELECT id, fromUser, toUser, text, time, edited, editedAt, deliveredAt, readAt, attachment, replyTo, pinned, pinnedAt, forwardedFrom
+    SELECT id, fromUser, toUser, text, time, edited, editedAt, deliveredAt, readAt, attachment, replyTo
     FROM (
-      SELECT id, fromUser, toUser, text, time, edited, editedAt, deliveredAt, readAt, attachment, replyTo, pinned, pinnedAt, forwardedFrom
+      SELECT id, fromUser, toUser, text, time, edited, editedAt, deliveredAt, readAt, attachment, replyTo
       FROM messages
       WHERE (fromUser = $1 AND toUser = $2)
          OR (fromUser = $2 AND toUser = $1)
@@ -759,9 +719,6 @@ async function getChatHistory(userA, userB) {
       receiptStatus: getMessageReceiptStatus(row),
       attachment: sanitizeAttachmentPayload(row.attachment),
       replyTo: sanitizeReplyPayload(row.replyto),
-      pinned: !!row.pinned,
-      pinnedAt: row.pinnedat ? Number(row.pinnedat) : null,
-      forwardedFrom: sanitizeForwardPayload(row.forwardedfrom),
       avatar: sender?.avatar || buildAvatar(row.fromuser, row.fromuser)
     });
   }
@@ -833,9 +790,9 @@ async function getGroupsForUser(login) {
 
 async function getGroupHistory(groupId, viewerLogin = null) {
   const result = await pool.query(`
-    SELECT id, groupId, fromUser, text, time, edited, editedAt, attachment, replyTo, pinned, pinnedAt, forwardedFrom
+    SELECT id, groupId, fromUser, text, time, edited, editedAt, attachment, replyTo
     FROM (
-      SELECT id, groupId, fromUser, text, time, edited, editedAt, attachment, replyTo, pinned, pinnedAt, forwardedFrom
+      SELECT id, groupId, fromUser, text, time, edited, editedAt, attachment, replyTo
       FROM group_messages
       WHERE groupId = $1
       ORDER BY time DESC, id DESC
@@ -863,9 +820,6 @@ async function getGroupHistory(groupId, viewerLogin = null) {
       fromNick: sender?.nickname || row.fromuser,
       attachment: sanitizeAttachmentPayload(row.attachment),
       replyTo: sanitizeReplyPayload(row.replyto),
-      pinned: !!row.pinned,
-      pinnedAt: row.pinnedat ? Number(row.pinnedat) : null,
-      forwardedFrom: sanitizeForwardPayload(row.forwardedfrom),
       avatar: sender?.avatar || buildAvatar(row.fromuser, row.fromuser)
     });
   }
@@ -969,7 +923,7 @@ wss.on('connection', (ws, req) => {
         }
 
         const hashedPassword = await bcrypt.hash(password, 12);
-        await pool.query(`INSERT INTO users (login, password, nickname, avatarImage, status, createdAt, badgeCode) VALUES ($1, $2, $3, $4, $5, $6, $7)`, [login, hashedPassword, login, null, 'online', Date.now(), null]);
+        await pool.query(`INSERT INTO users (login, password, nickname, avatarImage, status) VALUES ($1, $2, $3, $4, $5)`, [login, hashedPassword, login, null, 'online']);
         send(ws, { type: 'register_ok' });
         return;
       }
@@ -988,7 +942,7 @@ wss.on('connection', (ws, req) => {
           return;
         }
 
-        const result = await pool.query(`SELECT login, password, nickname, avatarImage, bannerImage, status, createdAt, badgeCode FROM users WHERE login = $1`, [login]);
+        const result = await pool.query(`SELECT login, password, nickname, avatarImage, bannerImage, status FROM users WHERE login = $1`, [login]);
         const user = result.rows[0];
 
         if (!user) {
@@ -1028,7 +982,7 @@ wss.on('connection', (ws, req) => {
           return;
         }
 
-        const result = await pool.query(`SELECT login, nickname, avatarImage, bannerImage, status, createdAt, badgeCode FROM users WHERE login = $1`, [verified.login]);
+        const result = await pool.query(`SELECT login, nickname, avatarImage, bannerImage, status FROM users WHERE login = $1`, [verified.login]);
         const user = result.rows[0];
         if (!user) {
           send(ws, { type: 'auth_expired' });
@@ -1072,7 +1026,7 @@ wss.on('connection', (ws, req) => {
         }
 
         await pool.query(`UPDATE users SET avatarImage = $1 WHERE login = $2`, [image, userLogin]);
-        const updatedResult = await pool.query(`SELECT login, nickname, avatarImage, bannerImage, status, createdAt, badgeCode FROM users WHERE login = $1`, [userLogin]);
+        const updatedResult = await pool.query(`SELECT login, nickname, avatarImage, bannerImage, status FROM users WHERE login = $1`, [userLogin]);
         const updatedUser = updatedResult.rows[0];
 
         if (updatedUser) {
@@ -1093,10 +1047,7 @@ wss.on('connection', (ws, req) => {
                 nickname: updatedUser.nickname,
                 status: normalizeStatus(updatedUser.status),
                 avatar: buildAvatar(updatedUser.login, updatedUser.nickname, updatedUser.avatarimage),
-                banner: updatedUser.bannerimage || null,
-                createdAt: Number(updatedUser.createdat || 0) || null,
-                badgeCode: updatedUser.badgecode || null,
-                badges: updatedUser.badgecode ? [updatedUser.badgecode] : []
+                banner: updatedUser.bannerimage || null
               });
             }
           }
@@ -1123,7 +1074,7 @@ wss.on('connection', (ws, req) => {
         }
 
         await pool.query(`UPDATE users SET bannerImage = $1 WHERE login = $2`, [image, userLogin]);
-        const updatedResult = await pool.query(`SELECT login, nickname, avatarImage, bannerImage, status, createdAt, badgeCode FROM users WHERE login = $1`, [userLogin]);
+        const updatedResult = await pool.query(`SELECT login, nickname, avatarImage, bannerImage, status FROM users WHERE login = $1`, [userLogin]);
         const updatedUser = updatedResult.rows[0];
 
         if (updatedUser) {
@@ -1144,10 +1095,7 @@ wss.on('connection', (ws, req) => {
                 nickname: updatedUser.nickname,
                 status: normalizeStatus(updatedUser.status),
                 avatar: buildAvatar(updatedUser.login, updatedUser.nickname, updatedUser.avatarimage),
-                banner: updatedUser.bannerimage || null,
-                createdAt: Number(updatedUser.createdat || 0) || null,
-                badgeCode: updatedUser.badgecode || null,
-                badges: updatedUser.badgecode ? [updatedUser.badgecode] : []
+                banner: updatedUser.bannerimage || null
               });
             }
           }
@@ -1166,7 +1114,7 @@ wss.on('connection', (ws, req) => {
         }
 
         await pool.query(`UPDATE users SET nickname = $1, status = $2 WHERE login = $3`, [newNickname, newStatus, userLogin]);
-        const updatedResult = await pool.query(`SELECT login, nickname, avatarImage, bannerImage, status, createdAt, badgeCode FROM users WHERE login = $1`, [userLogin]);
+        const updatedResult = await pool.query(`SELECT login, nickname, avatarImage, bannerImage, status FROM users WHERE login = $1`, [userLogin]);
         const updatedUser = updatedResult.rows[0];
         clients.set(ws, {
           login: updatedUser.login,
@@ -1268,16 +1216,15 @@ wss.on('connection', (ws, req) => {
         const messageText = sanitizeText(data.text);
         const attachment = sanitizeAttachmentPayload(data.attachment);
         const replyTo = sanitizeReplyPayload(data.replyTo);
-        const forwardedFrom = sanitizeForwardPayload(data.forwardedFrom);
         if (!groupId || (!messageText && !attachment)) return;
         if (!(await isGroupMember(groupId, userLogin))) return;
 
         const messageTime = Date.now();
         const insertResult = await pool.query(`
-          INSERT INTO group_messages (groupId, fromUser, text, time, edited, editedAt, attachment, replyTo, forwardedFrom)
-          VALUES ($1, $2, $3, $4, FALSE, NULL, $5::jsonb, $6::jsonb, $7::jsonb)
+          INSERT INTO group_messages (groupId, fromUser, text, time, edited, editedAt, attachment, replyTo)
+          VALUES ($1, $2, $3, $4, FALSE, NULL, $5::jsonb, $6::jsonb)
           RETURNING id
-        `, [groupId, userLogin, messageText, messageTime, attachment ? JSON.stringify(attachment) : null, replyTo ? JSON.stringify(replyTo) : null, forwardedFrom ? JSON.stringify(forwardedFrom) : null]);
+        `, [groupId, userLogin, messageText, messageTime, attachment ? JSON.stringify(attachment) : null, replyTo ? JSON.stringify(replyTo) : null]);
 
         const msgData = {
           type: 'group_message',
@@ -1290,9 +1237,6 @@ wss.on('connection', (ws, req) => {
           editedAt: null,
           attachment,
           replyTo,
-          pinned: false,
-          pinnedAt: null,
-          forwardedFrom,
           fromNick: me.nickname,
           avatar: buildAvatar(userLogin, me.nickname, me.avatarImage)
         };
@@ -1494,21 +1438,6 @@ wss.on('connection', (ws, req) => {
       }
 
 
-      if (data.type === 'pin_group_message') {
-        if (!requireActionAllowed(ws, clientIp, 'pin_group_message')) return;
-        const messageId = Number(data.id);
-        const groupId = Number(data.groupId);
-        const pinned = !!data.pinned;
-        if (!Number.isFinite(messageId) || !Number.isFinite(groupId)) return;
-        if (!(await isGroupMember(groupId, userLogin))) return;
-        const existing = await pool.query(`SELECT id, groupId FROM group_messages WHERE id = $1 AND groupId = $2 LIMIT 1`, [messageId, groupId]);
-        if (!existing.rows[0]) return;
-        const pinnedAt = pinned ? Date.now() : null;
-        await pool.query(`UPDATE group_messages SET pinned = $1, pinnedAt = $2 WHERE id = $3`, [pinned, pinnedAt, messageId]);
-        await sendGroupToMembers(groupId, { type:'group_message_pinned', id:messageId, groupId, pinned, pinnedAt });
-        return;
-      }
-
       if (data.type === 'call_start') {
         if (!requireActionAllowed(ws, clientIp, 'call_start')) return;
         const targetLogin = sanitizeLogin(data.to);
@@ -1636,7 +1565,6 @@ wss.on('connection', (ws, req) => {
         const messageText = sanitizeText(data.text);
         const attachment = sanitizeAttachmentPayload(data.attachment);
         const replyTo = sanitizeReplyPayload(data.replyTo);
-        const forwardedFrom = sanitizeForwardPayload(data.forwardedFrom);
         if (!targetLogin || (!messageText && !attachment)) return;
         if (!(await userExists(targetLogin))) return;
         if (!(await areFriends(userLogin, targetLogin))) {
@@ -1646,10 +1574,10 @@ wss.on('connection', (ws, req) => {
 
         const messageTime = Date.now();
         const insertResult = await pool.query(`
-          INSERT INTO messages (fromUser, toUser, text, time, edited, editedAt, deliveredAt, readAt, attachment, replyTo, forwardedFrom)
-          VALUES ($1, $2, $3, $4, FALSE, NULL, NULL, NULL, $5::jsonb, $6::jsonb, $7::jsonb)
+          INSERT INTO messages (fromUser, toUser, text, time, edited, editedAt, deliveredAt, readAt, attachment, replyTo)
+          VALUES ($1, $2, $3, $4, FALSE, NULL, NULL, NULL, $5::jsonb, $6::jsonb)
           RETURNING id
-        `, [userLogin, targetLogin, messageText, messageTime, attachment ? JSON.stringify(attachment) : null, replyTo ? JSON.stringify(replyTo) : null, forwardedFrom ? JSON.stringify(forwardedFrom) : null]);
+        `, [userLogin, targetLogin, messageText, messageTime, attachment ? JSON.stringify(attachment) : null, replyTo ? JSON.stringify(replyTo) : null]);
 
         await pool.query(`
           INSERT INTO unread (fromUser, toUser, count)
@@ -1677,9 +1605,6 @@ wss.on('connection', (ws, req) => {
           receiptStatus: 'pending',
           attachment,
           replyTo,
-          pinned: false,
-          pinnedAt: null,
-          forwardedFrom,
           fromNick: me.nickname,
           avatar: buildAvatar(userLogin, me.nickname, me.avatarImage),
           unread: unreadCount,
@@ -1726,26 +1651,6 @@ wss.on('connection', (ws, req) => {
           to: message.touser
         };
 
-        sendToUser(message.fromuser, payload);
-        sendToUser(message.touser, payload);
-        return;
-      }
-
-      if (data.type === 'pin_message') {
-        if (!requireActionAllowed(ws, clientIp, 'pin_message')) return;
-        const messageId = Number(data.id);
-        const peerLogin = sanitizeLogin(data.with);
-        const pinned = !!data.pinned;
-        if (!Number.isFinite(messageId) || !peerLogin) return;
-        if (!(await areFriends(userLogin, peerLogin))) return;
-        const existing = await pool.query(`SELECT id, fromUser, toUser FROM messages WHERE id = $1 LIMIT 1`, [messageId]);
-        const message = existing.rows[0];
-        if (!message) return;
-        const participants = [message.fromuser, message.touser];
-        if (!participants.includes(userLogin) || !participants.includes(peerLogin)) return;
-        const pinnedAt = pinned ? Date.now() : null;
-        await pool.query(`UPDATE messages SET pinned = $1, pinnedAt = $2 WHERE id = $3`, [pinned, pinnedAt, messageId]);
-        const payload = { type:'message_pinned', id:messageId, with:peerLogin, from:message.fromuser, to:message.touser, pinned, pinnedAt };
         sendToUser(message.fromuser, payload);
         sendToUser(message.touser, payload);
         return;

@@ -778,37 +778,6 @@ body[data-theme='midnight'] { --bg:#101217; --bg2:#0b0d12; }
 .messageEdited { color:var(--muted); font-size:11px; margin-left:4px; }
 .editBox { display:flex; gap:8px; margin-top:8px; flex-wrap:wrap; }
 .editInput { flex:1; min-width:180px; padding:9px 10px; background:#0f131a; border:1px solid var(--line); border-radius:12px; color:white; }
-
-.daySeparator { display:flex; align-items:center; gap:12px; margin:18px 0 14px; color:var(--muted); font-size:12px; }
-.daySeparator::before, .daySeparator::after { content:''; flex:1; height:1px; background:rgba(255,255,255,.08); }
-.systemNotice { display:flex; justify-content:center; margin:10px 0; }
-.systemNoticeBubble { padding:8px 12px; border-radius:999px; background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.08); color:#d6dbe6; font-size:12px; }
-.pinnedBar { display:none; align-items:center; gap:10px; margin:12px 18px 0; padding:10px 12px; border:1px solid rgba(255,255,255,.08); border-radius:14px; background:rgba(255,255,255,.04); }
-.pinnedBar.show { display:flex; }
-.pinnedIcon { font-size:15px; }
-.pinnedMeta { min-width:0; flex:1; }
-.pinnedTitle { font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.06em; }
-.pinnedText { font-size:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.pinnedJumpBtn { background:#202633; border:1px solid var(--line); color:#fff; border-radius:10px; min-width:34px; height:34px; cursor:pointer; }
-.profileFactsGrid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; margin-top:12px; }
-.profileFactCard { background:#0f1420; border:1px solid var(--line); border-radius:14px; padding:12px; }
-.profileFactCard b { display:block; font-size:12px; color:var(--muted); margin-bottom:6px; }
-.profileBadgesRow { display:flex; flex-wrap:wrap; gap:8px; margin-top:10px; }
-.profileBadgeChip { display:inline-flex; align-items:center; gap:6px; padding:7px 10px; border-radius:999px; background:#171d2a; border:1px solid var(--line); font-size:13px; }
-.commonFriendsList { display:flex; gap:6px; flex-wrap:wrap; margin-top:8px; }
-.commonFriendChip { display:inline-flex; align-items:center; gap:6px; padding:6px 10px; border-radius:999px; background:#171d2a; border:1px solid var(--line); font-size:12px; }
-.nameBadge { display:inline-flex; align-items:center; gap:6px; }
-.nameBadge .loginBadge { font-size:14px; }
-.forwardedFlag { margin:4px 0 6px; color:var(--muted); font-size:12px; }
-.composerTools { display:flex; align-items:center; gap:8px; padding:0 18px 10px; flex-wrap:wrap; }
-.toolBtn { width:34px; height:34px; border-radius:12px; border:1px solid var(--line); background:#171b23; color:#fff; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; }
-.toolBtn.smallLabel { width:auto; padding:0 10px; font-weight:700; font-size:12px; }
-.pickerPanel { position:absolute; bottom:72px; left:18px; background:#111622; border:1px solid rgba(255,255,255,.08); box-shadow:0 16px 40px rgba(0,0,0,.38); border-radius:16px; padding:12px; display:none; z-index:60; width:min(360px, calc(100vw - 36px)); }
-.pickerPanel.open { display:block; }
-.pickerTitle { font-size:12px; color:var(--muted); margin-bottom:10px; }
-.emojiGrid { display:grid; grid-template-columns:repeat(8, minmax(0,1fr)); gap:8px; }
-.emojiBtn { height:34px; border-radius:10px; border:1px solid var(--line); background:#171b23; color:#fff; cursor:pointer; font-size:18px; }
-
 .replyPreviewBar { display:none; margin:0 18px 10px; padding:10px 12px; border:1px solid rgba(107,124,255,.28); background:rgba(107,124,255,.08); border-radius:14px; align-items:center; gap:12px; }
 .replyPreviewMeta { min-width:0; flex:1; }
 .replyPreviewLabel { font-size:12px; color:var(--accent-2); font-weight:700; margin-bottom:2px; }
@@ -1288,12 +1257,15 @@ body[data-theme='midnight'] { --bg:#101217; --bg2:#0b0d12; }
         </div>
       </div>
       <div class="headerActions">
+        <div id="headerLangSwitcher" class="langSwitcher headerLangSwitcher">
+          <button class="langBtn" data-lang="ru">RU</button>
+          <button class="langBtn" data-lang="uk">UA</button>
+          <button class="langBtn" data-lang="en">EN</button>
+        </div>
         <button id="callBtn" class="ghostBtn">📞 <span id="callBtnLabel">Звонок</span></button>
         <button id="headerFriendsBtn" class="ghostBtn">👥 <span id="headerFriendsBtnLabel">Друзья</span></button>
       </div>
     </div>
-
-    <div id="pinnedBar" class="pinnedBar"><div class="pinnedIcon">📌</div><div class="pinnedMeta"><div class="pinnedTitle">Закреплённое сообщение</div><div id="pinnedText" class="pinnedText">—</div></div><button id="pinnedJumpBtn" class="pinnedJumpBtn" type="button">↘</button></div>
 
     <div id="emptyChat">
       <div class="emptyCard">
@@ -1308,9 +1280,6 @@ body[data-theme='midnight'] { --bg:#101217; --bg2:#0b0d12; }
     <div id="typingIndicator"></div>
     <div id="replyPreview"></div>
     <div id="attachmentPreview"></div>
-    <div class="composerTools"><button id="giftBtn" class="toolBtn" type="button" title="Подарок">🎁</button><button id="gifBtn" class="toolBtn smallLabel" type="button" title="GIF">GIF</button><button id="stickerBtn" class="toolBtn" type="button" title="Стикер">🖼️</button><button id="emojiBtn" class="toolBtn" type="button" title="Эмодзи">😊</button></div>
-    <div id="emojiPicker" class="pickerPanel"><div class="pickerTitle">Эмодзи</div><div id="emojiGrid" class="emojiGrid"></div></div>
-    <div id="stickerPicker" class="pickerPanel"><div class="pickerTitle">Стикеры</div><div id="stickerGrid" class="emojiGrid"></div></div>
 
     <div id="input">
       <input type="file" id="chatFileInput" hidden>
@@ -1409,12 +1378,6 @@ body[data-theme='midnight'] { --bg:#101217; --bg2:#0b0d12; }
                 <label class="profileFieldLabel" id="profileBioLabel" for="profileBioInput" style="margin-top:12px;">О себе</label>
                 <textarea id="profileBioInput" class="profileInput bioInput" maxlength="160" placeholder="Пара слов о себе"></textarea>
                 <div id="profileBioHint" class="profileHint">Это локальная подпись для твоего клиента — можно сделать себе стильный профиль.</div>
-                <div class="profileFactsGrid">
-                  <div class="profileFactCard"><b>Дата создания</b><span id="profileCreatedAtValue">—</span></div>
-                  <div class="profileFactCard"><b>Общих друзей</b><span id="profileCommonCountValue">0</span></div>
-                </div>
-                <div class="profileFactCard" style="margin-top:12px;"><b>Общие друзья</b><div id="profileCommonFriendsList" class="commonFriendsList"><span class="profileHint">Пока нет</span></div></div>
-                <div class="profileFactCard" style="margin-top:12px;"><b>Значки</b><div id="profileBadgesRow" class="profileBadgesRow"><span class="profileHint">Пока нет</span></div></div>
               </div>
             </div>
           </div>
@@ -1449,16 +1412,6 @@ body[data-theme='midnight'] { --bg:#101217; --bg2:#0b0d12; }
                   <input id="fontSizeInput" type="range" min="13" max="18" step="1" value="14">
                   <span id="fontSizeValue" class="rangeValue">14px</span>
                 </label>
-              </div>
-            </div>
-
-            <div class="profileSection" id="languageSection">
-              <h4 id="languageTitle">Язык интерфейса</h4>
-              <div class="profileHint" id="languageHint">Выбери язык приложения — настройка сохранится на этом устройстве.</div>
-              <div id="settingsLangSwitcher" class="langSwitcher settingsLangSwitcher">
-                <button class="langBtn" data-lang="ru">RU</button>
-                <button class="langBtn" data-lang="uk">UA</button>
-                <button class="langBtn" data-lang="en">EN</button>
               </div>
             </div>
 
@@ -1592,10 +1545,6 @@ const profileNicknameInput = document.getElementById('profileNicknameInput');
 const profileBioLabel = document.getElementById('profileBioLabel');
 const profileBioInput = document.getElementById('profileBioInput');
 const profileBioHint = document.getElementById('profileBioHint');
-const profileCreatedAtValue = document.getElementById('profileCreatedAtValue');
-const profileCommonCountValue = document.getElementById('profileCommonCountValue');
-const profileCommonFriendsList = document.getElementById('profileCommonFriendsList');
-const profileBadgesRow = document.getElementById('profileBadgesRow');
 const appearanceSection = document.getElementById('appearanceSection');
 const appearanceTitle = document.getElementById('appearanceTitle');
 const accentColorLabel = document.getElementById('accentColorLabel');
@@ -1643,8 +1592,6 @@ const hotkeyHangupSub = document.getElementById('hotkeyHangupSub');
 const hotkeyHangupInput = document.getElementById('hotkeyHangupInput');
 const hotkeyHangupSetBtn = document.getElementById('hotkeyHangupSetBtn');
 const hotkeyHangupClearBtn = document.getElementById('hotkeyHangupClearBtn');
-const languageTitle = document.getElementById('languageTitle');
-const languageHint = document.getElementById('languageHint');
 const chatAvatar = document.getElementById('chatAvatar');
 const mobileBackBtn = document.getElementById('mobileBackBtn');
 const chatTitle = document.getElementById('chatTitle');
@@ -1659,17 +1606,6 @@ const attachBtn = document.getElementById('attachBtn');
 const voiceBtn = document.getElementById('voiceBtn');
 const chatFileInput = document.getElementById('chatFileInput');
 const attachmentPreview = document.getElementById('attachmentPreview');
-const pinnedBar = document.getElementById('pinnedBar');
-const pinnedText = document.getElementById('pinnedText');
-const pinnedJumpBtn = document.getElementById('pinnedJumpBtn');
-const giftBtn = document.getElementById('giftBtn');
-const gifBtn = document.getElementById('gifBtn');
-const stickerBtn = document.getElementById('stickerBtn');
-const emojiBtn = document.getElementById('emojiBtn');
-const emojiPicker = document.getElementById('emojiPicker');
-const stickerPicker = document.getElementById('stickerPicker');
-const emojiGrid = document.getElementById('emojiGrid');
-const stickerGrid = document.getElementById('stickerGrid');
 const replyPreview = document.getElementById('replyPreview');
 const friendsBtn = document.getElementById('friendsBtn');
 const friendsPanel = document.getElementById('friendsPanel');
@@ -1720,13 +1656,6 @@ let viewedProfile = null;
 let profileModalMode = 'self';
 let myAvatar = null;
 let myBanner = null;
-let myCreatedAt = Date.now();
-let myBadgeCode = null;
-let myBadges = [];
-let lastPinnedMessageId = null;
-const defaultEmojiSet = ['😀','😂','😍','😎','😭','👍','🔥','❤️','🎉','🤝','😅','🤔','😴','😡','🙏','💀','✨','🥲','👀','✅','📞','🎮','💬','🎧'];
-const defaultStickerSet = ['🎮','🔥','💬','😺','👾','🚀','🫡','😈'];
-const badgeCatalog = { founder:{icon:'🌟', name:'Founder'}, bughunter:{icon:'🛠️', name:'Bug Hunter'}, helper:{icon:'🤝', name:'Helper'}, legend:{icon:'👑', name:'Legend'} };
 let currentDM = null;
 let currentDMNick = null;
 let currentDMAvatar = null;
@@ -1811,7 +1740,7 @@ const i18n = {
     messageNotFound:'Сообщение не найдено', edit:'Редактировать', save:'Сохранить', cancel:'Отмена', edited:'изменено', editOwnOnly:'Можно редактировать только свои сообщения',
     serverError:'Ошибка сервера', accountCreated:'Аккаунт создан, войдите', enterLoginPassword:'Введите логин и пароль', loginTaken:'Логин занят', badLogin:'Неверный логин или пароль', authExpired:'Сессия истекла. Войди снова.',
     badAvatar:'Неверный формат аватара', bigAvatar:'Аватар слишком большой', badBanner:'Неверный формат баннера', bigBanner:'Баннер слишком большой', userNotFound:'Пользователь не найден', alreadyFriends:'Вы уже друзья',
-    allowMic:'Разрешите доступ к микрофону для звонков', userOffline:'Пользователь не в сети', delete:'Удалить', typing:'печатает', profileSettings:'Настройка профиля', displayName:'Отображаемое имя', enterDisplayName:'Введите имя', status_online:'В сети', status_idle:'Не активен', status_dnd:'Не беспокоить', status_invisible:'Невидимка', status_offline:'Не в сети', viewProfile:'Профиль', removeFriend:'Удалить', profileViewTitle:'Профиль пользователя', removeFriendConfirm:'Удалить этого пользователя из друзей?', removedFromFriends:'Пользователь удалён из друзей', logout:'Выйти из аккаунта', reply:'Ответить', replyingTo:'Ответ на сообщение', replyUnknown:'Сообщение', changeBackground:'Сменить фон', hotkeys:'Горячие клавиши', hotkeysTitle:'Управление звонком', hotkeysHint:'Можно назначить одну клавишу или сочетание. Например: Ctrl+Shift+M.', hotkeyMuteMic:'Выключить микрофон', hotkeyMuteMicSub:'Включает и выключает микрофон в звонке', hotkeyMuteSound:'Выключить звук', hotkeyMuteSoundSub:'Включает и выключает звук собеседника', hotkeyHangup:'Сбросить звонок', hotkeyHangupSub:'Завершает текущий звонок или отклоняет входящий', hotkeySet:'Назначить', hotkeyClear:'Сбросить', hotkeyNone:'Не назначено', hotkeyListening:'Нажми сочетание...', hotkeyExists:'Это сочетание уже назначено другому действию', hotkeyOnlyModifiers:'Нужно добавить обычную клавишу, не только Ctrl/Shift/Alt', language:'Язык интерфейса', languageHint:'Выбери язык приложения — настройка сохранится на этом устройстве.' 
+    allowMic:'Разрешите доступ к микрофону для звонков', userOffline:'Пользователь не в сети', delete:'Удалить', typing:'печатает', profileSettings:'Настройка профиля', displayName:'Отображаемое имя', enterDisplayName:'Введите имя', status_online:'В сети', status_idle:'Не активен', status_dnd:'Не беспокоить', status_invisible:'Невидимка', status_offline:'Не в сети', viewProfile:'Профиль', removeFriend:'Удалить', profileViewTitle:'Профиль пользователя', removeFriendConfirm:'Удалить этого пользователя из друзей?', removedFromFriends:'Пользователь удалён из друзей', logout:'Выйти из аккаунта', reply:'Ответить', replyingTo:'Ответ на сообщение', replyUnknown:'Сообщение', changeBackground:'Сменить фон', hotkeys:'Горячие клавиши', hotkeysTitle:'Управление звонком', hotkeysHint:'Можно назначить одну клавишу или сочетание. Например: Ctrl+Shift+M.', hotkeyMuteMic:'Выключить микрофон', hotkeyMuteMicSub:'Включает и выключает микрофон в звонке', hotkeyMuteSound:'Выключить звук', hotkeyMuteSoundSub:'Включает и выключает звук собеседника', hotkeyHangup:'Сбросить звонок', hotkeyHangupSub:'Завершает текущий звонок или отклоняет входящий', hotkeySet:'Назначить', hotkeyClear:'Сбросить', hotkeyNone:'Не назначено', hotkeyListening:'Нажми сочетание...', hotkeyExists:'Это сочетание уже назначено другому действию', hotkeyOnlyModifiers:'Нужно добавить обычную клавишу, не только Ctrl/Shift/Alt' 
   },
   uk: {
     loginBrandSubtitle:'Твій затишний месенджер для друзів', login:'Вхід', register:'Реєстрація', loginBtn:'Увійти', registerBtn:'Створити акаунт',
@@ -1829,7 +1758,7 @@ const i18n = {
     messageNotFound:'Повідомлення не знайдено', edit:'Редагувати', save:'Зберегти', cancel:'Скасування', edited:'змінено', editOwnOnly:'Можна редагувати лише свої повідомлення',
     serverError:'Помилка сервера', accountCreated:'Акаунт створено, увійди', enterLoginPassword:'Введи логін і пароль', loginTaken:'Логін зайнятий', badLogin:'Невірний логін або пароль', authExpired:'Сесію завершено. Увійди знову.',
     badAvatar:'Невірний формат аватара', bigAvatar:'Аватар занадто великий', userNotFound:'Користувача не знайдено', alreadyFriends:'Ви вже друзі',
-    allowMic:'Дозволь доступ до мікрофона для дзвінків', userOffline:'Користувач не в мережі', delete:'Видалити', typing:'друкує', profileSettings:'Налаштування профілю', displayName:'Відображуване ім’я', enterDisplayName:'Введи ім’я', status_online:'В мережі', status_idle:'Не активний', status_dnd:'Не турбувати', status_invisible:'Невидимка', status_offline:'Не в мережі', logout:'Вийти з акаунта', reply:'Відповісти', replyingTo:'Відповідь на повідомлення', replyUnknown:'Повідомлення', changeBackground:'Змінити фон', hotkeys:'Гарячі клавіші', hotkeysTitle:'Керування дзвінком', hotkeysHint:'Можна призначити одну клавішу або комбінацію. Наприклад: Ctrl+Shift+M.', hotkeyMuteMic:'Вимкнути мікрофон', hotkeyMuteMicSub:'Вмикає й вимикає мікрофон у дзвінку', hotkeyMuteSound:'Вимкнути звук', hotkeyMuteSoundSub:'Вмикає й вимикає звук співрозмовника', hotkeyHangup:'Скинути дзвінок', hotkeyHangupSub:'Завершує поточний дзвінок або відхиляє вхідний', hotkeySet:'Призначити', hotkeyClear:'Скинути', hotkeyNone:'Не призначено', hotkeyListening:'Натисни комбінацію...', hotkeyExists:'Цю комбінацію вже призначено іншій дії', hotkeyOnlyModifiers:'Потрібно додати звичайну клавішу, не лише Ctrl/Shift/Alt', language:'Мова інтерфейсу', languageHint:'Вибери мову застосунку — налаштування збережеться на цьому пристрої.' 
+    allowMic:'Дозволь доступ до мікрофона для дзвінків', userOffline:'Користувач не в мережі', delete:'Видалити', typing:'друкує', profileSettings:'Налаштування профілю', displayName:'Відображуване ім’я', enterDisplayName:'Введи ім’я', status_online:'В мережі', status_idle:'Не активний', status_dnd:'Не турбувати', status_invisible:'Невидимка', status_offline:'Не в мережі', logout:'Вийти з акаунта', reply:'Відповісти', replyingTo:'Відповідь на повідомлення', replyUnknown:'Повідомлення', changeBackground:'Змінити фон', hotkeys:'Гарячі клавіші', hotkeysTitle:'Керування дзвінком', hotkeysHint:'Можна призначити одну клавішу або комбінацію. Наприклад: Ctrl+Shift+M.', hotkeyMuteMic:'Вимкнути мікрофон', hotkeyMuteMicSub:'Вмикає й вимикає мікрофон у дзвінку', hotkeyMuteSound:'Вимкнути звук', hotkeyMuteSoundSub:'Вмикає й вимикає звук співрозмовника', hotkeyHangup:'Скинути дзвінок', hotkeyHangupSub:'Завершує поточний дзвінок або відхиляє вхідний', hotkeySet:'Призначити', hotkeyClear:'Скинути', hotkeyNone:'Не призначено', hotkeyListening:'Натисни комбінацію...', hotkeyExists:'Цю комбінацію вже призначено іншій дії', hotkeyOnlyModifiers:'Потрібно додати звичайну клавішу, не лише Ctrl/Shift/Alt' 
   },
   en: {
     loginBrandSubtitle:'Your cozy messenger for friends', login:'Login', register:'Register', loginBtn:'Sign in', registerBtn:'Create account',
@@ -1847,7 +1776,7 @@ const i18n = {
     messageNotFound:'Message not found', edit:'Edit', save:'Save', cancel:'Cancel', edited:'edited', editOwnOnly:'You can edit only your own messages',
     serverError:'Server error', accountCreated:'Account created, sign in', enterLoginPassword:'Enter login and password', loginTaken:'Login is already taken', badLogin:'Invalid login or password', authExpired:'Session expired. Sign in again.',
     badAvatar:'Invalid avatar format', bigAvatar:'Avatar is too large', badBanner:'Invalid banner format', bigBanner:'Banner is too large', userNotFound:'User not found', alreadyFriends:'You are already friends',
-    allowMic:'Allow microphone access for calls', userOffline:'User is offline', delete:'Delete', typing:'is typing', profileSettings:'Profile settings', displayName:'Display name', enterDisplayName:'Enter display name', status_online:'Online', status_idle:'Idle', status_dnd:'Do not disturb', status_invisible:'Invisible', status_offline:'Offline', viewProfile:'Profile', removeFriend:'Remove', profileViewTitle:'User profile', removeFriendConfirm:'Remove this user from friends?', removedFromFriends:'User removed from friends', logout:'Log out', reply:'Reply', replyingTo:'Replying to message', replyUnknown:'Message', changeBackground:'Change background', hotkeys:'Hotkeys', hotkeysTitle:'Call controls', hotkeysHint:'You can assign a single key or a shortcut. Example: Ctrl+Shift+M.', hotkeyMuteMic:'Mute microphone', hotkeyMuteMicSub:'Toggles your microphone in a call', hotkeyMuteSound:'Mute sound', hotkeyMuteSoundSub:'Toggles the other person\'s sound', hotkeyHangup:'End call', hotkeyHangupSub:'Ends the current call or declines an incoming one', hotkeySet:'Set', hotkeyClear:'Clear', hotkeyNone:'Not assigned', hotkeyListening:'Press a shortcut...', hotkeyExists:'This shortcut is already assigned to another action', hotkeyOnlyModifiers:'Add a regular key, not only Ctrl/Shift/Alt', language:'Interface language', languageHint:'Choose the app language — this setting will be saved on this device.' 
+    allowMic:'Allow microphone access for calls', userOffline:'User is offline', delete:'Delete', typing:'is typing', profileSettings:'Profile settings', displayName:'Display name', enterDisplayName:'Enter display name', status_online:'Online', status_idle:'Idle', status_dnd:'Do not disturb', status_invisible:'Invisible', status_offline:'Offline', viewProfile:'Profile', removeFriend:'Remove', profileViewTitle:'User profile', removeFriendConfirm:'Remove this user from friends?', removedFromFriends:'User removed from friends', logout:'Log out', reply:'Reply', replyingTo:'Replying to message', replyUnknown:'Message', changeBackground:'Change background', hotkeys:'Hotkeys', hotkeysTitle:'Call controls', hotkeysHint:'You can assign a single key or a shortcut. Example: Ctrl+Shift+M.', hotkeyMuteMic:'Mute microphone', hotkeyMuteMicSub:'Toggles your microphone in a call', hotkeyMuteSound:'Mute sound', hotkeyMuteSoundSub:'Toggles the other person\'s sound', hotkeyHangup:'End call', hotkeyHangupSub:'Ends the current call or declines an incoming one', hotkeySet:'Set', hotkeyClear:'Clear', hotkeyNone:'Not assigned', hotkeyListening:'Press a shortcut...', hotkeyExists:'This shortcut is already assigned to another action', hotkeyOnlyModifiers:'Add a regular key, not only Ctrl/Shift/Alt' 
   }
 };
 
@@ -2190,7 +2119,6 @@ function assignHotkey(action, config) {
   }
   customization.hotkeys[action] = normalized;
   applyCustomization();
-initComposerEnhancements();
   updateHotkeyInputs();
   return true;
 }
@@ -2199,7 +2127,6 @@ function clearHotkey(action) {
   customization.hotkeys[action] = null;
   if (activeHotkeyCaptureAction === action) activeHotkeyCaptureAction = null;
   applyCustomization();
-initComposerEnhancements();
   updateHotkeyInputs();
 }
 function matchesHotkeyEvent(e, config) {
@@ -2274,8 +2201,6 @@ function syncProfileMiniCard() {
   if (profileStatusPill) profileStatusPill.textContent = statusText(myStatus, true);
   const existing = profileCard?.querySelector('.profileMiniBio');
   const bio = (customization.bio || '').trim();
-  if (profileNick && login) profileNick.innerHTML = decorateDisplayName(nickname || login, { login, badgeCode: myBadgeCode, badges: myBadges });
-  if (profileLogin && login) profileLogin.textContent = buildUserLoginText({ login, badgeCode: myBadgeCode, badges: myBadges });
   if (existing) existing.remove();
   if (bio && profileMeta) {
     const el = document.createElement('span');
@@ -2284,22 +2209,6 @@ function syncProfileMiniCard() {
     profileMeta.appendChild(el);
   }
 }
-
-function renderProfileFacts(userData, isSelfMode = false) {
-  const source = userData || {};
-  const createdAt = isSelfMode ? (source.createdAt || Date.now()) : source.createdAt;
-  if (profileCreatedAtValue) profileCreatedAtValue.textContent = formatFullDate(createdAt);
-  const common = Array.isArray(source.commonFriends) ? source.commonFriends : [];
-  if (profileCommonCountValue) profileCommonCountValue.textContent = String(source.commonFriendsCount ?? common.length ?? 0);
-  if (profileCommonFriendsList) {
-    profileCommonFriendsList.innerHTML = common.length ? common.map(friend => `<span class="commonFriendChip">${decorateDisplayName(friend.nickname || friend.login, friend)}</span>`).join('') : '<span class="profileHint">Пока нет</span>';
-  }
-  const badges = getUserBadges(source);
-  if (profileBadgesRow) {
-    profileBadgesRow.innerHTML = badges.length ? badges.map(b => `<span class="profileBadgeChip"><span>${escapeHtml(b.icon)}</span><span>${escapeHtml(b.name)}</span></span>`).join('') : '<span class="profileHint">Пока нет</span>';
-  }
-}
-
 function setProfileModalMode(mode) {
   profileModalMode = mode === 'other' ? 'other' : 'self';
   const isSelfMode = profileModalMode === 'self';
@@ -2327,8 +2236,8 @@ function openProfileModal() {
   selectedProfileStatus = myStatus || 'online';
   setProfileModalMode('self');
   setSettingsTab('profile');
-  profileModalNickPreview.innerHTML = decorateDisplayName(nickname || login || 'User', { login, badgeCode: myBadgeCode, badges: myBadges });
-  profileModalLoginPreview.textContent = buildUserLoginText({ login, badgeCode: myBadgeCode, badges: myBadges });
+  profileModalNickPreview.textContent = nickname || login || 'User';
+  profileModalLoginPreview.textContent = login || '';
   profileNicknameInput.value = nickname || '';
   profileNicknameInput.placeholder = t('enterDisplayName');
   if (profileBioInput) profileBioInput.value = customization.bio || '';
@@ -2340,7 +2249,6 @@ function openProfileModal() {
   if (oldProfileModalAvatar) oldProfileModalAvatar.replaceWith(modalAvatarNode);
   modalAvatarNode.id = 'profileModalAvatar';
   updateStatusChoices();
-  renderProfileFacts({ login, createdAt: myCreatedAt, badgeCode: myBadgeCode, badges: myBadges, commonFriends: [] }, true);
   profileModalOverlay.style.display = 'flex';
 }
 
@@ -2352,8 +2260,8 @@ function openUserProfileModal(userLogin, fetchFresh = true) {
   const user = { ...incoming, ...resolved };
   viewedProfile = { ...user };
   setProfileModalMode('other');
-  profileModalNickPreview.innerHTML = decorateDisplayName(user.nickname || user.login || 'User', user);
-  profileModalLoginPreview.textContent = buildUserLoginText(user);
+  profileModalNickPreview.textContent = user.nickname || user.login || 'User';
+  profileModalLoginPreview.textContent = user.login || '';
   profileNicknameInput.value = user.nickname || user.login || '';
   profileNicknameInput.placeholder = t('displayName');
   if (profileBioInput) profileBioInput.value = '';
@@ -2362,7 +2270,6 @@ function openUserProfileModal(userLogin, fetchFresh = true) {
   const oldModalAvatar = document.getElementById('profileModalAvatar');
   if (oldModalAvatar) oldModalAvatar.replaceWith(modalAvatarNode);
   modalAvatarNode.id = 'profileModalAvatar';
-  renderProfileFacts(user, false);
   profileModalOverlay.style.display = 'flex';
   if (fetchFresh && ws && ws.readyState === WebSocket.OPEN && user.login) {
     ws.send(JSON.stringify({ type:'get_user_profile', login:user.login }));
@@ -2382,7 +2289,6 @@ function applyProfileUpdateLocal(user) {
     currentDMAvatar = user.avatar || currentDMAvatar;
     updateChatHeader(currentDM, currentDMNick, currentDMAvatar);
   }
-  if (viewedProfile && viewedProfile.login === user.login) viewedProfile = { ...viewedProfile, ...user };
   renderFriends(); renderOnline();
 }
 function setLanguage(lang) {
@@ -2818,8 +2724,6 @@ function applyLanguage() {
   if (callVolumeLabel) callVolumeLabel.textContent = t('volume');
   if (callHangupBtn) callHangupBtn.textContent = t('hang');
   if (callCloseBtn) callCloseBtn.textContent = t('close');
-  if (languageTitle) languageTitle.textContent = t('language');
-  if (languageHint) languageHint.textContent = t('languageHint');
   document.getElementById('statusOnlineLabel').textContent = t('status_online');
   document.getElementById('statusIdleLabel').textContent = t('status_idle');
   document.getElementById('statusDndLabel').textContent = t('status_dnd');
@@ -2904,25 +2808,8 @@ function loadLocalChatState(userLogin) {
   } catch { chats = {}; unread = {}; }
 }
 
-let uiSoundsUnlocked = false;
-const messageSound = new Audio('message.mp3');
-const callSound = new Audio('call.mp3');
-const acceptSound = new Audio('accept.mp3');
-const declineSound = new Audio('decline.mp3');
-[messageSound, callSound, acceptSound, declineSound].forEach(a => { a.preload = 'auto'; a.volume = .9; });
-async function unlockAudio() {
-  if (uiSoundsUnlocked) return;
-  uiSoundsUnlocked = true;
-  for (const a of [messageSound, callSound, acceptSound, declineSound]) {
-    try { a.muted = true; await a.play(); a.pause(); a.currentTime = 0; a.muted = false; } catch {}
-  }
-}
-function playUiSound(audioEl, loop = false) {
-  if (!audioEl) return;
-  try { audioEl.loop = !!loop; audioEl.currentTime = 0; audioEl.play().catch(() => {}); } catch {}
-}
-function stopUiSound(audioEl) { try { audioEl.pause(); audioEl.currentTime = 0; audioEl.loop = false; } catch {} }
-function soundMessage() { playUiSound(messageSound, false); }
+async function unlockAudio() {}
+function soundMessage() {}
 
 
 function createAvatar(user, status = 'online', showPresence = true) {
@@ -2940,109 +2827,6 @@ function createAvatar(user, status = 'online', showPresence = true) {
 }
 function escapeHtml(s) { return String(s ?? '').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'", '&#39;'); }
 function formatMessageTime(ts) { if (!ts) return ''; const d = new Date(Number(ts)); if (Number.isNaN(d.getTime())) return ''; return d.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}); }
-
-function formatFullDate(ts) {
-  if (!ts) return '—';
-  const d = new Date(Number(ts));
-  if (Number.isNaN(d.getTime())) return '—';
-  return d.toLocaleDateString(currentLanguage === 'en' ? 'en-US' : (currentLanguage === 'uk' ? 'uk-UA' : 'ru-RU'), { day:'numeric', month:'long', year:'numeric' });
-}
-function isSameDayTs(a, b) {
-  const da = new Date(Number(a)); const db = new Date(Number(b));
-  return da.getFullYear() === db.getFullYear() && da.getMonth() === db.getMonth() && da.getDate() === db.getDate();
-}
-function getBadgeMeta(code) {
-  if (!code) return null;
-  return badgeCatalog[code] || { icon:'🏅', name:String(code) };
-}
-function getUserBadges(user) {
-  const codes = Array.isArray(user?.badges) ? user.badges : (user?.badge ? [user.badge] : (user?.badgeCode ? [user.badgeCode] : []));
-  return codes.map(getBadgeMeta).filter(Boolean);
-}
-function decorateDisplayName(name, user) {
-  const badges = getUserBadges(user);
-  if (!badges.length) return escapeHtml(name || '');
-  return `<span class="nameBadge"><span>${escapeHtml(name || '')}</span><span class="loginBadge">${escapeHtml(badges.map(b => b.icon).join(' '))}</span></span>`;
-}
-function buildUserLoginText(user) {
-  const loginText = user?.login || user || '';
-  const badges = getUserBadges(user);
-  return badges.length ? `${loginText} — ${badges.map(b => b.icon).join(' ')}` : loginText;
-}
-function getPinnedMessageForCurrentChat() {
-  const arr = getCurrentRenderedMessages();
-  const pinned = arr.filter(m => m && m.pinned).sort((a,b) => Number(b.pinnedAt || b.time || 0) - Number(a.pinnedAt || a.time || 0));
-  return pinned[0] || null;
-}
-function renderPinnedBar() {
-  if (!pinnedBar || !pinnedText) return;
-  const pinned = getPinnedMessageForCurrentChat();
-  lastPinnedMessageId = pinned?.id || null;
-  if (!pinned) {
-    pinnedBar.classList.remove('show');
-    pinnedText.textContent = '—';
-    return;
-  }
-  pinnedBar.classList.add('show');
-  const snippet = pinned.text || getReplySnippet(buildReplyPayload(pinned)) || 'Сообщение';
-  pinnedText.textContent = `${pinned.fromNick || pinned.from}: ${snippet}`;
-}
-function scrollToMessage(messageId) {
-  const el = document.querySelector(`.message[data-id="${messageId}"]`);
-  if (!el) return;
-  el.scrollIntoView({ behavior:'smooth', block:'center' });
-  el.style.boxShadow = '0 0 0 1px rgba(107,124,255,.48), 0 0 0 9999px rgba(107,124,255,.04) inset';
-  setTimeout(() => { el.style.boxShadow = ''; }, 1200);
-}
-function addLocalSystemNotice(peerLogin, textValue, time = Date.now()) {
-  if (!peerLogin || !textValue) return;
-  const key = peerLogin.startsWith('group_') ? peerLogin : peerLogin;
-  chats[key] ??= [];
-  chats[key].push({ id: Number(`${time}`.slice(-10)) + Math.floor(Math.random()*1000), system:true, text:String(textValue), time, from:'system', fromNick:'System' });
-  trimChatStore(key);
-  saveLocalChatState();
-  if (getCurrentChatKey() === key) scheduleRenderCurrentChat(true);
-}
-function openPicker(which) {
-  closeComposerPickers();
-  if (which === 'emoji') emojiPicker?.classList.add('open');
-  if (which === 'sticker') stickerPicker?.classList.add('open');
-}
-function closeComposerPickers() {
-  emojiPicker?.classList.remove('open');
-  stickerPicker?.classList.remove('open');
-}
-function insertTextAtCursor(value) {
-  if (!text) return;
-  const start = text.selectionStart ?? text.value.length;
-  const end = text.selectionEnd ?? text.value.length;
-  text.value = text.value.slice(0, start) + value + text.value.slice(end);
-  const pos = start + value.length;
-  text.focus();
-  try { text.setSelectionRange(pos, pos); } catch {}
-}
-function forwardMessage(messageId) {
-  const list = getCurrentRenderedMessages();
-  const found = list.find(m => Number(m.id) === Number(messageId));
-  if (!found) return;
-  const target = prompt('Логин друга для пересылки:');
-  const to = (target || '').trim();
-  if (!to || !ws || ws.readyState !== WebSocket.OPEN) return;
-  const forwardedFrom = { from: found.from, fromNick: found.fromNick || found.from, time: found.time, text: found.text || '', attachment: found.attachment || null };
-  ws.send(JSON.stringify({ type:'message', from:login, to, text: found.text || '', attachment: found.attachment || null, forwardedFrom }));
-  closeMessageMenu();
-}
-function togglePinMessage(messageId) {
-  const list = getCurrentRenderedMessages();
-  const found = list.find(m => Number(m.id) === Number(messageId));
-  if (!found || !ws || ws.readyState !== WebSocket.OPEN) return;
-  const pinned = !found.pinned;
-  if (currentChatType === 'group' && currentGroupId) ws.send(JSON.stringify({ type:'pin_group_message', groupId:currentGroupId, id:Number(messageId), pinned }));
-  else if (currentDM) ws.send(JSON.stringify({ type:'pin_message', with:currentDM, id:Number(messageId), pinned }));
-  closeMessageMenu();
-}
-window.forwardMessage = forwardMessage;
-window.togglePinMessage = togglePinMessage;
 
 function formatFileSize(bytes) {
   const value = Number(bytes) || 0;
@@ -3331,19 +3115,8 @@ function rerenderCurrentChat(forceBottom = false) {
   const visible = arr.slice(-MAX_RENDERED_MESSAGES);
   const fragment = document.createDocumentFragment();
   messages.innerHTML = '';
-  let lastDayTs = null;
-  visible.forEach(m => {
-    if (m?.time && (!lastDayTs || !isSameDayTs(lastDayTs, m.time))) {
-      const sep = document.createElement('div');
-      sep.className = 'daySeparator';
-      sep.textContent = formatFullDate(m.time);
-      fragment.appendChild(sep);
-      lastDayTs = m.time;
-    }
-    fragment.appendChild(renderMessage(m));
-  });
+  visible.forEach(m => fragment.appendChild(renderMessage(m)));
   messages.appendChild(fragment);
-  renderPinnedBar();
   if (wasNearBottom) scrollMessagesToBottom();
 }
 
@@ -3485,7 +3258,7 @@ function handle(d) {
   if (d.type === 'logged_out') { resetUiToLoggedOut(); return; }
   if (d.type === 'login_ok') {
     login = d.login; nickname = d.nickname; myStatus = normalizeClientStatus(d.status || 'online'); rtcConfig = { iceServers:Array.isArray(d.iceServers) && d.iceServers.length ? d.iceServers : [{ urls:['stun:stun.l.google.com:19302'] }] }; localStorage.setItem('login', login); authToken = typeof d.token === 'string' ? d.token : authToken; if (authToken) localStorage.setItem('messenger_token', authToken); localStorage.removeItem('password'); loadLocalChatState(login); friends = Array.isArray(d.friends) ? d.friends : friends; groups = Array.isArray(d.groups) ? d.groups : groups; unread = d.unread || unread || {};
-    myCreatedAt = d.createdAt || Date.now(); myBadgeCode = d.badgeCode || null; myBadges = Array.isArray(d.badges) ? d.badges : (myBadgeCode ? [myBadgeCode] : []); loginDiv.style.display = 'none'; appDiv.style.display = 'flex'; profileNick.innerHTML = decorateDisplayName(nickname, { login, badgeCode: myBadgeCode, badges: myBadges }); profileLogin.textContent = buildUserLoginText({ login, badgeCode: myBadgeCode, badges: myBadges });
+    loginDiv.style.display = 'none'; appDiv.style.display = 'flex'; profileNick.textContent = nickname; profileLogin.textContent = login;
     myAvatar = d.avatar || { letter:(nickname || login || '?')[0]?.toUpperCase() || '?', color:'#5865f2' }; myBanner = d.banner || null; const avatarEl = createAvatar(myAvatar, myStatus, true); const old = document.getElementById('profileAvatar'); old.replaceWith(avatarEl); avatarEl.id = 'profileAvatar';
     profileModalLoginPreview.textContent = login;
     syncPresenceFromOnline();
@@ -3503,7 +3276,6 @@ function handle(d) {
     setTypingState(peer, '', false);
     if (d.attachment) d.attachment = normalizeAttachment(d.attachment);
     if (d.replyTo) d.replyTo = normalizeReplyPayload(d.replyTo);
-    if (d.forwardedFrom && typeof d.forwardedFrom === 'object') d.forwardedFrom = d.forwardedFrom;
     upsertMessage(peer, d);
     const isIncoming = d.from !== login;
     unread[peer] = peer !== currentDM ? (d.unread || unread[peer] || 0) : 0;
@@ -3516,19 +3288,6 @@ function handle(d) {
     }
     if (peer === currentDM) scheduleRenderCurrentChat(true);
     renderOnline();
-    return;
-  }
-  if (d.type === 'message_pinned') {
-    const key = d.with;
-    updateMessageLocally(key, d.id, { pinned: !!d.pinned, pinnedAt: d.pinnedAt || null });
-    saveLocalChatState();
-    if (key === currentDM) scheduleRenderCurrentChat();
-    return;
-  }
-  if (d.type === 'group_message_pinned') {
-    updateGroupMessageLocally(d.groupId, d.id, { pinned: !!d.pinned, pinnedAt: d.pinnedAt || null });
-    saveLocalChatState();
-    if (currentChatType === 'group' && Number(currentGroupId) === Number(d.groupId)) scheduleRenderCurrentChat();
     return;
   }
   if (d.type === 'message_deleted') {
@@ -3611,11 +3370,8 @@ function handle(d) {
     myStatus = normalizeClientStatus(d.status || myStatus);
     myAvatar = d.avatar || myAvatar;
     if (Object.prototype.hasOwnProperty.call(d, 'banner')) myBanner = d.banner || null;
-    if (Object.prototype.hasOwnProperty.call(d, 'createdAt')) myCreatedAt = d.createdAt || myCreatedAt;
-    if (Object.prototype.hasOwnProperty.call(d, 'badgeCode')) myBadgeCode = d.badgeCode || myBadgeCode;
-    if (Array.isArray(d.badges)) myBadges = d.badges;
-    profileNick.innerHTML = decorateDisplayName(nickname, { login, badgeCode: myBadgeCode, badges: myBadges });
-    profileLogin.textContent = buildUserLoginText({ login, badgeCode: myBadgeCode, badges: myBadges });
+    profileNick.textContent = nickname;
+    profileLogin.textContent = login;
     const newA = createAvatar(myAvatar, myStatus, true);
     const oldA = document.getElementById('profileAvatar');
     if (oldA) oldA.replaceWith(newA);
@@ -3646,8 +3402,6 @@ function handle(d) {
   }
 
   if (d.type === 'call_outgoing') {
-    playUiSound(callSound, true);
-    addLocalSystemNotice(d.to, '📞 Начался звонок');
     callPeerLogin = d.to;
     callPeerData = findFriendData(d.to) || { login:d.to, nickname:d.to };
     callState = 'calling';
@@ -3656,8 +3410,6 @@ function handle(d) {
     return;
   }
   if (d.type === 'call_incoming') {
-    playUiSound(callSound, true);
-    addLocalSystemNotice(d.from, '📲 Входящий звонок');
     pendingIncomingCall = { login:d.from, nickname:d.fromNick || d.from, avatar:d.avatar || null };
     callPeerLogin = d.from;
     callPeerData = pendingIncomingCall;
@@ -3672,8 +3424,6 @@ function handle(d) {
     return;
   }
   if (d.type === 'call_joined') {
-    stopUiSound(callSound); playUiSound(acceptSound, false);
-    addLocalSystemNotice(d.with, '✅ Звонок начался');
     callPeerLogin = d.with;
     callPeerData = findFriendData(d.with) || callPeerData || { login:d.with, nickname:d.with };
     callState = 'connecting';
@@ -3682,8 +3432,6 @@ function handle(d) {
     return;
   }
   if (d.type === 'call_accepted') {
-    stopUiSound(callSound); playUiSound(acceptSound, false);
-    addLocalSystemNotice(d.by, '✅ Звонок начался');
     callPeerLogin = d.by;
     callPeerData = findFriendData(d.by) || callPeerData || { login:d.by, nickname:d.by };
     callState = 'connecting';
@@ -3697,8 +3445,6 @@ function handle(d) {
     return;
   }
   if (d.type === 'call_ended') {
-    stopUiSound(callSound); playUiSound(declineSound, false);
-    if (d.with) addLocalSystemNotice(d.with, '📴 Звонок завершён');
     const reason = d.reason;
     const shouldAlert = callState !== 'idle';
     resetCallState();
@@ -3765,15 +3511,6 @@ function deleteMessage(messageId) {
 window.beginEditMessage = beginEditMessage; window.cancelEditMessage = cancelEditMessage; window.saveEditMessage = saveEditMessage; window.deleteMessage = deleteMessage; window.setReplyMessage = setReplyMessage; window.clearReplyMessage = clearReplyMessage; window.toggleMessageMenu = toggleMessageMenu; window.closeMessageMenu = closeMessageMenu;
 
 function renderMessage(message) {
-  if (message?.system) {
-    const wrap = document.createElement('div');
-    wrap.className = 'systemNotice';
-    const bubble = document.createElement('div');
-    bubble.className = 'systemNoticeBubble';
-    bubble.textContent = `${message.text || ''} • ${formatMessageTime(message.time)}`;
-    wrap.appendChild(bubble);
-    return wrap;
-  }
   const m = document.createElement('div'); m.className = 'message' + (openMessageMenuId === Number(message.id) ? ' menuMenuOpen' : ''); m.dataset.id = message.id;
   m.appendChild(createAvatar(message.avatar || { letter:String(message.from || '?').charAt(0).toUpperCase(), color:'#5865f2' }, 'offline', false));
   const c = document.createElement('div'); c.className = 'messageContent';
@@ -3784,17 +3521,13 @@ function renderMessage(message) {
   const attachmentHtml = renderAttachmentHtml(message.attachment);
   const replyHtml = renderReplyBlockHtml(message.replyTo);
   const menuOpen = openMessageMenuId === Number(message.id);
-  const forwardHtml = `<button class="messageMenuItem" onclick="forwardMessage(${message.id});">Переслать</button>`;
-  const pinHtml = `<button class="messageMenuItem" onclick="togglePinMessage(${message.id});">${message.pinned ? 'Открепить' : 'Закрепить'}</button>`;
-  const menuHtml = `<div class="messageMenuWrap">${receiptHtml}<button class="messageMenuTrigger ${menuOpen ? 'active' : ''}" onclick="toggleMessageMenu(${message.id}); event.stopPropagation();" title="Меню">⋯</button><div class="messageMenu ${menuOpen ? 'open' : ''}" onclick="event.stopPropagation()"><button class="messageMenuItem" onclick="setReplyMessage(${message.id}); closeMessageMenu();">${escapeHtml(t('reply'))}</button>${forwardHtml}${pinHtml}${isOwn ? `<button class="messageMenuItem" onclick="beginEditMessage(${message.id}); closeMessageMenu();">${escapeHtml(t('edit'))}</button><button class="messageMenuItem danger" onclick="deleteMessage(${message.id}); closeMessageMenu();">${escapeHtml(t('delete'))}</button>` : ''}</div></div>`;
-  const nameHtml = decorateDisplayName(message.fromNick || message.from, message);
-  const forwardedHtml = message.forwardedFrom ? `<div class="forwardedFlag">↪ Переслано от ${escapeHtml(message.forwardedFrom.fromNick || message.forwardedFrom.from || 'user')}</div>` : '';
-  let inner = `<div class="messageHeader"><b>${nameHtml}</b><span class="messageTime">${escapeHtml(formatMessageTime(message.time))}</span>${editedLabel}${menuHtml}</div>`;
+  const menuHtml = `<div class="messageMenuWrap">${receiptHtml}<button class="messageMenuTrigger ${menuOpen ? 'active' : ''}" onclick="toggleMessageMenu(${message.id}); event.stopPropagation();" title="Меню">⋯</button><div class="messageMenu ${menuOpen ? 'open' : ''}" onclick="event.stopPropagation()"><button class="messageMenuItem" onclick="setReplyMessage(${message.id}); closeMessageMenu();">${escapeHtml(t('reply'))}</button>${isOwn ? `<button class="messageMenuItem" onclick="beginEditMessage(${message.id}); closeMessageMenu();">${escapeHtml(t('edit'))}</button><button class="messageMenuItem danger" onclick="deleteMessage(${message.id}); closeMessageMenu();">${escapeHtml(t('delete'))}</button>` : ''}</div></div>`;
+  let inner = `<div class="messageHeader"><b>${escapeHtml(message.fromNick || message.from)}</b><span class="messageTime">${escapeHtml(formatMessageTime(message.time))}</span>${editedLabel}${menuHtml}</div>`;
   if (editingMessageId === Number(message.id) && isOwn) {
     inner += replyHtml;
     inner += `<div class="editBox"><input class="editInput" data-message-id="${message.id}" value="${escapeHtml(message.text || '')}"><button class="messageActionBtn" onclick="saveEditMessage(${message.id})">${escapeHtml(t('save'))}</button><button class="messageActionBtn" onclick="cancelEditMessage()">${escapeHtml(t('cancel'))}</button></div>`;
   } else {
-    inner += replyHtml + forwardedHtml;
+    inner += replyHtml;
     if (message.text) inner += `<div class="messageText">${escapeHtml(message.text)}</div>`;
     inner += attachmentHtml;
   }
@@ -4293,7 +4026,6 @@ profileSaveBtn.onclick = () => {
   if (oldA) oldA.replaceWith(newA);
   newA.id = 'profileAvatar';
   applyCustomization();
-initComposerEnhancements();
   applyProfileUpdateLocal({ login, nickname, avatar: myAvatar, banner: myBanner, status: myStatus === 'invisible' ? 'offline' : myStatus });
   ws.send(JSON.stringify({ type:'update_profile', nickname:newNickname, status:selectedProfileStatus }));
   closeProfileModal();
@@ -4359,67 +4091,34 @@ callOverlay.addEventListener('click', e => { if (e.target === callOverlay && cal
 document.querySelectorAll('.themePresetBtn').forEach(btn => btn.addEventListener('click', () => {
   customization.theme = btn.dataset.theme || 'midnight';
   applyCustomization();
-initComposerEnhancements();
 }));
 document.querySelectorAll('.wallpaperBtn').forEach(btn => btn.addEventListener('click', () => {
   customization.wallpaper = btn.dataset.wallpaper || 'none';
   applyCustomization();
-initComposerEnhancements();
 }));
 accentColorInput?.addEventListener('input', () => {
   customization.accent = accentColorInput.value || '#6b7cff';
   applyCustomization();
-initComposerEnhancements();
 });
 bubbleRadiusInput?.addEventListener('input', () => {
   customization.radius = Number(bubbleRadiusInput.value) || 16;
   updateCustomizationControls();
   applyCustomization();
-initComposerEnhancements();
 });
 fontSizeInput?.addEventListener('input', () => {
   customization.fontSize = Number(fontSizeInput.value) || 14;
   updateCustomizationControls();
   applyCustomization();
-initComposerEnhancements();
 });
 compactModeBtn?.addEventListener('click', () => {
   customization.compact = !customization.compact;
   applyCustomization();
-initComposerEnhancements();
 });
 
 window.addEventListener('load', () => {
   applyRemoteAudioSettings();
   document.body.classList.add('ui-ready');
-  
-function initComposerEnhancements() {
-  if (emojiGrid && !emojiGrid.dataset.ready) {
-    emojiGrid.dataset.ready = '1';
-    emojiGrid.innerHTML = defaultEmojiSet.map(item => `<button type="button" class="emojiBtn" data-value="${item}">${item}</button>`).join('');
-    emojiGrid.querySelectorAll('.emojiBtn').forEach(btn => btn.onclick = () => { insertTextAtCursor(btn.dataset.value || btn.textContent || ''); closeComposerPickers(); });
-  }
-  if (stickerGrid && !stickerGrid.dataset.ready) {
-    stickerGrid.dataset.ready = '1';
-    stickerGrid.innerHTML = defaultStickerSet.map(item => `<button type="button" class="emojiBtn" data-value="${item}">${item}</button>`).join('');
-    stickerGrid.querySelectorAll('.emojiBtn').forEach(btn => btn.onclick = () => { insertTextAtCursor(btn.dataset.value || btn.textContent || ''); closeComposerPickers(); });
-  }
-  emojiBtn && (emojiBtn.onclick = () => openPicker('emoji'));
-  stickerBtn && (stickerBtn.onclick = () => openPicker('sticker'));
-  giftBtn && (giftBtn.onclick = () => insertTextAtCursor('🎁 '));
-  gifBtn && (gifBtn.onclick = () => {
-    const url = prompt('Вставь ссылку на GIF');
-    if (url && /^https?:/i.test(url.trim())) insertTextAtCursor(url.trim() + ' ');
-  });
-  pinnedJumpBtn && (pinnedJumpBtn.onclick = () => { if (lastPinnedMessageId) scrollToMessage(lastPinnedMessageId); });
-  document.addEventListener('click', (e) => {
-    if (!emojiPicker?.contains(e.target) && e.target !== emojiBtn) emojiPicker?.classList.remove('open');
-    if (!stickerPicker?.contains(e.target) && e.target !== stickerBtn) stickerPicker?.classList.remove('open');
-  });
-}
-
-applyCustomization();
-initComposerEnhancements();
+  applyCustomization();
   applyLanguage();
   syncMobileLayout();
   const savedToken = localStorage.getItem('messenger_token');
