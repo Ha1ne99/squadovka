@@ -693,6 +693,14 @@ button:hover { transform: translateY(-1px); }
 .bioInput { min-height:88px; resize:vertical; }
 .profileHint { margin-top:8px; color:var(--muted); font-size:12px; line-height:1.45; }
 .profileMiniBio { display:block; color:var(--muted); font-size:11px; margin-top:4px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.hotkeyList { display:flex; flex-direction:column; gap:12px; }
+.hotkeyRow { display:grid; grid-template-columns:minmax(0,1.1fr) minmax(220px,1fr) auto auto; gap:10px; align-items:center; padding:12px; border:1px solid var(--line); border-radius:16px; background:#101520; }
+.hotkeyMeta { display:flex; flex-direction:column; gap:4px; min-width:0; }
+.hotkeyMeta b { font-size:14px; }
+.hotkeyMeta span { color:var(--muted); font-size:12px; line-height:1.4; }
+.hotkeyCaptureInput { width:100%; min-width:0; padding:12px 14px; border-radius:14px; border:1px solid var(--line); background:#0f131a; color:var(--text); font:inherit; }
+.hotkeyCaptureInput.is-capturing { border-color:var(--accent); box-shadow:0 0 0 1px rgba(107,124,255,.25) inset; }
+@media (max-width: 760px) { .hotkeyRow { grid-template-columns:1fr; } }
 body.compact-ui #sidebar { width:260px; min-width:260px; }
 body.compact-ui .user, body.compact-ui .friendEntry { min-height:56px; padding:8px 10px; }
 body.compact-ui #messages { padding:12px; }
@@ -1316,6 +1324,7 @@ body[data-theme='midnight'] { --bg:#101217; --bg2:#0b0d12; }
         <div class="settingsSidebarTitle" id="settingsSidebarTitle">Настройки пользователя</div>
         <button id="settingsTabProfileBtn" class="settingsNavBtn active" type="button" data-settings-tab="profile">Профиль</button>
         <button id="settingsTabCustomizationBtn" class="settingsNavBtn" type="button" data-settings-tab="customization">Кастомизация</button>
+        <button id="settingsTabHotkeysBtn" class="settingsNavBtn" type="button" data-settings-tab="hotkeys">Горячие клавиши</button>
       </aside>
 
       <div class="settingsMain">
@@ -1397,6 +1406,42 @@ body[data-theme='midnight'] { --bg:#101217; --bg2:#0b0d12; }
                 <button class="wallpaperBtn" type="button" data-wallpaper="aurora">Aurora</button>
               </div>
             </div>
+
+          <div class="settingsPane" id="settingsPaneHotkeys" data-settings-pane="hotkeys">
+            <h3 class="settingsPaneTitle" id="settingsPaneHotkeysTitle">Горячие клавиши</h3>
+            <div class="profileSection">
+              <h4 id="hotkeysSectionTitle">Управление звонком</h4>
+              <div id="hotkeysHint" class="profileHint">Нажми «Назначить», потом нужное сочетание. Поддерживаются комбинации вроде Shift + M, Ctrl + Alt + H или просто одна клавиша.</div>
+              <div class="hotkeyList">
+                <div class="hotkeyRow">
+                  <div class="hotkeyMeta">
+                    <b id="hotkeyMuteMicTitle">Мьют микрофона</b>
+                    <span id="hotkeyMuteMicDesc">Включает или выключает твой микрофон во время звонка.</span>
+                  </div>
+                  <input id="hotkeyMuteMicInput" class="hotkeyCaptureInput" type="text" readonly value="Shift + M">
+                  <button id="hotkeyMuteMicSetBtn" class="profileActionBtn" type="button">Назначить</button>
+                  <button id="hotkeyMuteMicClearBtn" class="profileActionBtn" type="button">Сброс</button>
+                </div>
+                <div class="hotkeyRow">
+                  <div class="hotkeyMeta">
+                    <b id="hotkeyMuteSoundTitle">Мьют наушников</b>
+                    <span id="hotkeyMuteSoundDesc">Включает или выключает звук собеседника на твоей стороне.</span>
+                  </div>
+                  <input id="hotkeyMuteSoundInput" class="hotkeyCaptureInput" type="text" readonly value="Shift + H">
+                  <button id="hotkeyMuteSoundSetBtn" class="profileActionBtn" type="button">Назначить</button>
+                  <button id="hotkeyMuteSoundClearBtn" class="profileActionBtn" type="button">Сброс</button>
+                </div>
+                <div class="hotkeyRow">
+                  <div class="hotkeyMeta">
+                    <b id="hotkeyHangupTitle">Сброс звонка</b>
+                    <span id="hotkeyHangupDesc">Мгновенно завершает текущий звонок или отменяет исходящий.</span>
+                  </div>
+                  <input id="hotkeyHangupInput" class="hotkeyCaptureInput" type="text" readonly value="Shift + X">
+                  <button id="hotkeyHangupSetBtn" class="profileActionBtn" type="button">Назначить</button>
+                  <button id="hotkeyHangupClearBtn" class="profileActionBtn" type="button">Сброс</button>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -1434,7 +1479,8 @@ body[data-theme='midnight'] { --bg:#101217; --bg2:#0b0d12; }
     <div class="callRow" id="callMainActions">
       <button id="callMuteBtn" class="callActionBtn">🎙️ Микрофон</button>
       <button id="callSpeakerBtn" class="callActionBtn">🔊 Звук</button>
-      <label class="callVolumeControl"><span id="callVolumeLabel">Громкость</span><input id="callVolumeSlider" type="range" min="0" max="150" step="1" value="100"></label>
+      <label class="callVolumeControl"><span id="callMicVolumeLabel">🎙️ Микрофон:</span><input id="callMicVolumeSlider" type="range" min="0" max="200" step="1" value="100"></label>
+      <label class="callVolumeControl"><span id="callVolumeLabel">🔊 Собеседник:</span><input id="callVolumeSlider" type="range" min="0" max="300" step="1" value="100"></label>
       <button id="callHangupBtn" class="callActionBtn danger">Сбросить</button>
       <button id="callCloseBtn" class="callActionBtn">Закрыть</button>
     </div>
@@ -1490,13 +1536,33 @@ const profileSaveBtn = document.getElementById('profileSaveBtn');
 const profileModalCloseBtn = document.getElementById('profileModalCloseBtn');
 const settingsTabProfileBtn = document.getElementById('settingsTabProfileBtn');
 const settingsTabCustomizationBtn = document.getElementById('settingsTabCustomizationBtn');
+const settingsTabHotkeysBtn = document.getElementById('settingsTabHotkeysBtn');
 const settingsPaneProfile = document.getElementById('settingsPaneProfile');
 const settingsPaneCustomization = document.getElementById('settingsPaneCustomization');
+const settingsPaneHotkeys = document.getElementById('settingsPaneHotkeys');
 const settingsModalTitle = document.getElementById('settingsModalTitle');
 const settingsModalSubtitle = document.getElementById('settingsModalSubtitle');
 const settingsSidebarTitle = document.getElementById('settingsSidebarTitle');
 const settingsPaneProfileTitle = document.getElementById('settingsPaneProfileTitle');
 const settingsPaneCustomizationTitle = document.getElementById('settingsPaneCustomizationTitle');
+const settingsPaneHotkeysTitle = document.getElementById('settingsPaneHotkeysTitle');
+const hotkeysSectionTitle = document.getElementById('hotkeysSectionTitle');
+const hotkeysHint = document.getElementById('hotkeysHint');
+const hotkeyMuteMicTitle = document.getElementById('hotkeyMuteMicTitle');
+const hotkeyMuteMicDesc = document.getElementById('hotkeyMuteMicDesc');
+const hotkeyMuteMicInput = document.getElementById('hotkeyMuteMicInput');
+const hotkeyMuteMicSetBtn = document.getElementById('hotkeyMuteMicSetBtn');
+const hotkeyMuteMicClearBtn = document.getElementById('hotkeyMuteMicClearBtn');
+const hotkeyMuteSoundTitle = document.getElementById('hotkeyMuteSoundTitle');
+const hotkeyMuteSoundDesc = document.getElementById('hotkeyMuteSoundDesc');
+const hotkeyMuteSoundInput = document.getElementById('hotkeyMuteSoundInput');
+const hotkeyMuteSoundSetBtn = document.getElementById('hotkeyMuteSoundSetBtn');
+const hotkeyMuteSoundClearBtn = document.getElementById('hotkeyMuteSoundClearBtn');
+const hotkeyHangupTitle = document.getElementById('hotkeyHangupTitle');
+const hotkeyHangupDesc = document.getElementById('hotkeyHangupDesc');
+const hotkeyHangupInput = document.getElementById('hotkeyHangupInput');
+const hotkeyHangupSetBtn = document.getElementById('hotkeyHangupSetBtn');
+const hotkeyHangupClearBtn = document.getElementById('hotkeyHangupClearBtn');
 const chatAvatar = document.getElementById('chatAvatar');
 const mobileBackBtn = document.getElementById('mobileBackBtn');
 const chatTitle = document.getElementById('chatTitle');
@@ -1543,6 +1609,8 @@ const callDeclineBtn = document.getElementById('callDeclineBtn');
 const callMainActions = document.getElementById('callMainActions');
 const callMuteBtn = document.getElementById('callMuteBtn');
 const callSpeakerBtn = document.getElementById('callSpeakerBtn');
+const callMicVolumeLabel = document.getElementById('callMicVolumeLabel');
+const callMicVolumeSlider = document.getElementById('callMicVolumeSlider');
 const callVolumeLabel = document.getElementById('callVolumeLabel');
 const callVolumeSlider = document.getElementById('callVolumeSlider');
 const callHangupBtn = document.getElementById('callHangupBtn');
@@ -1586,7 +1654,16 @@ let localCallStream = null;
 let remoteCallStream = null;
 let isMicMuted = false;
 let isSpeakerMuted = false;
-let opponentVolume = 100;
+let localMicVolume = (() => { try { return Math.max(0, Math.min(200, Number(localStorage.getItem('call_mic_volume') || 100) || 100)); } catch { return 100; } })();
+let opponentVolume = (() => { try { return Math.max(0, Math.min(300, Number(localStorage.getItem('call_opponent_volume') || 100) || 100)); } catch { return 100; } })();
+let localCallSourceStream = null;
+let localCallAudioContext = null;
+let localCallSourceNode = null;
+let localCallGainNode = null;
+let localCallDestination = null;
+let remoteAudioContext = null;
+let remoteAudioSourceNode = null;
+let remoteAudioGainNode = null;
 let callVoiceMeterTimer = null;
 let callDisconnectTimer = null;
 let pendingRemoteCandidates = [];
@@ -1625,7 +1702,7 @@ const i18n = {
     messagePlaceholder:'Сообщение...', attach:'Файл', voiceMessage:'Голосовое', voiceStart:'Начать запись', voiceStop:'Остановить запись', voiceRecording:'Идёт запись…', voiceUnsupported:'Браузер не поддерживает запись звука', voiceMicDenied:'Не удалось получить доступ к микрофону', uploading:'Загрузка файла...', fileTooBig:'Файл больше 10 МБ', fileUploadFailed:'Не удалось загрузить файл', addFriendTitle:'Добавить друга (по логину)', addFriendPlaceholder:'Логин пользователя', sendRequest:'Отправить заявку',
     requests:'Заявки', noRequests:'Нет входящих заявок', friendsTitle:'Друзья', noFriends:'Список друзей пуст', call:'Звонок', open:'Открыть', hang:'Сбросить',
     accept:'Принять', decline:'Отклонить', close:'Закрыть', mute:'Выключить микрофон', unmute:'Включить микрофон', speakerMute:'Выключить звук', speakerUnmute:'Включить звук', micOn:'🎙️ Микрофон: включён', micOff:'🎙️ Микрофон: выключён', soundOn:'🔊 Звук: включён', soundOff:'🔇 Звук: выключён',
-    volume:'🔊 Громкость:', groupLabel:'Группа', voiceLevel:'Уровень голоса:', natHint:'Если не соединяется у кого-то — это NAT. Для “всегда работает” нужен TURN-сервер.',
+    micVolume:'🎙️ Микрофон:', volume:'🔊 Собеседник:', groupLabel:'Группа', voiceLevel:'Уровень голоса:', natHint:'Если не соединяется у кого-то — это NAT. Для “всегда работает” нужен TURN-сервер.',
     online:'онлайн', incomingRequest:'Входящая заявка', friend:'Друг', nobodyOnline:'Пока никто из друзей не в сети',
     callWith:'Звонок с', calling:'📞 Звоним…', waitingAnswer:'Ожидаем ответ', connecting:'🔄 Подключаем…', connected:'✅ Соединено', incomingCall:'📲 Входящий звонок',
     incomingCallHint:'Нажми «Принять» или «Отклонить»', callEnded:'Звонок завершён', callDeclined:'Звонок отклонён', callCancelled:'Звонок отменён', userBusy:'Пользователь занят',
@@ -1643,7 +1720,7 @@ const i18n = {
     messagePlaceholder:'Повідомлення...', attach:'Файл', voiceMessage:'Голосове', voiceStart:'Почати запис', voiceStop:'Зупинити запис', voiceRecording:'Триває запис…', voiceUnsupported:'Браузер не підтримує запис звуку', voiceMicDenied:'Не вдалося отримати доступ до мікрофона', uploading:'Завантаження файлу...', fileTooBig:'Файл більший за 10 МБ', fileUploadFailed:'Не вдалося завантажити файл', addFriendTitle:'Додати друга (за логіном)', addFriendPlaceholder:'Логін користувача', sendRequest:'Надіслати запит',
     requests:'Запити', noRequests:'Немає вхідних запитів', friendsTitle:'Друзі', noFriends:'Список друзів порожній', call:'Дзвінок', open:'Відкрити', hang:'Скинути',
     accept:'Прийняти', decline:'Відхилити', close:'Закрити', mute:'Вимкнути мікрофон', unmute:'Увімкнути мікрофон', speakerMute:'Вимкнути звук', speakerUnmute:'Увімкнути звук', micOn:'🎙️ Мікрофон: увімкнений', micOff:'🎙️ Мікрофон: вимкнений', soundOn:'🔊 Звук: увімкнений', soundOff:'🔇 Звук: вимкнений',
-    volume:'🔊 Гучність:', groupLabel:'Група', voiceLevel:'Рівень голосу:', natHint:'Якщо в когось не з’єднується — це NAT. Щоб працювало завжди, потрібен TURN-сервер.',
+    micVolume:'🎙️ Мікрофон:', volume:'🔊 Співрозмовник:', groupLabel:'Група', voiceLevel:'Рівень голосу:', natHint:'Якщо в когось не з’єднується — це NAT. Щоб працювало завжди, потрібен TURN-сервер.',
     online:'онлайн', incomingRequest:'Вхідний запит', friend:'Друг', nobodyOnline:'Поки ніхто з друзів не онлайн',
     callWith:'Дзвінок з', calling:'📞 Дзвонимо…', waitingAnswer:'Очікуємо відповідь', connecting:'🔄 Підключаємо…', connected:'✅ З’єднано', incomingCall:'📲 Вхідний дзвінок',
     incomingCallHint:'Натисни «Прийняти» або «Відхилити»', callEnded:'Дзвінок завершено', callDeclined:'Дзвінок відхилено', callCancelled:'Дзвінок скасовано', userBusy:'Користувач зайнятий',
@@ -1661,7 +1738,7 @@ const i18n = {
     messagePlaceholder:'Message...', attach:'File', voiceMessage:'Voice message', voiceStart:'Start recording', voiceStop:'Stop recording', voiceRecording:'Recording…', voiceUnsupported:'This browser does not support audio recording', voiceMicDenied:'Could not access the microphone', uploading:'Uploading file...', fileTooBig:'File is larger than 10 MB', fileUploadFailed:'Failed to upload file', addFriendTitle:'Add friend (by login)', addFriendPlaceholder:'User login', sendRequest:'Send request',
     requests:'Requests', noRequests:'No incoming requests', friendsTitle:'Friends', noFriends:'Friends list is empty', call:'Call', open:'Open', hang:'Hang up',
     accept:'Accept', decline:'Decline', close:'Close', mute:'Mute', unmute:'Unmute', micOn:'🎙️ Microphone: on', micOff:'🎙️ Microphone: off',
-    volume:'🔊 Volume:', voiceLevel:'Voice level:', natHint:'If it does not connect for someone, that is NAT. For “always works” you need a TURN server.',
+    micVolume:'🎙️ Mic:', volume:'🔊 Peer volume:', voiceLevel:'Voice level:', natHint:'If it does not connect for someone, that is NAT. For “always works” you need a TURN server.',
     online:'online', incomingRequest:'Incoming request', friend:'Friend', nobodyOnline:'No friends online yet',
     callWith:'Call with', calling:'📞 Calling…', waitingAnswer:'Waiting for answer', connecting:'🔄 Connecting…', connected:'✅ Connected', incomingCall:'📲 Incoming call',
     incomingCallHint:'Press “Accept” or “Decline”', callEnded:'Call ended', callDeclined:'Call declined', callCancelled:'Call cancelled', userBusy:'User is busy',
@@ -1868,21 +1945,116 @@ function appearanceText(key) {
   return (map[currentLanguage] || map.ru)[key] || key;
 }
 
+function hotkeysText(key) {
+  const map = {
+    ru:{ hotkeys:'Горячие клавиши', subtitle:'Профиль, внешний вид и управление звонком', section:'Управление звонком', hint:'Нажми «Назначить», потом нужное сочетание. Поддерживаются комбинации вроде Shift + M, Ctrl + Alt + H или просто одна клавиша.', set:'Назначить', clear:'Сброс', muteMicTitle:'Мьют микрофона', muteMicDesc:'Включает или выключает твой микрофон во время звонка.', muteSoundTitle:'Мьют наушников', muteSoundDesc:'Включает или выключает звук собеседника на твоей стороне.', hangupTitle:'Сброс звонка', hangupDesc:'Мгновенно завершает текущий звонок или отменяет исходящий.', none:'Не назначено', capturing:'Нажми сочетание...', conflict:'Это сочетание уже занято' },
+    uk:{ hotkeys:'Гарячі клавіші', subtitle:'Профіль, зовнішній вигляд і керування дзвінком', section:'Керування дзвінком', hint:'Натисни «Призначити», потім потрібне поєднання. Підтримуються комбінації на кшталт Shift + M, Ctrl + Alt + H або просто одна клавіша.', set:'Призначити', clear:'Скинути', muteMicTitle:'М’ют мікрофона', muteMicDesc:'Вмикає або вимикає твій мікрофон під час дзвінка.', muteSoundTitle:'М’ют навушників', muteSoundDesc:'Вмикає або вимикає звук співрозмовника на твоєму боці.', hangupTitle:'Скидання дзвінка', hangupDesc:'Миттєво завершує поточний дзвінок або скасовує вихідний.', none:'Не призначено', capturing:'Натисни поєднання...', conflict:'Це поєднання вже зайняте' },
+    en:{ hotkeys:'Hotkeys', subtitle:'Profile, appearance and call controls', section:'Call controls', hint:'Press “Set”, then the key combo you want. Combinations like Shift + M, Ctrl + Alt + H or a single key are supported.', set:'Set', clear:'Clear', muteMicTitle:'Mute microphone', muteMicDesc:'Turns your microphone on or off during a call.', muteSoundTitle:'Mute headphones', muteSoundDesc:'Turns the peer audio on or off on your side.', hangupTitle:'Hang up call', hangupDesc:'Instantly ends the current call or cancels an outgoing one.', none:'Not assigned', capturing:'Press a shortcut...', conflict:'This shortcut is already in use' }
+  };
+  return (map[currentLanguage] || map.ru)[key] || key;
+}
+function normalizeHotkeyKey(key) {
+  if (!key) return '';
+  const raw = String(key);
+  const lower = raw.toLowerCase();
+  const aliases = { ' ':'Space', escape:'Esc', esc:'Esc', arrowup:'Up', arrowdown:'Down', arrowleft:'Left', arrowright:'Right', control:'Ctrl', meta:'Meta', os:'Meta' };
+  if (aliases[lower]) return aliases[lower];
+  if (lower === 'alt') return 'Alt';
+  if (lower === 'shift') return 'Shift';
+  if (/^f\d{1,2}$/i.test(raw)) return raw.toUpperCase();
+  if (raw.length === 1) return raw.toUpperCase();
+  return raw[0].toUpperCase() + raw.slice(1);
+}
+function eventToHotkey(event) {
+  if (!event) return '';
+  const key = normalizeHotkeyKey(event.key);
+  if (!key || ['Ctrl','Shift','Alt','Meta'].includes(key)) return '';
+  const parts = [];
+  if (event.ctrlKey) parts.push('Ctrl');
+  if (event.altKey) parts.push('Alt');
+  if (event.shiftKey) parts.push('Shift');
+  if (event.metaKey) parts.push('Meta');
+  parts.push(key);
+  return parts.join('+');
+}
+function formatHotkeyDisplay(combo) {
+  if (!combo) return hotkeysText('none');
+  return combo.split('+').join(' + ');
+}
+function persistCallHotkeys() {
+  try { localStorage.setItem('call_hotkeys', JSON.stringify(callHotkeys)); } catch {}
+}
+function getHotkeyInput(action) {
+  return action === 'muteMic' ? hotkeyMuteMicInput : action === 'muteSound' ? hotkeyMuteSoundInput : hotkeyHangupInput;
+}
+function startHotkeyCapture(action) {
+  hotkeyCaptureAction = action;
+  [hotkeyMuteMicInput, hotkeyMuteSoundInput, hotkeyHangupInput].forEach(input => input?.classList.remove('is-capturing'));
+  const input = getHotkeyInput(action);
+  if (input) {
+    input.value = hotkeysText('capturing');
+    input.classList.add('is-capturing');
+  }
+}
+function stopHotkeyCapture() {
+  hotkeyCaptureAction = null;
+  [hotkeyMuteMicInput, hotkeyMuteSoundInput, hotkeyHangupInput].forEach(input => input?.classList.remove('is-capturing'));
+  updateHotkeyInputs();
+}
+function setCallHotkey(action, combo) {
+  if (!action) return;
+  const cleanCombo = combo || '';
+  const usedByOther = Object.entries(callHotkeys).some(([name, value]) => name !== action && value && value === cleanCombo);
+  if (cleanCombo && usedByOther) {
+    const input = getHotkeyInput(action);
+    if (input) input.value = hotkeysText('conflict');
+    setTimeout(() => { if (hotkeyCaptureAction === action) stopHotkeyCapture(); else updateHotkeyInputs(); }, 900);
+    return;
+  }
+  callHotkeys[action] = cleanCombo;
+  persistCallHotkeys();
+  stopHotkeyCapture();
+}
+function updateHotkeyInputs() {
+  if (hotkeyMuteMicInput) hotkeyMuteMicInput.value = hotkeyCaptureAction === 'muteMic' ? hotkeysText('capturing') : formatHotkeyDisplay(callHotkeys.muteMic);
+  if (hotkeyMuteSoundInput) hotkeyMuteSoundInput.value = hotkeyCaptureAction === 'muteSound' ? hotkeysText('capturing') : formatHotkeyDisplay(callHotkeys.muteSound);
+  if (hotkeyHangupInput) hotkeyHangupInput.value = hotkeyCaptureAction === 'hangup' ? hotkeysText('capturing') : formatHotkeyDisplay(callHotkeys.hangup);
+}
+function isTypingTarget(target) {
+  return !!(target && (target.closest('input:not(.hotkeyCaptureInput), textarea, [contenteditable="true"], .editInput') || target.tagName === 'INPUT' || target.tagName === 'TEXTAREA'));
+}
+function handleCallHotkey(event) {
+  const combo = eventToHotkey(event);
+  if (!combo) return false;
+  if (hotkeyCaptureAction) {
+    event.preventDefault();
+    setCallHotkey(hotkeyCaptureAction, combo);
+    return true;
+  }
+  if (isTypingTarget(event.target)) return false;
+  const hasCall = ['calling','incoming','connecting','connected'].includes(callState);
+  if (!hasCall) return false;
+  if (callHotkeys.muteMic && combo === callHotkeys.muteMic) { event.preventDefault(); toggleMuteCall(); return true; }
+  if (callHotkeys.muteSound && combo === callHotkeys.muteSound) { event.preventDefault(); toggleSpeakerMute(); return true; }
+  if (callHotkeys.hangup && combo === callHotkeys.hangup) { event.preventDefault(); endCurrentCall(true); return true; }
+  return false;
+}
+
 function settingsText(key) {
   const map = {
-    ru:{ title:'Настройки', subtitle:'Профиль и внешний вид', sidebar:'Настройки пользователя', profile:'Профиль', customization:'Кастомизация' },
-    uk:{ title:'Налаштування', subtitle:'Профіль і зовнішній вигляд', sidebar:'Налаштування користувача', profile:'Профіль', customization:'Кастомізація' },
-    en:{ title:'Settings', subtitle:'Profile and appearance', sidebar:'User settings', profile:'Profile', customization:'Customization' }
+    ru:{ title:'Настройки', subtitle:hotkeysText('subtitle'), sidebar:'Настройки пользователя', profile:'Профиль', customization:'Кастомизация', hotkeys:hotkeysText('hotkeys') },
+    uk:{ title:'Налаштування', subtitle:hotkeysText('subtitle'), sidebar:'Налаштування користувача', profile:'Профіль', customization:'Кастомізація', hotkeys:hotkeysText('hotkeys') },
+    en:{ title:'Settings', subtitle:hotkeysText('subtitle'), sidebar:'User settings', profile:'Profile', customization:'Customization', hotkeys:hotkeysText('hotkeys') }
   };
   return (map[currentLanguage] || map.ru)[key] || key;
 }
 function setSettingsTab(tab) {
-  activeSettingsTab = tab === 'customization' ? 'customization' : 'profile';
-  [settingsTabProfileBtn, settingsTabCustomizationBtn].forEach(btn => {
+  activeSettingsTab = ['customization','hotkeys'].includes(tab) ? tab : 'profile';
+  [settingsTabProfileBtn, settingsTabCustomizationBtn, settingsTabHotkeysBtn].forEach(btn => {
     if (!btn) return;
     btn.classList.toggle('active', btn.dataset.settingsTab === activeSettingsTab);
   });
-  [settingsPaneProfile, settingsPaneCustomization].forEach(pane => {
+  [settingsPaneProfile, settingsPaneCustomization, settingsPaneHotkeys].forEach(pane => {
     if (!pane) return;
     pane.classList.toggle('active', pane.dataset.settingsPane === activeSettingsTab);
   });
@@ -1893,8 +2065,25 @@ function applyAppearanceTexts() {
   if (settingsSidebarTitle) settingsSidebarTitle.textContent = settingsText('sidebar');
   if (settingsTabProfileBtn) settingsTabProfileBtn.textContent = settingsText('profile');
   if (settingsTabCustomizationBtn) settingsTabCustomizationBtn.textContent = settingsText('customization');
+  if (settingsTabHotkeysBtn) settingsTabHotkeysBtn.textContent = settingsText('hotkeys');
   if (settingsPaneProfileTitle) settingsPaneProfileTitle.textContent = settingsText('profile');
   if (settingsPaneCustomizationTitle) settingsPaneCustomizationTitle.textContent = settingsText('customization');
+  if (settingsPaneHotkeysTitle) settingsPaneHotkeysTitle.textContent = settingsText('hotkeys');
+  if (hotkeysSectionTitle) hotkeysSectionTitle.textContent = hotkeysText('section');
+  if (hotkeysHint) hotkeysHint.textContent = hotkeysText('hint');
+  if (hotkeyMuteMicTitle) hotkeyMuteMicTitle.textContent = hotkeysText('muteMicTitle');
+  if (hotkeyMuteMicDesc) hotkeyMuteMicDesc.textContent = hotkeysText('muteMicDesc');
+  if (hotkeyMuteMicSetBtn) hotkeyMuteMicSetBtn.textContent = hotkeysText('set');
+  if (hotkeyMuteMicClearBtn) hotkeyMuteMicClearBtn.textContent = hotkeysText('clear');
+  if (hotkeyMuteSoundTitle) hotkeyMuteSoundTitle.textContent = hotkeysText('muteSoundTitle');
+  if (hotkeyMuteSoundDesc) hotkeyMuteSoundDesc.textContent = hotkeysText('muteSoundDesc');
+  if (hotkeyMuteSoundSetBtn) hotkeyMuteSoundSetBtn.textContent = hotkeysText('set');
+  if (hotkeyMuteSoundClearBtn) hotkeyMuteSoundClearBtn.textContent = hotkeysText('clear');
+  if (hotkeyHangupTitle) hotkeyHangupTitle.textContent = hotkeysText('hangupTitle');
+  if (hotkeyHangupDesc) hotkeyHangupDesc.textContent = hotkeysText('hangupDesc');
+  if (hotkeyHangupSetBtn) hotkeyHangupSetBtn.textContent = hotkeysText('set');
+  if (hotkeyHangupClearBtn) hotkeyHangupClearBtn.textContent = hotkeysText('clear');
+  updateHotkeyInputs();
   if (appearanceTitle) appearanceTitle.textContent = appearanceText('appearance');
   if (accentColorLabel) accentColorLabel.textContent = appearanceText('accent');
   if (compactModeLabel) compactModeLabel.textContent = appearanceText('compact');
@@ -1948,12 +2137,13 @@ function setProfileModalMode(mode) {
   appearanceSection?.classList.toggle('hidden', !isSelfMode);
   wallpaperSection?.classList.toggle('hidden', !isSelfMode);
   settingsTabCustomizationBtn?.classList.toggle('hidden', !isSelfMode);
+  settingsTabHotkeysBtn?.classList.toggle('hidden', !isSelfMode);
   profileNicknameInput.readOnly = !isSelfMode;
   profileNicknameInput.disabled = !isSelfMode;
   if (profileBioInput) { profileBioInput.readOnly = !isSelfMode; profileBioInput.disabled = !isSelfMode; }
   profileSettingsTitle.textContent = isSelfMode ? t('profileSettings') : t('profileViewTitle');
   profileNameLabel.textContent = t('displayName');
-  if (!isSelfMode && activeSettingsTab === 'customization') setSettingsTab('profile');
+  if (!isSelfMode && ['customization','hotkeys'].includes(activeSettingsTab)) setSettingsTab('profile');
 }
 
 function openProfileModal() {
@@ -2002,7 +2192,7 @@ function openUserProfileModal(userLogin, fetchFresh = true) {
   }
 }
 
-function closeProfileModal() { viewedProfile = null; profileModalOverlay.style.display = 'none'; }
+function closeProfileModal() { viewedProfile = null; stopHotkeyCapture(); profileModalOverlay.style.display = 'none'; }
 function applyProfileUpdateLocal(user) {
   if (!user || !user.login) return;
   friends = friends.map(f => {
@@ -2057,6 +2247,8 @@ function updateCallUi() {
   callInfoPill.textContent = callState === 'connected' ? ((isMicMuted ? t('micOff') : t('micOn')) + ' · ' + (isSpeakerMuted ? t('soundOff') : t('soundOn'))) : t('natHint');
   callMuteBtn.textContent = isMicMuted ? '🎙️ ' + t('unmute') : '🎙️ ' + t('mute');
   if (callSpeakerBtn) callSpeakerBtn.textContent = isSpeakerMuted ? '🔇 ' + t('speakerUnmute') : '🔊 ' + t('speakerMute');
+  if (callMicVolumeLabel) callMicVolumeLabel.textContent = t('micVolume');
+  if (callMicVolumeSlider) callMicVolumeSlider.value = String(localMicVolume);
   if (callVolumeLabel) callVolumeLabel.textContent = t('volume');
   if (callVolumeSlider) callVolumeSlider.value = String(opponentVolume);
   callIncomingActions.style.display = callState === 'incoming' ? 'flex' : 'none';
@@ -2078,46 +2270,27 @@ function updateCallUi() {
     callHintText.textContent = (isMicMuted ? t('micOff') : t('micOn')) + ' · ' + (isSpeakerMuted ? t('soundOff') : t('soundOn'));
   }
 }
-function buildProcessedAudioConstraints() {
-  const supported = navigator.mediaDevices?.getSupportedConstraints?.() || {};
-  const audio = {
-    echoCancellation: true,
-    noiseSuppression: true,
-    autoGainControl: true,
-    channelCount: 1
-  };
-  if (supported.sampleRate) audio.sampleRate = 48000;
-  if (supported.sampleSize) audio.sampleSize = 16;
-  if (supported.latency) audio.latency = { ideal: 0.02 };
-  return { audio, video: false };
-}
-async function enhanceAudioTrack(track) {
-  if (!track?.applyConstraints) return;
-  const supported = navigator.mediaDevices?.getSupportedConstraints?.() || {};
-  const advanced = {};
-  if (supported.echoCancellation) advanced.echoCancellation = true;
-  if (supported.noiseSuppression) advanced.noiseSuppression = true;
-  if (supported.autoGainControl) advanced.autoGainControl = true;
-  if (supported.channelCount) advanced.channelCount = 1;
-  if (supported.sampleRate) advanced.sampleRate = 48000;
-  if (supported.sampleSize) advanced.sampleSize = 16;
-  if (supported.latency) advanced.latency = { ideal: 0.02 };
-  if (supported.voiceIsolation) advanced.voiceIsolation = true;
-  if (!Object.keys(advanced).length) return;
-  try {
-    await track.applyConstraints(advanced);
-  } catch (err) {
-    console.warn('Audio processing constraints were not fully applied:', err);
-  }
-}
 async function ensureLocalCallStream() {
   if (localCallStream) return localCallStream;
-  const stream = await navigator.mediaDevices.getUserMedia(buildProcessedAudioConstraints());
-  await Promise.allSettled(stream.getAudioTracks().map(enhanceAudioTrack));
-  localCallStream = stream;
+  const rawStream = await navigator.mediaDevices.getUserMedia({ audio:{ echoCancellation:true, noiseSuppression:true, autoGainControl:true, channelCount:1 }, video:false });
+  localCallSourceStream = rawStream;
   isMicMuted = false;
-  startVoiceMeter(stream);
-  return stream;
+  const AudioContextRef = window.AudioContext || window.webkitAudioContext;
+  if (AudioContextRef) {
+    localCallAudioContext = new AudioContextRef();
+    localCallSourceNode = localCallAudioContext.createMediaStreamSource(rawStream);
+    localCallGainNode = localCallAudioContext.createGain();
+    localCallDestination = localCallAudioContext.createMediaStreamDestination();
+    localCallSourceNode.connect(localCallGainNode);
+    localCallGainNode.connect(localCallDestination);
+    localCallStream = localCallDestination.stream;
+    try { await localCallAudioContext.resume(); } catch {}
+  } else {
+    localCallStream = rawStream;
+  }
+  applyLocalMicSettings();
+  startVoiceMeter(rawStream);
+  return localCallStream;
 }
 function stopVoiceMeter() {
   if (callVoiceMeterTimer) clearInterval(callVoiceMeterTimer);
@@ -2128,10 +2301,50 @@ function clearCallDisconnectTimer() {
   if (callDisconnectTimer) clearTimeout(callDisconnectTimer);
   callDisconnectTimer = null;
 }
+function getRemoteVolumeGain() {
+  return Math.max(0, Math.min(4, Number(opponentVolume || 100) / 100));
+}
+function getLocalMicGain() {
+  return Math.max(0, Math.min(2, Number(localMicVolume || 100) / 100));
+}
+function persistCallAudioSetting(key, value) {
+  try { localStorage.setItem(key, String(value)); } catch {}
+}
+function applyLocalMicSettings() {
+  const gainValue = isMicMuted ? 0 : getLocalMicGain();
+  if (localCallGainNode) localCallGainNode.gain.value = gainValue;
+  if (localCallStream) localCallStream.getAudioTracks().forEach(track => { track.enabled = true; });
+  if (localCallSourceStream) localCallSourceStream.getAudioTracks().forEach(track => { track.enabled = true; });
+}
+function ensureRemoteAudioBoost() {
+  if (!remoteAudio) return false;
+  const AudioContextRef = window.AudioContext || window.webkitAudioContext;
+  if (!AudioContextRef) return false;
+  try {
+    if (!remoteAudioContext) remoteAudioContext = new AudioContextRef();
+    if (!remoteAudioSourceNode) {
+      remoteAudioSourceNode = remoteAudioContext.createMediaElementSource(remoteAudio);
+      remoteAudioGainNode = remoteAudioContext.createGain();
+      remoteAudioSourceNode.connect(remoteAudioGainNode);
+      remoteAudioGainNode.connect(remoteAudioContext.destination);
+    }
+    remoteAudioContext.resume?.().catch?.(() => {});
+    return true;
+  } catch (err) {
+    console.warn('Failed to enable remote audio boost:', err);
+    return false;
+  }
+}
 function applyRemoteAudioSettings() {
   if (!remoteAudio) return;
   remoteAudio.muted = !!isSpeakerMuted;
-  remoteAudio.volume = Math.max(0, Math.min(1.5, Number(opponentVolume || 100) / 100));
+  const gainValue = isSpeakerMuted ? 0 : getRemoteVolumeGain();
+  if (ensureRemoteAudioBoost() && remoteAudioGainNode) {
+    remoteAudio.volume = 1;
+    remoteAudioGainNode.gain.value = gainValue;
+  } else {
+    remoteAudio.volume = Math.max(0, Math.min(1, gainValue));
+  }
 }
 function startVoiceMeter(stream) {
   stopVoiceMeter();
@@ -2170,7 +2383,19 @@ function stopLocalCallStream() {
   if (localCallStream) {
     try { localCallStream.getTracks().forEach(track => track.stop()); } catch {}
   }
+  if (localCallSourceStream && localCallSourceStream !== localCallStream) {
+    try { localCallSourceStream.getTracks().forEach(track => track.stop()); } catch {}
+  }
+  try { localCallSourceNode?.disconnect(); } catch {}
+  try { localCallGainNode?.disconnect(); } catch {}
+  try { localCallDestination?.disconnect?.(); } catch {}
+  try { localCallAudioContext?.close?.(); } catch {}
   localCallStream = null;
+  localCallSourceStream = null;
+  localCallAudioContext = null;
+  localCallSourceNode = null;
+  localCallGainNode = null;
+  localCallDestination = null;
   stopVoiceMeter();
 }
 function resetCallState(closeOverlay = true) {
@@ -2182,7 +2407,7 @@ function resetCallState(closeOverlay = true) {
   callPeerData = null;
   isMicMuted = false;
   isSpeakerMuted = false;
-  opponentVolume = 100;
+  applyLocalMicSettings();
   applyRemoteAudioSettings();
   if (closeOverlay) hideCallOverlay();
   updateCallUi();
@@ -2350,7 +2575,7 @@ function endCurrentCall(notifyServer = true) {
 function toggleMuteCall() {
   if (!localCallStream) return;
   isMicMuted = !isMicMuted;
-  localCallStream.getAudioTracks().forEach(track => { track.enabled = !isMicMuted; });
+  applyLocalMicSettings();
   updateCallUi();
 }
 function toggleSpeakerMute() {
@@ -2358,8 +2583,15 @@ function toggleSpeakerMute() {
   applyRemoteAudioSettings();
   updateCallUi();
 }
+function setLocalMicVolume(value) {
+  localMicVolume = Math.max(0, Math.min(200, Number(value) || 0));
+  persistCallAudioSetting('call_mic_volume', localMicVolume);
+  applyLocalMicSettings();
+  updateCallUi();
+}
 function setOpponentVolume(value) {
-  opponentVolume = Math.max(0, Math.min(150, Number(value) || 0));
+  opponentVolume = Math.max(0, Math.min(300, Number(value) || 0));
+  persistCallAudioSetting('call_opponent_volume', opponentVolume);
   applyRemoteAudioSettings();
   updateCallUi();
 }
@@ -2404,6 +2636,7 @@ function applyLanguage() {
   if (callDeclineBtn) callDeclineBtn.textContent = t('decline');
   if (callMuteBtn) callMuteBtn.textContent = isMicMuted ? '🎙️ ' + t('unmute') : '🎙️ ' + t('mute');
   if (callSpeakerBtn) callSpeakerBtn.textContent = isSpeakerMuted ? '🔇 ' + t('speakerUnmute') : '🔊 ' + t('speakerMute');
+  if (callMicVolumeLabel) callMicVolumeLabel.textContent = t('micVolume');
   if (callVolumeLabel) callVolumeLabel.textContent = t('volume');
   if (callHangupBtn) callHangupBtn.textContent = t('hang');
   if (callCloseBtn) callCloseBtn.textContent = t('close');
@@ -3263,8 +3496,7 @@ async function startVoiceRecording() {
       try { URL.revokeObjectURL(pendingUploadPreviewUrl); } catch {}
       pendingUploadPreviewUrl = '';
     }
-    const stream = await navigator.mediaDevices.getUserMedia(buildProcessedAudioConstraints());
-    await Promise.allSettled(stream.getAudioTracks().map(enhanceAudioTrack));
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
     mediaRecorderStream = stream;
     mediaRecorderChunks = [];
     const mimeType = getVoiceMimeType();
@@ -3690,7 +3922,16 @@ profileCancelBtn.onclick = closeProfileModal;
 profileModalCloseBtn.onclick = closeProfileModal;
 settingsTabProfileBtn?.addEventListener('click', () => setSettingsTab('profile'));
 settingsTabCustomizationBtn?.addEventListener('click', () => setSettingsTab('customization'));
+settingsTabHotkeysBtn?.addEventListener('click', () => setSettingsTab('hotkeys'));
+hotkeyMuteMicSetBtn?.addEventListener('click', () => startHotkeyCapture('muteMic'));
+hotkeyMuteMicClearBtn?.addEventListener('click', () => setCallHotkey('muteMic', ''));
+hotkeyMuteSoundSetBtn?.addEventListener('click', () => startHotkeyCapture('muteSound'));
+hotkeyMuteSoundClearBtn?.addEventListener('click', () => setCallHotkey('muteSound', ''));
+hotkeyHangupSetBtn?.addEventListener('click', () => startHotkeyCapture('hangup'));
+hotkeyHangupClearBtn?.addEventListener('click', () => setCallHotkey('hangup', ''));
 document.addEventListener('keydown', e => {
+  if (handleCallHotkey(e)) return;
+  if (e.key === 'Escape' && hotkeyCaptureAction) { e.preventDefault(); stopHotkeyCapture(); return; }
   if (e.key === 'Escape' && profileModalOverlay?.style.display === 'flex') closeProfileModal();
 });
 profileModalOverlay.addEventListener('click', e => { if (e.target === profileModalOverlay) closeProfileModal(); });
@@ -3747,6 +3988,7 @@ callDeclineBtn.onclick = declineIncomingCall;
 callHangupBtn.onclick = () => endCurrentCall(true);
 callMuteBtn.onclick = toggleMuteCall;
 callSpeakerBtn.onclick = toggleSpeakerMute;
+if (callMicVolumeSlider) callMicVolumeSlider.oninput = () => setLocalMicVolume(callMicVolumeSlider.value);
 callVolumeSlider.oninput = () => setOpponentVolume(callVolumeSlider.value);
 callCloseBtn.onclick = () => { if (callState === 'incoming') declineIncomingCall(); else hideCallOverlay(); };
 callOverlay.addEventListener('click', e => { if (e.target === callOverlay && callState === 'idle') hideCallOverlay(); });
