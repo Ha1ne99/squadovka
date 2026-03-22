@@ -693,14 +693,6 @@ button:hover { transform: translateY(-1px); }
 .bioInput { min-height:88px; resize:vertical; }
 .profileHint { margin-top:8px; color:var(--muted); font-size:12px; line-height:1.45; }
 .profileMiniBio { display:block; color:var(--muted); font-size:11px; margin-top:4px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.hotkeyList { display:flex; flex-direction:column; gap:12px; }
-.hotkeyRow { display:grid; grid-template-columns:minmax(0,1.1fr) minmax(220px,1fr) auto auto; gap:10px; align-items:center; padding:12px; border:1px solid var(--line); border-radius:16px; background:#101520; }
-.hotkeyMeta { display:flex; flex-direction:column; gap:4px; min-width:0; }
-.hotkeyMeta b { font-size:14px; }
-.hotkeyMeta span { color:var(--muted); font-size:12px; line-height:1.4; }
-.hotkeyCaptureInput { width:100%; min-width:0; padding:12px 14px; border-radius:14px; border:1px solid var(--line); background:#0f131a; color:var(--text); font:inherit; }
-.hotkeyCaptureInput.is-capturing { border-color:var(--accent); box-shadow:0 0 0 1px rgba(107,124,255,.25) inset; }
-@media (max-width: 760px) { .hotkeyRow { grid-template-columns:1fr; } }
 body.compact-ui #sidebar { width:260px; min-width:260px; }
 body.compact-ui .user, body.compact-ui .friendEntry { min-height:56px; padding:8px 10px; }
 body.compact-ui #messages { padding:12px; }
@@ -1324,7 +1316,6 @@ body[data-theme='midnight'] { --bg:#101217; --bg2:#0b0d12; }
         <div class="settingsSidebarTitle" id="settingsSidebarTitle">Настройки пользователя</div>
         <button id="settingsTabProfileBtn" class="settingsNavBtn active" type="button" data-settings-tab="profile">Профиль</button>
         <button id="settingsTabCustomizationBtn" class="settingsNavBtn" type="button" data-settings-tab="customization">Кастомизация</button>
-        <button id="settingsTabHotkeysBtn" class="settingsNavBtn" type="button" data-settings-tab="hotkeys">Горячие клавиши</button>
       </aside>
 
       <div class="settingsMain">
@@ -1404,42 +1395,6 @@ body[data-theme='midnight'] { --bg:#101217; --bg2:#0b0d12; }
                 <button class="wallpaperBtn" type="button" data-wallpaper="dots">Точки</button>
                 <button class="wallpaperBtn" type="button" data-wallpaper="grid">Сетка</button>
                 <button class="wallpaperBtn" type="button" data-wallpaper="aurora">Aurora</button>
-              </div>
-            </div>
-
-          <div class="settingsPane" id="settingsPaneHotkeys" data-settings-pane="hotkeys">
-            <h3 class="settingsPaneTitle" id="settingsPaneHotkeysTitle">Горячие клавиши</h3>
-            <div class="profileSection">
-              <h4 id="hotkeysSectionTitle">Управление звонком</h4>
-              <div id="hotkeysHint" class="profileHint">Нажми «Назначить», потом нужное сочетание. Поддерживаются комбинации вроде Shift + M, Ctrl + Alt + H или просто одна клавиша.</div>
-              <div class="hotkeyList">
-                <div class="hotkeyRow">
-                  <div class="hotkeyMeta">
-                    <b id="hotkeyMuteMicTitle">Мьют микрофона</b>
-                    <span id="hotkeyMuteMicDesc">Включает или выключает твой микрофон во время звонка.</span>
-                  </div>
-                  <input id="hotkeyMuteMicInput" class="hotkeyCaptureInput" type="text" readonly value="Shift + M">
-                  <button id="hotkeyMuteMicSetBtn" class="profileActionBtn" type="button">Назначить</button>
-                  <button id="hotkeyMuteMicClearBtn" class="profileActionBtn" type="button">Сброс</button>
-                </div>
-                <div class="hotkeyRow">
-                  <div class="hotkeyMeta">
-                    <b id="hotkeyMuteSoundTitle">Мьют наушников</b>
-                    <span id="hotkeyMuteSoundDesc">Включает или выключает звук собеседника на твоей стороне.</span>
-                  </div>
-                  <input id="hotkeyMuteSoundInput" class="hotkeyCaptureInput" type="text" readonly value="Shift + H">
-                  <button id="hotkeyMuteSoundSetBtn" class="profileActionBtn" type="button">Назначить</button>
-                  <button id="hotkeyMuteSoundClearBtn" class="profileActionBtn" type="button">Сброс</button>
-                </div>
-                <div class="hotkeyRow">
-                  <div class="hotkeyMeta">
-                    <b id="hotkeyHangupTitle">Сброс звонка</b>
-                    <span id="hotkeyHangupDesc">Мгновенно завершает текущий звонок или отменяет исходящий.</span>
-                  </div>
-                  <input id="hotkeyHangupInput" class="hotkeyCaptureInput" type="text" readonly value="Shift + X">
-                  <button id="hotkeyHangupSetBtn" class="profileActionBtn" type="button">Назначить</button>
-                  <button id="hotkeyHangupClearBtn" class="profileActionBtn" type="button">Сброс</button>
-                </div>
               </div>
             </div>
           </div>
@@ -1536,33 +1491,13 @@ const profileSaveBtn = document.getElementById('profileSaveBtn');
 const profileModalCloseBtn = document.getElementById('profileModalCloseBtn');
 const settingsTabProfileBtn = document.getElementById('settingsTabProfileBtn');
 const settingsTabCustomizationBtn = document.getElementById('settingsTabCustomizationBtn');
-const settingsTabHotkeysBtn = document.getElementById('settingsTabHotkeysBtn');
 const settingsPaneProfile = document.getElementById('settingsPaneProfile');
 const settingsPaneCustomization = document.getElementById('settingsPaneCustomization');
-const settingsPaneHotkeys = document.getElementById('settingsPaneHotkeys');
 const settingsModalTitle = document.getElementById('settingsModalTitle');
 const settingsModalSubtitle = document.getElementById('settingsModalSubtitle');
 const settingsSidebarTitle = document.getElementById('settingsSidebarTitle');
 const settingsPaneProfileTitle = document.getElementById('settingsPaneProfileTitle');
 const settingsPaneCustomizationTitle = document.getElementById('settingsPaneCustomizationTitle');
-const settingsPaneHotkeysTitle = document.getElementById('settingsPaneHotkeysTitle');
-const hotkeysSectionTitle = document.getElementById('hotkeysSectionTitle');
-const hotkeysHint = document.getElementById('hotkeysHint');
-const hotkeyMuteMicTitle = document.getElementById('hotkeyMuteMicTitle');
-const hotkeyMuteMicDesc = document.getElementById('hotkeyMuteMicDesc');
-const hotkeyMuteMicInput = document.getElementById('hotkeyMuteMicInput');
-const hotkeyMuteMicSetBtn = document.getElementById('hotkeyMuteMicSetBtn');
-const hotkeyMuteMicClearBtn = document.getElementById('hotkeyMuteMicClearBtn');
-const hotkeyMuteSoundTitle = document.getElementById('hotkeyMuteSoundTitle');
-const hotkeyMuteSoundDesc = document.getElementById('hotkeyMuteSoundDesc');
-const hotkeyMuteSoundInput = document.getElementById('hotkeyMuteSoundInput');
-const hotkeyMuteSoundSetBtn = document.getElementById('hotkeyMuteSoundSetBtn');
-const hotkeyMuteSoundClearBtn = document.getElementById('hotkeyMuteSoundClearBtn');
-const hotkeyHangupTitle = document.getElementById('hotkeyHangupTitle');
-const hotkeyHangupDesc = document.getElementById('hotkeyHangupDesc');
-const hotkeyHangupInput = document.getElementById('hotkeyHangupInput');
-const hotkeyHangupSetBtn = document.getElementById('hotkeyHangupSetBtn');
-const hotkeyHangupClearBtn = document.getElementById('hotkeyHangupClearBtn');
 const chatAvatar = document.getElementById('chatAvatar');
 const mobileBackBtn = document.getElementById('mobileBackBtn');
 const chatTitle = document.getElementById('chatTitle');
@@ -1945,116 +1880,21 @@ function appearanceText(key) {
   return (map[currentLanguage] || map.ru)[key] || key;
 }
 
-function hotkeysText(key) {
-  const map = {
-    ru:{ hotkeys:'Горячие клавиши', subtitle:'Профиль, внешний вид и управление звонком', section:'Управление звонком', hint:'Нажми «Назначить», потом нужное сочетание. Поддерживаются комбинации вроде Shift + M, Ctrl + Alt + H или просто одна клавиша.', set:'Назначить', clear:'Сброс', muteMicTitle:'Мьют микрофона', muteMicDesc:'Включает или выключает твой микрофон во время звонка.', muteSoundTitle:'Мьют наушников', muteSoundDesc:'Включает или выключает звук собеседника на твоей стороне.', hangupTitle:'Сброс звонка', hangupDesc:'Мгновенно завершает текущий звонок или отменяет исходящий.', none:'Не назначено', capturing:'Нажми сочетание...', conflict:'Это сочетание уже занято' },
-    uk:{ hotkeys:'Гарячі клавіші', subtitle:'Профіль, зовнішній вигляд і керування дзвінком', section:'Керування дзвінком', hint:'Натисни «Призначити», потім потрібне поєднання. Підтримуються комбінації на кшталт Shift + M, Ctrl + Alt + H або просто одна клавіша.', set:'Призначити', clear:'Скинути', muteMicTitle:'М’ют мікрофона', muteMicDesc:'Вмикає або вимикає твій мікрофон під час дзвінка.', muteSoundTitle:'М’ют навушників', muteSoundDesc:'Вмикає або вимикає звук співрозмовника на твоєму боці.', hangupTitle:'Скидання дзвінка', hangupDesc:'Миттєво завершує поточний дзвінок або скасовує вихідний.', none:'Не призначено', capturing:'Натисни поєднання...', conflict:'Це поєднання вже зайняте' },
-    en:{ hotkeys:'Hotkeys', subtitle:'Profile, appearance and call controls', section:'Call controls', hint:'Press “Set”, then the key combo you want. Combinations like Shift + M, Ctrl + Alt + H or a single key are supported.', set:'Set', clear:'Clear', muteMicTitle:'Mute microphone', muteMicDesc:'Turns your microphone on or off during a call.', muteSoundTitle:'Mute headphones', muteSoundDesc:'Turns the peer audio on or off on your side.', hangupTitle:'Hang up call', hangupDesc:'Instantly ends the current call or cancels an outgoing one.', none:'Not assigned', capturing:'Press a shortcut...', conflict:'This shortcut is already in use' }
-  };
-  return (map[currentLanguage] || map.ru)[key] || key;
-}
-function normalizeHotkeyKey(key) {
-  if (!key) return '';
-  const raw = String(key);
-  const lower = raw.toLowerCase();
-  const aliases = { ' ':'Space', escape:'Esc', esc:'Esc', arrowup:'Up', arrowdown:'Down', arrowleft:'Left', arrowright:'Right', control:'Ctrl', meta:'Meta', os:'Meta' };
-  if (aliases[lower]) return aliases[lower];
-  if (lower === 'alt') return 'Alt';
-  if (lower === 'shift') return 'Shift';
-  if (/^f\d{1,2}$/i.test(raw)) return raw.toUpperCase();
-  if (raw.length === 1) return raw.toUpperCase();
-  return raw[0].toUpperCase() + raw.slice(1);
-}
-function eventToHotkey(event) {
-  if (!event) return '';
-  const key = normalizeHotkeyKey(event.key);
-  if (!key || ['Ctrl','Shift','Alt','Meta'].includes(key)) return '';
-  const parts = [];
-  if (event.ctrlKey) parts.push('Ctrl');
-  if (event.altKey) parts.push('Alt');
-  if (event.shiftKey) parts.push('Shift');
-  if (event.metaKey) parts.push('Meta');
-  parts.push(key);
-  return parts.join('+');
-}
-function formatHotkeyDisplay(combo) {
-  if (!combo) return hotkeysText('none');
-  return combo.split('+').join(' + ');
-}
-function persistCallHotkeys() {
-  try { localStorage.setItem('call_hotkeys', JSON.stringify(callHotkeys)); } catch {}
-}
-function getHotkeyInput(action) {
-  return action === 'muteMic' ? hotkeyMuteMicInput : action === 'muteSound' ? hotkeyMuteSoundInput : hotkeyHangupInput;
-}
-function startHotkeyCapture(action) {
-  hotkeyCaptureAction = action;
-  [hotkeyMuteMicInput, hotkeyMuteSoundInput, hotkeyHangupInput].forEach(input => input?.classList.remove('is-capturing'));
-  const input = getHotkeyInput(action);
-  if (input) {
-    input.value = hotkeysText('capturing');
-    input.classList.add('is-capturing');
-  }
-}
-function stopHotkeyCapture() {
-  hotkeyCaptureAction = null;
-  [hotkeyMuteMicInput, hotkeyMuteSoundInput, hotkeyHangupInput].forEach(input => input?.classList.remove('is-capturing'));
-  updateHotkeyInputs();
-}
-function setCallHotkey(action, combo) {
-  if (!action) return;
-  const cleanCombo = combo || '';
-  const usedByOther = Object.entries(callHotkeys).some(([name, value]) => name !== action && value && value === cleanCombo);
-  if (cleanCombo && usedByOther) {
-    const input = getHotkeyInput(action);
-    if (input) input.value = hotkeysText('conflict');
-    setTimeout(() => { if (hotkeyCaptureAction === action) stopHotkeyCapture(); else updateHotkeyInputs(); }, 900);
-    return;
-  }
-  callHotkeys[action] = cleanCombo;
-  persistCallHotkeys();
-  stopHotkeyCapture();
-}
-function updateHotkeyInputs() {
-  if (hotkeyMuteMicInput) hotkeyMuteMicInput.value = hotkeyCaptureAction === 'muteMic' ? hotkeysText('capturing') : formatHotkeyDisplay(callHotkeys.muteMic);
-  if (hotkeyMuteSoundInput) hotkeyMuteSoundInput.value = hotkeyCaptureAction === 'muteSound' ? hotkeysText('capturing') : formatHotkeyDisplay(callHotkeys.muteSound);
-  if (hotkeyHangupInput) hotkeyHangupInput.value = hotkeyCaptureAction === 'hangup' ? hotkeysText('capturing') : formatHotkeyDisplay(callHotkeys.hangup);
-}
-function isTypingTarget(target) {
-  return !!(target && (target.closest('input:not(.hotkeyCaptureInput), textarea, [contenteditable="true"], .editInput') || target.tagName === 'INPUT' || target.tagName === 'TEXTAREA'));
-}
-function handleCallHotkey(event) {
-  const combo = eventToHotkey(event);
-  if (!combo) return false;
-  if (hotkeyCaptureAction) {
-    event.preventDefault();
-    setCallHotkey(hotkeyCaptureAction, combo);
-    return true;
-  }
-  if (isTypingTarget(event.target)) return false;
-  const hasCall = ['calling','incoming','connecting','connected'].includes(callState);
-  if (!hasCall) return false;
-  if (callHotkeys.muteMic && combo === callHotkeys.muteMic) { event.preventDefault(); toggleMuteCall(); return true; }
-  if (callHotkeys.muteSound && combo === callHotkeys.muteSound) { event.preventDefault(); toggleSpeakerMute(); return true; }
-  if (callHotkeys.hangup && combo === callHotkeys.hangup) { event.preventDefault(); endCurrentCall(true); return true; }
-  return false;
-}
-
 function settingsText(key) {
   const map = {
-    ru:{ title:'Настройки', subtitle:hotkeysText('subtitle'), sidebar:'Настройки пользователя', profile:'Профиль', customization:'Кастомизация', hotkeys:hotkeysText('hotkeys') },
-    uk:{ title:'Налаштування', subtitle:hotkeysText('subtitle'), sidebar:'Налаштування користувача', profile:'Профіль', customization:'Кастомізація', hotkeys:hotkeysText('hotkeys') },
-    en:{ title:'Settings', subtitle:hotkeysText('subtitle'), sidebar:'User settings', profile:'Profile', customization:'Customization', hotkeys:hotkeysText('hotkeys') }
+    ru:{ title:'Настройки', subtitle:'Профиль и внешний вид', sidebar:'Настройки пользователя', profile:'Профиль', customization:'Кастомизация' },
+    uk:{ title:'Налаштування', subtitle:'Профіль і зовнішній вигляд', sidebar:'Налаштування користувача', profile:'Профіль', customization:'Кастомізація' },
+    en:{ title:'Settings', subtitle:'Profile and appearance', sidebar:'User settings', profile:'Profile', customization:'Customization' }
   };
   return (map[currentLanguage] || map.ru)[key] || key;
 }
 function setSettingsTab(tab) {
-  activeSettingsTab = ['customization','hotkeys'].includes(tab) ? tab : 'profile';
-  [settingsTabProfileBtn, settingsTabCustomizationBtn, settingsTabHotkeysBtn].forEach(btn => {
+  activeSettingsTab = tab === 'customization' ? 'customization' : 'profile';
+  [settingsTabProfileBtn, settingsTabCustomizationBtn].forEach(btn => {
     if (!btn) return;
     btn.classList.toggle('active', btn.dataset.settingsTab === activeSettingsTab);
   });
-  [settingsPaneProfile, settingsPaneCustomization, settingsPaneHotkeys].forEach(pane => {
+  [settingsPaneProfile, settingsPaneCustomization].forEach(pane => {
     if (!pane) return;
     pane.classList.toggle('active', pane.dataset.settingsPane === activeSettingsTab);
   });
@@ -2065,25 +1905,8 @@ function applyAppearanceTexts() {
   if (settingsSidebarTitle) settingsSidebarTitle.textContent = settingsText('sidebar');
   if (settingsTabProfileBtn) settingsTabProfileBtn.textContent = settingsText('profile');
   if (settingsTabCustomizationBtn) settingsTabCustomizationBtn.textContent = settingsText('customization');
-  if (settingsTabHotkeysBtn) settingsTabHotkeysBtn.textContent = settingsText('hotkeys');
   if (settingsPaneProfileTitle) settingsPaneProfileTitle.textContent = settingsText('profile');
   if (settingsPaneCustomizationTitle) settingsPaneCustomizationTitle.textContent = settingsText('customization');
-  if (settingsPaneHotkeysTitle) settingsPaneHotkeysTitle.textContent = settingsText('hotkeys');
-  if (hotkeysSectionTitle) hotkeysSectionTitle.textContent = hotkeysText('section');
-  if (hotkeysHint) hotkeysHint.textContent = hotkeysText('hint');
-  if (hotkeyMuteMicTitle) hotkeyMuteMicTitle.textContent = hotkeysText('muteMicTitle');
-  if (hotkeyMuteMicDesc) hotkeyMuteMicDesc.textContent = hotkeysText('muteMicDesc');
-  if (hotkeyMuteMicSetBtn) hotkeyMuteMicSetBtn.textContent = hotkeysText('set');
-  if (hotkeyMuteMicClearBtn) hotkeyMuteMicClearBtn.textContent = hotkeysText('clear');
-  if (hotkeyMuteSoundTitle) hotkeyMuteSoundTitle.textContent = hotkeysText('muteSoundTitle');
-  if (hotkeyMuteSoundDesc) hotkeyMuteSoundDesc.textContent = hotkeysText('muteSoundDesc');
-  if (hotkeyMuteSoundSetBtn) hotkeyMuteSoundSetBtn.textContent = hotkeysText('set');
-  if (hotkeyMuteSoundClearBtn) hotkeyMuteSoundClearBtn.textContent = hotkeysText('clear');
-  if (hotkeyHangupTitle) hotkeyHangupTitle.textContent = hotkeysText('hangupTitle');
-  if (hotkeyHangupDesc) hotkeyHangupDesc.textContent = hotkeysText('hangupDesc');
-  if (hotkeyHangupSetBtn) hotkeyHangupSetBtn.textContent = hotkeysText('set');
-  if (hotkeyHangupClearBtn) hotkeyHangupClearBtn.textContent = hotkeysText('clear');
-  updateHotkeyInputs();
   if (appearanceTitle) appearanceTitle.textContent = appearanceText('appearance');
   if (accentColorLabel) accentColorLabel.textContent = appearanceText('accent');
   if (compactModeLabel) compactModeLabel.textContent = appearanceText('compact');
@@ -2137,13 +1960,12 @@ function setProfileModalMode(mode) {
   appearanceSection?.classList.toggle('hidden', !isSelfMode);
   wallpaperSection?.classList.toggle('hidden', !isSelfMode);
   settingsTabCustomizationBtn?.classList.toggle('hidden', !isSelfMode);
-  settingsTabHotkeysBtn?.classList.toggle('hidden', !isSelfMode);
   profileNicknameInput.readOnly = !isSelfMode;
   profileNicknameInput.disabled = !isSelfMode;
   if (profileBioInput) { profileBioInput.readOnly = !isSelfMode; profileBioInput.disabled = !isSelfMode; }
   profileSettingsTitle.textContent = isSelfMode ? t('profileSettings') : t('profileViewTitle');
   profileNameLabel.textContent = t('displayName');
-  if (!isSelfMode && ['customization','hotkeys'].includes(activeSettingsTab)) setSettingsTab('profile');
+  if (!isSelfMode && activeSettingsTab === 'customization') setSettingsTab('profile');
 }
 
 function openProfileModal() {
@@ -2192,7 +2014,7 @@ function openUserProfileModal(userLogin, fetchFresh = true) {
   }
 }
 
-function closeProfileModal() { viewedProfile = null; stopHotkeyCapture(); profileModalOverlay.style.display = 'none'; }
+function closeProfileModal() { viewedProfile = null; profileModalOverlay.style.display = 'none'; }
 function applyProfileUpdateLocal(user) {
   if (!user || !user.login) return;
   friends = friends.map(f => {
@@ -3922,16 +3744,7 @@ profileCancelBtn.onclick = closeProfileModal;
 profileModalCloseBtn.onclick = closeProfileModal;
 settingsTabProfileBtn?.addEventListener('click', () => setSettingsTab('profile'));
 settingsTabCustomizationBtn?.addEventListener('click', () => setSettingsTab('customization'));
-settingsTabHotkeysBtn?.addEventListener('click', () => setSettingsTab('hotkeys'));
-hotkeyMuteMicSetBtn?.addEventListener('click', () => startHotkeyCapture('muteMic'));
-hotkeyMuteMicClearBtn?.addEventListener('click', () => setCallHotkey('muteMic', ''));
-hotkeyMuteSoundSetBtn?.addEventListener('click', () => startHotkeyCapture('muteSound'));
-hotkeyMuteSoundClearBtn?.addEventListener('click', () => setCallHotkey('muteSound', ''));
-hotkeyHangupSetBtn?.addEventListener('click', () => startHotkeyCapture('hangup'));
-hotkeyHangupClearBtn?.addEventListener('click', () => setCallHotkey('hangup', ''));
 document.addEventListener('keydown', e => {
-  if (handleCallHotkey(e)) return;
-  if (e.key === 'Escape' && hotkeyCaptureAction) { e.preventDefault(); stopHotkeyCapture(); return; }
   if (e.key === 'Escape' && profileModalOverlay?.style.display === 'flex') closeProfileModal();
 });
 profileModalOverlay.addEventListener('click', e => { if (e.target === profileModalOverlay) closeProfileModal(); });
