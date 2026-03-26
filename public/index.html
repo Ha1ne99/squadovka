@@ -1521,7 +1521,7 @@ body[data-theme='midnight'] { --bg:#101217; --bg2:#0b0d12; }
               <div class="profileHint">При входе на почту будет отправлен код подтверждения.</div>
               <div id="sec2faStatus" style="margin-top:12px;"></div>
 
-              <div id="sec2faSetupBlock" style="display:none;margin-top:12px;">
+              <div id="sec2faSetupBlock" style="margin-top:12px;">
                 <label class="profileFieldLabel" for="sec2faEmail">Email для кодов</label>
                 <input id="sec2faEmail" class="profileInput" type="email" placeholder="your@email.com">
                 <button id="sec2faSendCodeBtn" class="profileActionBtn" style="margin-top:10px;">Отправить код</button>
@@ -2489,21 +2489,14 @@ function renderSecurityInfo(info) {
       <button id="sec2faDisableBtn" class="profileActionBtn" style="margin-left:auto;flex-shrink:0;background:rgba(185,49,57,.18);border-color:rgba(185,49,57,.4);color:#ed4245;">Отключить</button>
     </div>`;
     if (sec2faSetupBlock) sec2faSetupBlock.style.display = 'none';
+    if (sec2faVerifyBlock) sec2faVerifyBlock.style.display = 'none';
     document.getElementById('sec2faDisableBtn')?.addEventListener('click', () => {
       if (!ws || ws.readyState !== WebSocket.OPEN) return;
       ws.send(JSON.stringify({ type: 'disable_2fa' }));
     });
   } else {
-    sec2faStatus.innerHTML = `<div style="display:flex;align-items:center;gap:10px;padding:12px 14px;background:rgba(255,255,255,.04);border:1px solid var(--line);border-radius:12px;">
-      <span style="font-size:20px;">🔓</span>
-      <div style="font-size:13px;color:var(--muted);">Двухэтапная аутентификация отключена</div>
-      <button id="sec2faEnableBtn" class="profileActionBtn primary" style="margin-left:auto;flex-shrink:0;">Включить</button>
-    </div>`;
-    document.getElementById('sec2faEnableBtn')?.addEventListener('click', () => {
-      if (sec2faSetupBlock) sec2faSetupBlock.style.display = 'block';
-      if (sec2faVerifyBlock) sec2faVerifyBlock.style.display = 'none';
-      if (sec2faMsg) sec2faMsg.textContent = '';
-    });
+    sec2faStatus.innerHTML = `<div style="padding:10px 14px;background:rgba(255,255,255,.04);border:1px solid var(--line);border-radius:12px;color:var(--muted);font-size:13px;">🔓 Двухэтапная аутентификация отключена. Введите email ниже и нажмите «Отправить код».</div>`;
+    if (sec2faSetupBlock) sec2faSetupBlock.style.display = 'block';
   }
 }
 function applyProfileUpdateLocal(user) {
