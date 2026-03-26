@@ -1029,7 +1029,7 @@ wss.on('connection', (ws, req) => {
         const secRow = await pool.query(`SELECT totp_secret FROM user_security WHERE login = $1`, [loginVal]);
         const secret = secRow.rows[0]?.totp_secret;
         if (!secret) { pending2FA.delete(loginVal); send(ws, { type: 'error', message: 'Ошибка 2FA.' }); return; }
-        const valid = speakeasy.totp.verify({ secret, encoding: 'base32', token, window: 1 });
+        const valid = speakeasy.totp.verify({ secret, encoding: 'base32', token, window: 2 });
         if (!valid) { send(ws, { type: 'error', message: 'Неверный код. Попробуй ещё раз.' }); return; }
         pending2FA.delete(loginVal);
         userLogin = pending.userData.login;
@@ -1151,13 +1151,13 @@ wss.on('connection', (ws, req) => {
       }
 
       if (data.type === 'totp_setup_verify') {
-        const token = typeof data.code === 'string' ? data.code.trim() : '';
+        const token = typeof data.code === 'string' ? data.code.replace(/\s/g, '').trim() : '';
         if (!token) return;
         const row = await pool.query(`SELECT totp_secret FROM user_security WHERE login = $1`, [userLogin]);
         const secret = row.rows[0]?.totp_secret;
         if (!secret) { send(ws, { type: 'security_error', message: 'Сначала запросите QR-код.' }); return; }
-        const valid = speakeasy.totp.verify({ secret, encoding: 'base32', token, window: 1 });
-        if (!valid) { send(ws, { type: 'security_error', message: 'Неверный код. Попробуй ещё раз.' }); return; }
+        const valid = speakeasy.totp.verify({ secret, encoding: 'base32', token, window: 2 });
+        if (!valid) { send(ws, { type: 'security_error', message: 'Неверный код. Убедись что время на устройстве точное и попробуй ещё раз.' }); return; }
         await pool.query(`UPDATE user_security SET twofa_enabled = TRUE WHERE login = $1`, [userLogin]);
         send(ws, { type: 'security_ok', action: '2fa_enabled' });
         return;

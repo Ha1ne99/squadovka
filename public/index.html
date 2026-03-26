@@ -2493,8 +2493,12 @@ function renderSecurityInfo(info) {
       <button id="sec2faDisableBtn" class="profileActionBtn" style="flex-shrink:0;background:rgba(185,49,57,.18);border-color:rgba(185,49,57,.4);color:#ed4245;">Отключить</button>
     </div>`;
     if (sec2faSetupBlock) sec2faSetupBlock.style.display = 'none';
+    if (sec2faVerifyBlock) sec2faVerifyBlock.style.display = 'none';
+    if (sec2faQrWrap) sec2faQrWrap.style.display = 'none';
+    if (sec2faMsg) sec2faMsg.textContent = '';
     document.getElementById('sec2faDisableBtn')?.addEventListener('click', () => {
       if (!ws || ws.readyState !== WebSocket.OPEN) return;
+      if (!confirm('Отключить двухэтапную аутентификацию?')) return;
       ws.send(JSON.stringify({ type: 'disable_2fa' }));
     });
   } else {
@@ -2502,6 +2506,7 @@ function renderSecurityInfo(info) {
     if (sec2faSetupBlock) sec2faSetupBlock.style.display = 'block';
     if (sec2faQrWrap) sec2faQrWrap.style.display = 'none';
     if (sec2faVerifyBlock) sec2faVerifyBlock.style.display = 'none';
+    if (sec2faCodeInput) sec2faCodeInput.value = '';
   }
 }
 function applyProfileUpdateLocal(user) {
@@ -3710,20 +3715,19 @@ function handle(d) {
       if (secNewPassword) secNewPassword.value = '';
       if (secNewPassword2) secNewPassword2.value = '';
     } else if (d.action === '2fa_enabled') {
-      if (sec2faMsg) { sec2faMsg.style.color = '#2ecf8f'; sec2faMsg.textContent = '✅ Двухэтапная аутентификация включена'; }
-      if (sec2faVerifyBlock) sec2faVerifyBlock.style.display = 'none';
-      if (sec2faSetupBlock) sec2faSetupBlock.style.display = 'none';
       if (sec2faCodeInput) sec2faCodeInput.value = '';
+      if (sec2faMsg) { sec2faMsg.style.color = '#2ecf8f'; sec2faMsg.textContent = ''; }
+      // Reload security info — will hide setup block and show "enabled" status
       loadSecurityInfo();
     } else if (d.action === '2fa_disabled') {
-      if (sec2faMsg) { sec2faMsg.style.color = '#2ecf8f'; sec2faMsg.textContent = ''; }
+      if (sec2faMsg) sec2faMsg.textContent = '';
       loadSecurityInfo();
     }
     return;
   }
   if (d.type === 'security_error') {
     if (sec2faMsg) { sec2faMsg.style.color = '#ed4245'; sec2faMsg.textContent = d.message; }
-    if (secPasswordMsg && d.message?.includes('пароль')) { secPasswordMsg.style.color = '#ed4245'; secPasswordMsg.textContent = d.message; }
+    if (secPasswordMsg && (d.message?.includes('пароль') || d.message?.includes('Пароль'))) { secPasswordMsg.style.color = '#ed4245'; secPasswordMsg.textContent = d.message; }
     return;
   }
   if (d.type === 'totp_setup_qr') {
