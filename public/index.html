@@ -1347,10 +1347,6 @@ body[data-theme='midnight'] { --bg:#101217; --bg2:#0b0d12; }
     <div id="friends" class="emptyText">Список друзей пуст</div>
   </div>
 
-  <div class="friendSection">
-    <h3>Мои группы</h3>
-    <div id="groupsPanelList" style="display:none;"></div>
-  </div>
 </div>
 
 
@@ -4659,11 +4655,27 @@ function renderOnline() {
     if (item.kind === 'group') {
       div.className = 'user groupUser' + (currentChatType === 'group' && Number(currentGroupId) === Number(item.id) ? ' active' : '');
       div.dataset.groupId = item.id;
-      div.appendChild(createAvatar({ letter:(item.name || 'G')[0]?.toUpperCase() || 'G', color:'#5865f2' }, 'online', false));
+      const gAvatar = getGroupAvatar(item.id);
+      const avEl = document.createElement('div');
+      avEl.className = 'avatar';
+      if (gAvatar) { avEl.style.backgroundImage = `url(${gAvatar})`; avEl.style.backgroundSize = 'cover'; avEl.style.backgroundPosition = 'center'; avEl.style.backgroundColor = '#2a2f3a'; }
+      else { avEl.textContent = (item.name || 'G')[0]?.toUpperCase() || 'G'; avEl.style.background = '#5865f2'; }
+      div.appendChild(avEl);
       const info = document.createElement('div');
       info.className = 'userInfo';
       info.innerHTML = `<div class="userName">${escapeHtml(item.name || ('Group ' + item.id))}</div><div class="userSub">${escapeHtml(t('groupLabel'))} · ${escapeHtml(String((item.members || []).length))}</div>`;
       div.appendChild(info);
+
+      const actions = document.createElement('div');
+      actions.className = 'userActions';
+      const trigger = document.createElement('button');
+      trigger.type = 'button';
+      trigger.className = 'userMenuTrigger';
+      trigger.textContent = '⋯';
+      trigger.title = 'Настройки группы';
+      trigger.onclick = e => { e.stopPropagation(); openGroupMenu(item.id, trigger); };
+      actions.appendChild(trigger);
+      div.appendChild(actions);
       div.onclick = () => openGroup(item.id);
     } else {
       const isMenuOpen = openDmListMenuLogin === item.login;
