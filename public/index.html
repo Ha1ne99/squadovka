@@ -1201,6 +1201,20 @@ body[data-theme='midnight'] { --bg:#101217; --bg2:#0b0d12; }
 #callVolumeSlider { width:100%; accent-color:#6b7cff; }
 .user.groupUser .userSub { color:#b4bdd1; }
 .user.groupUser .avatar { background:#5865f2 !important; }
+/* Emoji picker */
+.epTab:hover { background:rgba(255,255,255,.05); }
+.epCatBtn { background:none;border:none;font-size:18px;padding:4px 6px;border-radius:8px;cursor:pointer;opacity:.55;transition:opacity .15s,background .15s; }
+.epCatBtn:hover,.epCatBtn.active { opacity:1;background:rgba(255,255,255,.08); }
+.epEmoji { font-size:24px;padding:4px;border-radius:8px;cursor:pointer;transition:background .12s;display:inline-block;line-height:1.3; }
+.epEmoji:hover { background:rgba(255,255,255,.1); }
+.epCatLabel { font-size:11px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin:8px 0 4px; }
+.epGifGrid { display:grid;grid-template-columns:1fr 1fr;gap:6px; }
+.epGifItem { border-radius:10px;overflow:hidden;cursor:pointer;aspect-ratio:16/9;background:#0f131a; }
+.epGifItem img { width:100%;height:100%;object-fit:cover;display:block; }
+.epGifItem:hover { opacity:.8; }
+.epStickerGrid { display:grid;grid-template-columns:repeat(4,1fr);gap:8px; }
+.epStickerItem { font-size:40px;text-align:center;padding:8px;border-radius:12px;cursor:pointer;transition:background .12s; }
+.epStickerItem:hover { background:rgba(255,255,255,.08); }
 
 
 </style>
@@ -1311,6 +1325,11 @@ body[data-theme='midnight'] { --bg:#101217; --bg2:#0b0d12; }
     <div id="input">
       <input type="file" id="chatFileInput" hidden>
       <button id="attachBtn" title="Файл">📎</button>
+      <button id="voiceBtn" title="Голосовое сообщение">🎤</button>
+      <button id="emojiPickerBtn" title="Эмодзи, стикеры, гифки" style="font-size:18px;">😊</button>
+      <input id="text" placeholder="Сообщение...">
+      <button id="sendBtn" title="Отправить">▶</button>
+    </div>
       <button id="voiceBtn" title="Голосовое сообщение">🎤</button>
       <input id="text" placeholder="Сообщение...">
       <button id="sendBtn" title="Отправить">▶</button>
@@ -1602,6 +1621,20 @@ body[data-theme='midnight'] { --bg:#101217; --bg2:#0b0d12; }
   </div>
 </div>
 
+<!-- EMOJI / STICKER / GIF PICKER -->
+<div id="emojiPickerPanel" style="display:none;position:fixed;z-index:7500;width:380px;height:440px;flex-direction:column;overflow:hidden;background:linear-gradient(180deg,rgba(20,24,33,.99),rgba(13,17,25,.99));border:1px solid rgba(255,255,255,.1);border-radius:18px;box-shadow:0 16px 50px rgba(0,0,0,.6);">
+  <div id="epTabs" style="display:flex;border-bottom:1px solid rgba(255,255,255,.08);flex-shrink:0;">
+    <button class="epTab active" data-tab="emoji" style="flex:1;padding:12px 0;background:none;border:none;border-bottom:2px solid var(--accent);color:#fff;font-size:13px;font-weight:700;cursor:pointer;">Эмодзи</button>
+    <button class="epTab" data-tab="sticker" style="flex:1;padding:12px 0;background:none;border:none;border-bottom:2px solid transparent;color:var(--muted);font-size:13px;font-weight:700;cursor:pointer;">Стикеры</button>
+    <button class="epTab" data-tab="gif" style="flex:1;padding:12px 0;background:none;border:none;border-bottom:2px solid transparent;color:var(--muted);font-size:13px;font-weight:700;cursor:pointer;">Гифки</button>
+  </div>
+  <div style="padding:8px 10px;flex-shrink:0;">
+    <input id="epSearch" placeholder="Поиск..." style="width:100%;padding:8px 12px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:10px;color:#fff;font-size:13px;outline:none;box-sizing:border-box;">
+  </div>
+  <div id="epCatBar" style="display:flex;gap:4px;padding:0 10px 6px;flex-shrink:0;overflow-x:auto;scrollbar-width:none;"></div>
+  <div id="epContent" style="flex:1;overflow-y:auto;padding:6px 10px;scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.15) transparent;"></div>
+</div>
+
 <div id="callOverlay">
   <div id="callModal">
     <div class="callTop">
@@ -1763,6 +1796,11 @@ const text = document.getElementById('text');
 const sendBtn = document.getElementById('sendBtn');
 const attachBtn = document.getElementById('attachBtn');
 const voiceBtn = document.getElementById('voiceBtn');
+const emojiPickerBtn = document.getElementById('emojiPickerBtn');
+const emojiPickerPanel = document.getElementById('emojiPickerPanel');
+const epSearch = document.getElementById('epSearch');
+const epContent = document.getElementById('epContent');
+const epCatBar = document.getElementById('epCatBar');
 const chatFileInput = document.getElementById('chatFileInput');
 const attachmentPreview = document.getElementById('attachmentPreview');
 const replyPreview = document.getElementById('replyPreview');
@@ -4267,6 +4305,170 @@ async function stopVoiceRecording() {
     recorder.stop();
   });
 }
+
+// ── EMOJI / STICKER / GIF PICKER ─────────────────────────────────────────────
+const EP_CATS = [
+  { icon:'😀', label:'Люди', list:['😀','😃','😄','😁','😆','😅','🤣','😂','🙂','🙃','😉','😊','😇','🥰','😍','🤩','😘','😗','😚','😙','🥲','😋','😛','😜','🤪','😝','🤑','🤗','🤭','🤫','🤔','🤐','🤨','😐','😑','😶','😏','😒','🙄','😬','🤥','😌','😔','😪','🤤','😴','😷','🤒','🤕','🤢','🤮','🤧','🥵','🥶','🥴','😵','🤯','🤠','🥳','🥸','😎','🤓','🧐','😕','😟','🙁','☹','😮','😯','😲','😳','🥺','😦','😧','😨','😰','😥','😢','😭','😱','😖','😣','😞','😓','😩','😫','🥱','😤','😡','😠','🤬','😈','👿','💀','💩','🤡','👹','👺','👻','👽','👾','🤖'] },
+  { icon:'👋', label:'Жесты', list:['👋','🤚','🖐','✋','🖖','👌','🤌','🤏','✌','🤞','🤟','🤘','🤙','👈','👉','👆','👇','☝','👍','👎','✊','👊','🤛','🤜','👏','🙌','👐','🤲','🤝','🙏','💪','👀','👅','👄','💋','👂','👃'] },
+  { icon:'🐶', label:'Животные', list:['🐶','🐱','🐭','🐹','🐰','🦊','🐻','🐼','🐨','🐯','🦁','🐮','🐷','🐸','🐵','🙈','🙉','🙊','🐔','🐧','🐦','🐤','🦆','🦅','🦉','🦇','🐺','🐗','🐴','🦄','🐝','🐛','🦋','🐌','🐞','🐜','🐢','🐍','🦎','🐙','🦑','🦐','🦀','🐡','🐠','🐟','🐬','🐳','🐋','🦈','🐊','🐅','🐆','🦓','🐘','🦛','🦏','🐪','🐫','🦒','🦘','🐃','🐂','🐄','🐎','🐖','🐏','🐑','🦙','🐐','🦌','🐕','🐩','🐈','🐓','🦃','🦚','🦜','🦢','🦩','🕊','🐇','🦝','🦨','🦡','🦦','🦥','🐁','🐀','🐿','🦔'] },
+  { icon:'🍎', label:'Еда', list:['🍎','🍐','🍊','🍋','🍌','🍉','🍇','🍓','🫐','🍈','🍒','🍑','🥭','🍍','🥥','🥝','🍅','🍆','🥑','🥦','🥬','🥒','🌶','🧄','🧅','🥔','🍠','🥐','🥯','🍞','🥖','🥨','🧀','🥚','🍳','🧈','🥞','🧇','🥓','🥩','🍗','🍖','🌭','🍔','🍟','🍕','🥪','🥙','🧆','🌮','🌯','🥗','🥘','🍝','🍜','🍲','🍛','🍣','🍱','🥟','🍤','🍙','🍚','🍘','🍥','🥮','🍢','🧁','🍰','🎂','🍮','🍭','🍬','🍫','🍿','🍩','🍪','🌰','🥜','🍯','🧃','🥤','🧋','☕','🍵','🍺','🍻','🥂','🍷','🥃','🍸','🍹','🍾'] },
+  { icon:'⚽', label:'Спорт', list:['⚽','🏀','🏈','⚾','🥎','🎾','🏐','🏉','🥏','🎱','🏓','🏸','🏒','🏑','🥍','🏏','🥅','⛳','🥊','🥋','🎽','🛹','🛷','⛸','🥌','🎿','⛷','🏂','🏋','🤼','🤸','⛹','🤺','🏇','🧘','🏄','🏊','🤽','🚣','🧗','🚵','🚴','🏆','🥇','🥈','🥉','🏅','🎖','🎫','🎟','🎪','🤹','🎭','🎨','🎬','🎤','🎧','🎼','🎹','🥁','🎷','🎺','🎸','🎻','🎲','🎯','🎳','🎮','🎰','🧩'] },
+  { icon:'🚗', label:'Транспорт', list:['🚗','🚕','🚙','🚌','🚎','🏎','🚓','🚑','🚒','🚐','🛻','🚚','🚛','🚜','🏍','🛵','🚲','🛴','🛹','⛽','🚨','🚥','🚦','🛑','🚧','⚓','⛵','🚤','🛥','🛳','⛴','🚢','✈','🛩','🛫','🛬','💺','🚁','🚀','🛸','🌍','🌎','🌏','🗺','🏔','⛰','🌋','🗻','🏕','🏖','🏜','🏝','🏞','🏟','🏛','🏗','🛖','🏘','🏚','🏠','🏡','🏢','🏣','🏤','🏥','🏦','🏨','🏩','🏪','🏫','🏬','🏭','🏯','🏰','💒','🗼','🗽','⛪','🕌','🛕','🕍','⛩','🕋'] },
+  { icon:'❤', label:'Символы', list:['❤','🧡','💛','💚','💙','💜','🖤','🤍','🤎','💔','❣','💕','💞','💓','💗','💖','💘','💝','💟','☮','✝','☪','🕉','☸','✡','🔯','🕎','☯','☦','🛐','♈','♉','♊','♋','♌','♍','♎','♏','♐','♑','♒','♓','⛎','🆔','⚛','☢','☣','📴','📳','🈶','🈚','🈸','🈺','🈷','✴','🆚','💮','🉐','㊙','㊗','🈴','🈵','🈹','🈲','🅰','🅱','🆎','🆑','🅾','🆘','❌','⭕','🛑','⛔','📛','🚫','💯','💢','♨','🚷','🚯','🚳','🚱','🔞','📵','🚭','❗','❕','❓','❔','‼','⁉','⚠','🚸','🔱','⚜','🔰','♻','✅','❇','✳','❎','💠','ℹ','🔤','🔡','🔠','🆖','🆗','🆙','🆒','🆕','🆓','🔢','#️⃣','*️⃣','▶','⏸','⏹','⏺','⏭','⏮','⏩','⏪','⏫','⏬','◀','🔼','🔽','➡','⬅','⬆','⬇','↗','↘','↙','↖','↕','↔','↪','↩','⤴','⤵','🔀','🔁','🔂','🔄','🔃','🎵','🎶','➕','➖','➗','✖','💲','💱','〰','➰','➿','✔','☑','🔘','🔴','🟠','🟡','🟢','🔵','🟣','⚫','⚪','🟤','🔺','🔻','🔷','🔶','🔹','🔸','🔲','🔳','▪','▫','◾','◽','◼','◻','🟥','🟧','🟨','🟩','🟦','🟪','⬛','⬜','🟫'] },
+];
+
+const EP_STICKERS = ['😂','🤣','😭','😩','😤','🥺','😳','🤯','😱','🤩','👀','💀','🫠','🥹','😮‍💨','🤌','💅','🫶','🙌','👏','🔥','💯','✨','🎉','🎊','🎈','🎁','🏆','🥇','⭐','❤','💔','💕','💖','💗','💘','💝','🖤','🤍','🤎','🐸','🐧','🦆','🐻','🐼','🦊','🐨','🐯','🦁','🐮','🍕','🍔','🌮','🍜','🍣','🍩','🎂','🍰','🧁','🍫'];
+
+let epActiveTab = 'emoji';
+let epActiveCat = 0;
+let epGifTimer = null;
+let epOpen = false;
+let epGiphyKey = '';
+fetch('/api/config').then(r => r.json()).then(d => { epGiphyKey = d.giphyKey || ''; }).catch(() => {});
+
+function epClose() {
+  epOpen = false;
+  if (emojiPickerPanel) emojiPickerPanel.style.display = 'none';
+}
+
+function epOpen_() {
+  if (!emojiPickerPanel) return;
+  epOpen = true;
+  emojiPickerPanel.style.display = 'flex';
+  const rect = emojiPickerBtn.getBoundingClientRect();
+  const pw = 380, ph = 440;
+  let left = rect.left;
+  let top = rect.top - ph - 8;
+  if (left + pw > window.innerWidth - 8) left = window.innerWidth - pw - 8;
+  if (left < 8) left = 8;
+  if (top < 8) top = rect.bottom + 8;
+  emojiPickerPanel.style.left = left + 'px';
+  emojiPickerPanel.style.top = top + 'px';
+  if (epSearch) epSearch.value = '';
+  epRender();
+}
+
+function epRender() {
+  if (!epContent || !epCatBar) return;
+  epCatBar.style.display = epActiveTab === 'emoji' ? 'flex' : 'none';
+  if (epActiveTab === 'emoji') {
+    epCatBar.innerHTML = '';
+    EP_CATS.forEach((cat, i) => {
+      const btn = document.createElement('button');
+      btn.className = 'epCatBtn' + (i === epActiveCat ? ' active' : '');
+      btn.textContent = cat.icon;
+      btn.title = cat.label;
+      btn.onclick = () => { epActiveCat = i; epRender(); };
+      epCatBar.appendChild(btn);
+    });
+    const q = (epSearch?.value || '').trim().toLowerCase();
+    epContent.innerHTML = '';
+    const lbl = document.createElement('div');
+    lbl.className = 'epCatLabel';
+    lbl.textContent = EP_CATS[epActiveCat].label;
+    epContent.appendChild(lbl);
+    const wrap = document.createElement('div');
+    wrap.style.cssText = 'display:flex;flex-wrap:wrap;gap:2px;';
+    const list = q ? EP_CATS.flatMap(c => c.list).filter(e => e.includes(q)) : EP_CATS[epActiveCat].list;
+    list.forEach(em => {
+      const span = document.createElement('span');
+      span.className = 'epEmoji';
+      span.textContent = em;
+      span.onclick = () => {
+        if (!text) return;
+        const s = text.selectionStart, e2 = text.selectionEnd, v = text.value;
+        text.value = v.slice(0, s) + em + v.slice(e2);
+        text.selectionStart = text.selectionEnd = s + em.length;
+        text.focus();
+      };
+      wrap.appendChild(span);
+    });
+    epContent.appendChild(wrap);
+  } else if (epActiveTab === 'sticker') {
+    epContent.innerHTML = '';
+    const grid = document.createElement('div');
+    grid.className = 'epStickerGrid';
+    EP_STICKERS.forEach(s => {
+      const div = document.createElement('div');
+      div.className = 'epStickerItem';
+      div.textContent = s;
+      div.onclick = () => {
+        if (!ws || ws.readyState !== WebSocket.OPEN) return;
+        if (!((currentChatType === 'group' && currentGroupId) || currentDM)) return;
+        if (currentChatType === 'group') ws.send(JSON.stringify({ type:'group_message', groupId:currentGroupId, text:s }));
+        else ws.send(JSON.stringify({ type:'message', to:currentDM, text:s }));
+        epClose();
+      };
+      grid.appendChild(div);
+    });
+    epContent.appendChild(grid);
+  } else {
+    const q = (epSearch?.value || '').trim() || 'funny';
+    epLoadGifs(q);
+  }
+}
+
+async function epLoadGifs(q) {
+  epContent.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:12px;">Загрузка...</div>';
+  if (!epGiphyKey) {
+    epContent.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:12px;">Добавь GIPHY_API_KEY в переменные окружения</div>';
+    return;
+  }
+  try {
+    const res = await fetch('https://api.giphy.com/v1/gifs/search?api_key=' + epGiphyKey + '&q=' + encodeURIComponent(q) + '&limit=20&rating=pg-13');
+    const data = await res.json();
+    epContent.innerHTML = '';
+    if (!data.data?.length) { epContent.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:12px;">Ничего не найдено</div>'; return; }
+    const grid = document.createElement('div');
+    grid.className = 'epGifGrid';
+    data.data.forEach(r => {
+      const url = r.images?.original?.url;
+      const preview = r.images?.fixed_height_small?.url || r.images?.downsized?.url || url;
+      if (!url) return;
+      const div = document.createElement('div');
+      div.className = 'epGifItem';
+      const img = document.createElement('img');
+      img.src = preview; img.loading = 'lazy'; img.alt = r.title || 'gif';
+      div.appendChild(img);
+      div.onclick = () => {
+        if (!ws || ws.readyState !== WebSocket.OPEN) return;
+        if (!((currentChatType === 'group' && currentGroupId) || currentDM)) return;
+        const att = { type:'image', url, name:'gif' };
+        if (currentChatType === 'group') ws.send(JSON.stringify({ type:'group_message', groupId:currentGroupId, text:'', attachment:att }));
+        else ws.send(JSON.stringify({ type:'message', to:currentDM, text:'', attachment:att }));
+        epClose();
+      };
+      grid.appendChild(div);
+    });
+    epContent.appendChild(grid);
+  } catch { epContent.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:12px;">Ошибка загрузки</div>'; }
+}
+
+document.querySelectorAll('.epTab').forEach(btn => {
+  btn.onclick = () => {
+    epActiveTab = btn.dataset.tab;
+    document.querySelectorAll('.epTab').forEach(b => { b.classList.remove('active'); b.style.color = 'var(--muted)'; b.style.borderBottomColor = 'transparent'; });
+    btn.classList.add('active'); btn.style.color = '#fff'; btn.style.borderBottomColor = 'var(--accent)';
+    if (epSearch) epSearch.value = '';
+    epRender();
+  };
+});
+
+if (epSearch) {
+  epSearch.addEventListener('input', () => {
+    if (epActiveTab === 'gif') { clearTimeout(epGifTimer); epGifTimer = setTimeout(epRender, 600); }
+    else epRender();
+  });
+}
+
+if (emojiPickerBtn) {
+  emojiPickerBtn.onclick = e => { e.stopPropagation(); if (epOpen) epClose(); else epOpen_(); };
+}
+
+document.addEventListener('click', e => {
+  if (epOpen && !e.target.closest('#emojiPickerPanel') && !e.target.closest('#emojiPickerBtn')) epClose();
+});
+// ─────────────────────────────────────────────────────────────────────────────
 
 attachBtn.onclick = () => {
   if ((currentChatType === 'group' && currentGroupId) || currentDM) chatFileInput.click();
