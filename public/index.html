@@ -511,6 +511,16 @@ button:hover { transform: translateY(-1px); }
 .groupEntryActions { display:flex; flex-wrap:wrap; gap:6px; }
 .groupEntryActions button { background:#1b2130; color:#fff; border:1px solid var(--line); border-radius:10px; padding:7px 9px; cursor:pointer; }
 .groupBadge { color:var(--muted); font-size:12px; }
+/* Group three-dot menu button */
+.groupMenuBtn { opacity:0; transition:opacity .15s; background:none !important; border:none !important; color:var(--muted) !important; font-size:18px; width:28px !important; height:28px !important; border-radius:8px !important; cursor:pointer; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+.user:hover .groupMenuBtn, .groupMenuBtn:focus { opacity:1; }
+/* Group context menu */
+.groupCtxMenu { background:linear-gradient(180deg,rgba(28,33,44,.99),rgba(18,22,32,.99)); border:1px solid rgba(255,255,255,.1); border-radius:14px; padding:6px; box-shadow:0 12px 40px rgba(0,0,0,.5); min-width:190px; }
+.groupCtxItem { display:flex; align-items:center; gap:10px; padding:9px 12px; border-radius:9px; cursor:pointer; font-size:13px; color:#dbe1f0; transition:background .12s; }
+.groupCtxItem:hover { background:rgba(255,255,255,.07); }
+.groupCtxItem.danger { color:#ed4245; }
+.groupCtxItem.danger:hover { background:rgba(237,66,69,.12); }
+.groupCtxSep { height:1px; background:rgba(255,255,255,.07); margin:4px 6px; }
 .friendMeta b, .friendMeta span { display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .friendMeta span { font-size:12px; color:var(--muted); }
 .friendEntry span { display:flex; gap:8px; }
@@ -1257,6 +1267,8 @@ body[data-theme='midnight'] { --bg:#101217; --bg2:#0b0d12; }
       <input type="file" id="avatarUploadInput" accept="image/*">
 <input type="file" id="bannerUploadInput" accept="image/*">
       <input type="file" id="dmWallpaperUploadInput" accept="image/*" hidden>
+      <input type="file" id="groupWallpaperUploadInput" accept="image/*" hidden>
+      <input type="file" id="groupAvatarUploadInput" accept="image/*" hidden>
     </div>
   </div>
 
@@ -1337,7 +1349,7 @@ body[data-theme='midnight'] { --bg:#101217; --bg2:#0b0d12; }
 
   <div class="friendSection">
     <h3>Мои группы</h3>
-    <div id="groupsPanelList" class="emptyText">Групп пока нет</div>
+    <div id="groupsPanelList" style="display:none;"></div>
   </div>
 </div>
 
@@ -1556,6 +1568,44 @@ body[data-theme='midnight'] { --bg:#101217; --bg2:#0b0d12; }
 </div>
 
 
+<!-- GROUP MENU PORTAL -->
+<div id="groupMenuPortal" style="display:none;position:fixed;z-index:8000;"></div>
+
+<!-- GROUP SETTINGS MODAL -->
+<div id="groupSettingsOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:8100;align-items:center;justify-content:center;backdrop-filter:blur(6px);">
+  <div id="groupSettingsModal" style="width:min(92vw,420px);background:linear-gradient(180deg,rgba(23,27,35,.99),rgba(12,15,22,.99));border:1px solid rgba(255,255,255,.08);border-radius:22px;padding:22px;box-shadow:0 24px 70px rgba(0,0,0,.5);">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;">
+      <b id="groupSettingsTitle" style="font-size:16px;">Настройки группы</b>
+      <button id="groupSettingsCloseBtn" style="background:none;border:none;color:var(--muted);font-size:20px;cursor:pointer;line-height:1;">×</button>
+    </div>
+    <div id="groupSettingsBody" style="display:flex;flex-direction:column;gap:12px;"></div>
+  </div>
+</div>
+
+<!-- GROUP ADD MEMBERS MODAL -->
+<div id="groupAddMembersOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:8200;align-items:center;justify-content:center;backdrop-filter:blur(6px);">
+  <div style="width:min(92vw,380px);background:linear-gradient(180deg,rgba(23,27,35,.99),rgba(12,15,22,.99));border:1px solid rgba(255,255,255,.08);border-radius:22px;padding:22px;box-shadow:0 24px 70px rgba(0,0,0,.5);">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+      <b style="font-size:15px;">Добавить участников</b>
+      <button id="groupAddMembersCloseBtn" style="background:none;border:none;color:var(--muted);font-size:20px;cursor:pointer;">×</button>
+    </div>
+    <div class="profileHint" style="margin-bottom:10px;">Введи логины через запятую</div>
+    <input id="groupAddMembersInput" class="profileInput" placeholder="login1, login2...">
+    <button id="groupAddMembersConfirmBtn" class="profileActionBtn primary" style="margin-top:12px;width:100%;">Добавить</button>
+  </div>
+</div>
+
+<!-- GROUP REMOVE MEMBER MODAL -->
+<div id="groupRemoveMemberOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:8200;align-items:center;justify-content:center;backdrop-filter:blur(6px);">
+  <div style="width:min(92vw,380px);background:linear-gradient(180deg,rgba(23,27,35,.99),rgba(12,15,22,.99));border:1px solid rgba(255,255,255,.08);border-radius:22px;padding:22px;box-shadow:0 24px 70px rgba(0,0,0,.5);">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+      <b style="font-size:15px;">Удалить участника</b>
+      <button id="groupRemoveMemberCloseBtn" style="background:none;border:none;color:var(--muted);font-size:20px;cursor:pointer;">×</button>
+    </div>
+    <div id="groupRemoveMemberList" style="display:flex;flex-direction:column;gap:8px;max-height:260px;overflow-y:auto;"></div>
+  </div>
+</div>
+
 <div id="callOverlay">
   <div id="callModal">
     <div class="callTop">
@@ -1732,6 +1782,25 @@ const groupNameInput = document.getElementById('groupNameInput');
 const groupMembersInput = document.getElementById('groupMembersInput');
 const createGroupBtn = document.getElementById('createGroupBtn');
 const groupsPanelList = document.getElementById('groupsPanelList');
+const groupMenuPortal = document.getElementById('groupMenuPortal');
+const groupSettingsOverlay = document.getElementById('groupSettingsOverlay');
+const groupSettingsModal = document.getElementById('groupSettingsModal');
+const groupSettingsTitle = document.getElementById('groupSettingsTitle');
+const groupSettingsBody = document.getElementById('groupSettingsBody');
+const groupSettingsCloseBtn = document.getElementById('groupSettingsCloseBtn');
+const groupAddMembersOverlay = document.getElementById('groupAddMembersOverlay');
+const groupAddMembersInput = document.getElementById('groupAddMembersInput');
+const groupAddMembersConfirmBtn = document.getElementById('groupAddMembersConfirmBtn');
+const groupAddMembersCloseBtn = document.getElementById('groupAddMembersCloseBtn');
+const groupRemoveMemberOverlay = document.getElementById('groupRemoveMemberOverlay');
+const groupRemoveMemberList = document.getElementById('groupRemoveMemberList');
+const groupRemoveMemberCloseBtn = document.getElementById('groupRemoveMemberCloseBtn');
+const groupWallpaperUploadInput = document.getElementById('groupWallpaperUploadInput');
+const groupAvatarUploadInput = document.getElementById('groupAvatarUploadInput');
+let activeGroupMenuId = null;
+let pendingGroupWallpaperId = null;
+let pendingGroupAvatarId = null;
+let pendingAddMembersGroupId = null;
 const avatarUploadInput = document.getElementById('avatarUploadInput');
 const bannerUploadInput = document.getElementById('bannerUploadInput');
 const dmWallpaperUploadInput = document.getElementById('dmWallpaperUploadInput');
@@ -1972,12 +2041,24 @@ function setDmWallpaper(loginValue, imageData) {
   saveDmWallpapers();
   applyChatWallpaper();
 }
+
+// Group wallpapers & avatars (stored locally)
+let groupWallpapers = (() => { try { return JSON.parse(localStorage.getItem('messenger_group_wallpapers') || '{}'); } catch { return {}; } })();
+let groupAvatars = (() => { try { return JSON.parse(localStorage.getItem('messenger_group_avatars') || '{}'); } catch { return {}; } })();
+function saveGroupWallpapers() { try { localStorage.setItem('messenger_group_wallpapers', JSON.stringify(groupWallpapers)); } catch {} }
+function saveGroupAvatars() { try { localStorage.setItem('messenger_group_avatars', JSON.stringify(groupAvatars)); } catch {} }
+function getGroupWallpaper(gid) { const v = groupWallpapers?.[String(gid)]; return typeof v === 'string' && v ? v : null; }
+function setGroupWallpaper(gid, data) { if (data) groupWallpapers[String(gid)] = data; else delete groupWallpapers[String(gid)]; saveGroupWallpapers(); applyChatWallpaper(); }
+function getGroupAvatar(gid) { const v = groupAvatars?.[String(gid)]; return typeof v === 'string' && v ? v : null; }
+function setGroupAvatar(gid, data) { if (data) groupAvatars[String(gid)] = data; else delete groupAvatars[String(gid)]; saveGroupAvatars(); renderGroups(); updateChatHeader(); }
 function applyChatWallpaper() {
   const chatEl = document.getElementById('chat');
   if (!chatEl) return;
   const dmWallpaper = currentChatType === 'dm' ? getDmWallpaper(currentDM) : null;
-  const wallpaperValue = dmWallpaper ? `url(${String(dmWallpaper).replace(/"/g, '&quot;')})` : getWallpaperValue(customization.wallpaper || 'none');
-  const opacityValue = dmWallpaper ? '.22' : (customization.wallpaper === 'none' ? '.16' : '.22');
+  const groupWallpaper = currentChatType === 'group' && currentGroupId ? getGroupWallpaper(currentGroupId) : null;
+  const customWallpaper = dmWallpaper || groupWallpaper;
+  const wallpaperValue = customWallpaper ? `url(${String(customWallpaper).replace(/"/g, '&quot;')})` : getWallpaperValue(customization.wallpaper || 'none');
+  const opacityValue = customWallpaper ? '.22' : (customization.wallpaper === 'none' ? '.16' : '.22');
   document.documentElement.style.setProperty('--chat-wallpaper', wallpaperValue);
   document.documentElement.style.setProperty('--chat-wallpaper-opacity', opacityValue);
   if (dmWallpaper) {
@@ -3513,6 +3594,8 @@ function updateChatHeader(peerLogin = null, peerNick = null, avatar = null) {
     chatAvatar.textContent = (groupName || 'G')[0]?.toUpperCase() || 'G';
     chatAvatar.style.backgroundImage = '';
     chatAvatar.style.background = '#5865f2';
+    const gAvatar = getGroupAvatar(currentGroupId);
+    if (gAvatar) { chatAvatar.textContent = ''; chatAvatar.style.backgroundImage = `url(${gAvatar})`; chatAvatar.style.backgroundColor = '#2a2f3a'; chatAvatar.style.backgroundSize = 'cover'; chatAvatar.style.backgroundPosition = 'center'; }
     // Always hide DM call button in group view
     if (callBtn) callBtn.style.display = 'none';
     // Show group call button
@@ -4388,89 +4471,162 @@ function renderFriends() {
 }
 
 
+function closeGroupMenu() {
+  if (groupMenuPortal) { groupMenuPortal.style.display = 'none'; groupMenuPortal.innerHTML = ''; }
+  activeGroupMenuId = null;
+}
+
+function openGroupMenu(groupId, anchorEl) {
+  closeGroupMenu();
+  const group = findGroupData(groupId) || { id: groupId, name: 'Group', members: [], ownerLogin: '' };
+  const isOwner = group.ownerLogin === login;
+  activeGroupMenuId = groupId;
+
+  const menu = document.createElement('div');
+  menu.className = 'groupCtxMenu';
+
+  const items = [
+    { icon: '💬', label: 'Открыть', action: () => { openGroup(groupId); closeGroupMenu(); } },
+    { sep: true },
+  ];
+  if (isOwner) {
+    items.push({ icon: '✏️', label: 'Переименовать', action: () => { closeGroupMenu(); openGroupRenameModal(groupId); } });
+    items.push({ icon: '🖼️', label: 'Аватар группы', action: () => { closeGroupMenu(); pendingGroupAvatarId = groupId; groupAvatarUploadInput?.click(); } });
+    items.push({ icon: '🖼️', label: 'Фон чата', action: () => { closeGroupMenu(); pendingGroupWallpaperId = groupId; groupWallpaperUploadInput?.click(); } });
+    items.push({ sep: true });
+    items.push({ icon: '➕', label: 'Добавить участников', action: () => { closeGroupMenu(); openGroupAddMembersModal(groupId); } });
+    items.push({ icon: '➖', label: 'Удалить участника', action: () => { closeGroupMenu(); openGroupRemoveMemberModal(groupId); } });
+    items.push({ sep: true });
+    items.push({ icon: '🗑️', label: 'Удалить группу', danger: true, action: () => { closeGroupMenu(); if (confirm('Удалить группу целиком?')) ws.send(JSON.stringify({ type: 'leave_group', groupId })); } });
+  } else {
+    items.push({ icon: '🖼️', label: 'Фон чата', action: () => { closeGroupMenu(); pendingGroupWallpaperId = groupId; groupWallpaperUploadInput?.click(); } });
+    items.push({ sep: true });
+    items.push({ icon: '🚪', label: 'Выйти из группы', danger: true, action: () => { closeGroupMenu(); if (confirm('Выйти из группы?')) ws.send(JSON.stringify({ type: 'leave_group', groupId })); } });
+  }
+
+  for (const item of items) {
+    if (item.sep) { const sep = document.createElement('div'); sep.className = 'groupCtxSep'; menu.appendChild(sep); continue; }
+    const el = document.createElement('div');
+    el.className = 'groupCtxItem' + (item.danger ? ' danger' : '');
+    el.innerHTML = `<span style="font-size:15px;">${item.icon}</span><span>${item.label}</span>`;
+    el.onclick = item.action;
+    menu.appendChild(el);
+  }
+
+  groupMenuPortal.appendChild(menu);
+  groupMenuPortal.style.display = 'block';
+
+  // Position near anchor
+  const rect = anchorEl.getBoundingClientRect();
+  const menuW = 200, menuH = items.length * 38;
+  let left = rect.right - menuW;
+  let top = rect.bottom + 4;
+  if (left < 8) left = 8;
+  if (top + menuH > window.innerHeight - 8) top = rect.top - menuH - 4;
+  groupMenuPortal.style.left = left + 'px';
+  groupMenuPortal.style.top = top + 'px';
+}
+
+function openGroupRenameModal(groupId) {
+  const group = findGroupData(groupId) || {};
+  if (groupSettingsOverlay) groupSettingsOverlay.style.display = 'flex';
+  if (groupSettingsTitle) groupSettingsTitle.textContent = 'Переименовать группу';
+  if (groupSettingsBody) {
+    groupSettingsBody.innerHTML = '';
+    const label = document.createElement('div');
+    label.className = 'profileFieldLabel';
+    label.textContent = 'Название группы';
+    const input = document.createElement('input');
+    input.className = 'profileInput';
+    input.value = group.name || '';
+    input.style.marginTop = '6px';
+    const btn = document.createElement('button');
+    btn.className = 'profileActionBtn primary';
+    btn.textContent = 'Сохранить';
+    btn.style.marginTop = '12px';
+    btn.onclick = () => {
+      const name = input.value.trim();
+      if (!name) return;
+      ws.send(JSON.stringify({ type: 'update_group', groupId, name }));
+      groupSettingsOverlay.style.display = 'none';
+    };
+    groupSettingsBody.appendChild(label);
+    groupSettingsBody.appendChild(input);
+    groupSettingsBody.appendChild(btn);
+    input.focus();
+    input.addEventListener('keydown', e => { if (e.key === 'Enter') btn.click(); });
+  }
+}
+
+function openGroupAddMembersModal(groupId) {
+  pendingAddMembersGroupId = groupId;
+  if (groupAddMembersOverlay) groupAddMembersOverlay.style.display = 'flex';
+  if (groupAddMembersInput) { groupAddMembersInput.value = ''; groupAddMembersInput.focus(); }
+}
+
+function openGroupRemoveMemberModal(groupId) {
+  const group = findGroupData(groupId) || {};
+  const members = (group.members || []).filter(m => m.login !== login);
+  if (groupRemoveMemberOverlay) groupRemoveMemberOverlay.style.display = 'flex';
+  if (groupRemoveMemberList) {
+    groupRemoveMemberList.innerHTML = '';
+    if (!members.length) { groupRemoveMemberList.innerHTML = '<div style="color:var(--muted);font-size:13px;">Нет участников для удаления</div>'; return; }
+    for (const m of members) {
+      const row = document.createElement('div');
+      row.style.cssText = 'display:flex;align-items:center;gap:10px;padding:8px 10px;background:rgba(255,255,255,.04);border-radius:10px;';
+      row.innerHTML = `<div style="flex:1;font-size:13px;">${escapeHtml(m.nickname || m.login)}<span style="color:var(--muted);font-size:11px;margin-left:6px;">@${escapeHtml(m.login)}</span></div>`;
+      const btn = document.createElement('button');
+      btn.className = 'profileActionBtn';
+      btn.style.cssText = 'flex-shrink:0;background:rgba(185,49,57,.18);border-color:rgba(185,49,57,.4);color:#ed4245;padding:6px 10px;font-size:12px;';
+      btn.textContent = 'Удалить';
+      btn.onclick = () => {
+        ws.send(JSON.stringify({ type: 'remove_group_member', groupId, userLogin: m.login }));
+        row.remove();
+      };
+      row.appendChild(btn);
+      groupRemoveMemberList.appendChild(row);
+    }
+  }
+}
+
 function renderGroups() {
   if (groupsSidebar) groupsSidebar.innerHTML = '';
-  if (groupsPanelList) groupsPanelList.innerHTML = '';
   const list = Array.isArray(groups) ? groups : [];
   if (!list.length) {
     if (groupsSidebar) groupsSidebar.innerHTML = '<div class="emptyText">Нет групп</div>';
-    if (groupsPanelList) groupsPanelList.textContent = 'Групп пока нет';
     return;
   }
 
   list.forEach(group => {
-    if (groupsSidebar) {
-      const div = document.createElement('div');
-      div.className = 'user' + (currentChatType === 'group' && Number(currentGroupId) === Number(group.id) ? ' active' : '');
-      div.appendChild(createAvatar({ letter:(group.name || 'G')[0]?.toUpperCase() || 'G', color:'#5865f2' }, 'online', false));
-      const info = document.createElement('div');
-      info.className = 'userInfo';
-      info.innerHTML = `<div class="userName">${escapeHtml(group.name || ('Group ' + group.id))}</div><div class="userSub">${escapeHtml(String((group.members || []).length))} участ.</div>`;
-      div.appendChild(info);
-      div.onclick = () => openGroup(group.id);
-      groupsSidebar.appendChild(div);
-    }
+    if (!groupsSidebar) return;
+    const div = document.createElement('div');
+    div.className = 'user' + (currentChatType === 'group' && Number(currentGroupId) === Number(group.id) ? ' active' : '');
+    div.style.cssText = 'display:flex;align-items:center;gap:0;padding-right:4px;';
 
-    if (groupsPanelList) {
-      const row = document.createElement('div');
-      row.className = 'friendEntry';
-      const main = document.createElement('div');
-      main.className = 'friendMain';
-      main.appendChild(createAvatar({ letter:(group.name || 'G')[0]?.toUpperCase() || 'G', color:'#5865f2' }, 'online', false));
-      const meta = document.createElement('div');
-      meta.className = 'friendMeta';
-      meta.innerHTML = `<b>${escapeHtml(group.name || ('Group ' + group.id))}</b><span>${escapeHtml(String((group.members || []).length))} участ.</span>`;
-      main.appendChild(meta);
-      main.onclick = () => openGroup(group.id);
-      row.appendChild(main);
-      const actions = document.createElement('div');
-      actions.className = 'groupEntryActions';
+    // Avatar
+    const gAvatar = getGroupAvatar(group.id);
+    const avEl = document.createElement('div');
+    avEl.className = 'avatar';
+    avEl.style.cssText = 'width:38px;height:38px;font-size:15px;flex-shrink:0;background:#5865f2;border-radius:50%;display:flex;align-items:center;justify-content:center;';
+    if (gAvatar) { avEl.style.backgroundImage = `url(${gAvatar})`; avEl.style.backgroundSize = 'cover'; avEl.style.backgroundPosition = 'center'; avEl.style.backgroundColor = '#2a2f3a'; }
+    else avEl.textContent = (group.name || 'G')[0]?.toUpperCase() || 'G';
 
-      const openBtn = document.createElement('button');
-      openBtn.textContent = 'Открыть';
-      openBtn.onclick = () => openGroup(group.id);
-      actions.appendChild(openBtn);
+    const info = document.createElement('div');
+    info.className = 'userInfo';
+    info.style.flex = '1';
+    info.innerHTML = `<div class="userName">${escapeHtml(group.name || ('Group ' + group.id))}</div><div class="userSub">${escapeHtml(String((group.members || []).length))} участ.</div>`;
 
-      const groupData = findGroupData(group.id) || group;
-      const isOwner = groupData.ownerLogin === login;
-      if (isOwner) {
-        const renameBtn = document.createElement('button');
-        renameBtn.textContent = 'Настроить';
-        renameBtn.onclick = () => {
-          const newName = prompt('Название группы', groupData.name || '');
-          if (newName && newName.trim()) ws.send(JSON.stringify({ type:'update_group', groupId:group.id, name:newName.trim() }));
-        };
-        actions.appendChild(renameBtn);
+    const menuBtn = document.createElement('button');
+    menuBtn.className = 'groupMenuBtn';
+    menuBtn.title = 'Настройки группы';
+    menuBtn.innerHTML = '⋯';
+    menuBtn.onclick = e => { e.stopPropagation(); openGroupMenu(group.id, menuBtn); };
 
-        const addBtn = document.createElement('button');
-        addBtn.textContent = 'Добавить';
-        addBtn.onclick = () => {
-          const val = prompt('Логины через запятую');
-          const members = (val || '').split(',').map(v => v.trim()).filter(Boolean);
-          if (members.length) ws.send(JSON.stringify({ type:'add_group_members', groupId:group.id, members }));
-        };
-        actions.appendChild(addBtn);
-
-        const removeBtn = document.createElement('button');
-        removeBtn.textContent = 'Удалить участника';
-        removeBtn.onclick = () => {
-          const current = findGroupData(group.id) || group;
-          const names = (current.members || []).filter(m => m.login !== login).map(m => m.login).join(', ');
-          const target = prompt(`Кого удалить? Доступно: ${names}`);
-          if (target && target.trim()) ws.send(JSON.stringify({ type:'remove_group_member', groupId:group.id, userLogin:target.trim() }));
-        };
-        actions.appendChild(removeBtn);
-      }
-
-      const leaveBtn = document.createElement('button');
-      leaveBtn.textContent = isOwner ? 'Удалить группу' : 'Выйти';
-      leaveBtn.onclick = () => {
-        if (confirm(isOwner ? 'Удалить группу целиком?' : 'Выйти из группы?')) ws.send(JSON.stringify({ type:'leave_group', groupId:group.id }));
-      };
-      actions.appendChild(leaveBtn);
-      row.appendChild(actions);
-      groupsPanelList.appendChild(row);
-    }
+    div.appendChild(avEl);
+    div.appendChild(info);
+    div.appendChild(menuBtn);
+    div.onclick = () => openGroup(group.id);
+    groupsSidebar.appendChild(div);
   });
 }
 
@@ -4661,8 +4817,52 @@ dmWallpaperUploadInput.onchange = () => {
   dmWallpaperUploadInput.value = '';
 };
 
+if (groupWallpaperUploadInput) {
+  groupWallpaperUploadInput.onchange = () => {
+    const file = groupWallpaperUploadInput.files?.[0];
+    const gid = pendingGroupWallpaperId;
+    pendingGroupWallpaperId = null;
+    if (!file || !gid) { groupWallpaperUploadInput.value = ''; return; }
+    const reader = new FileReader();
+    reader.onload = () => { setGroupWallpaper(gid, reader.result); };
+    reader.readAsDataURL(file);
+    groupWallpaperUploadInput.value = '';
+  };
+}
+
+if (groupAvatarUploadInput) {
+  groupAvatarUploadInput.onchange = () => {
+    const file = groupAvatarUploadInput.files?.[0];
+    const gid = pendingGroupAvatarId;
+    pendingGroupAvatarId = null;
+    if (!file || !gid) { groupAvatarUploadInput.value = ''; return; }
+    const reader = new FileReader();
+    reader.onload = () => { setGroupAvatar(gid, reader.result); };
+    reader.readAsDataURL(file);
+    groupAvatarUploadInput.value = '';
+  };
+}
+
+// Group modals
+groupSettingsCloseBtn?.addEventListener('click', () => { if (groupSettingsOverlay) groupSettingsOverlay.style.display = 'none'; });
+groupSettingsOverlay?.addEventListener('click', e => { if (e.target === groupSettingsOverlay) groupSettingsOverlay.style.display = 'none'; });
+groupAddMembersCloseBtn?.addEventListener('click', () => { if (groupAddMembersOverlay) groupAddMembersOverlay.style.display = 'none'; });
+groupAddMembersOverlay?.addEventListener('click', e => { if (e.target === groupAddMembersOverlay) groupAddMembersOverlay.style.display = 'none'; });
+groupRemoveMemberCloseBtn?.addEventListener('click', () => { if (groupRemoveMemberOverlay) groupRemoveMemberOverlay.style.display = 'none'; });
+groupRemoveMemberOverlay?.addEventListener('click', e => { if (e.target === groupRemoveMemberOverlay) groupRemoveMemberOverlay.style.display = 'none'; });
+groupAddMembersConfirmBtn?.addEventListener('click', () => {
+  const val = groupAddMembersInput?.value || '';
+  const members = val.split(',').map(v => v.trim()).filter(Boolean);
+  if (!members.length || !pendingAddMembersGroupId) return;
+  ws.send(JSON.stringify({ type: 'add_group_members', groupId: pendingAddMembersGroupId, members }));
+  if (groupAddMembersOverlay) groupAddMembersOverlay.style.display = 'none';
+  pendingAddMembersGroupId = null;
+});
+groupAddMembersInput?.addEventListener('keydown', e => { if (e.key === 'Enter') groupAddMembersConfirmBtn?.click(); });
+
 document.addEventListener('click', e => {
   if (!e.target.closest('.userActions') && !e.target.closest('#dmListMenuPortal .userMenu')) closeDmListMenu();
+  if (!e.target.closest('#groupMenuPortal') && !e.target.closest('.groupMenuBtn')) closeGroupMenu();
 });
 window.addEventListener('resize', () => { if (openDmListMenuLogin) renderDmMenuPortal(); });
 document.getElementById('online')?.addEventListener('scroll', () => { if (openDmListMenuLogin) closeDmListMenu(); });
