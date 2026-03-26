@@ -4487,15 +4487,15 @@ function openGroupMenu(groupId, anchorEl) {
   ];
   if (isOwner) {
     items.push({ icon: '✏️', label: 'Переименовать', action: () => { closeGroupMenu(); openGroupRenameModal(groupId); } });
-    items.push({ icon: '🖼️', label: 'Аватар группы', action: () => { closeGroupMenu(); pendingGroupAvatarId = groupId; groupAvatarUploadInput?.click(); } });
-    items.push({ icon: '🖼️', label: 'Фон чата', action: () => { closeGroupMenu(); pendingGroupWallpaperId = groupId; groupWallpaperUploadInput?.click(); } });
+    items.push({ icon: '🖼️', label: 'Аватар группы', action: () => { closeGroupMenu(); suppressProfileOpenUntil = Date.now() + 1200; pendingGroupAvatarId = groupId; groupAvatarUploadInput?.click(); } });
+    items.push({ icon: '🖼️', label: 'Фон чата', action: () => { closeGroupMenu(); suppressProfileOpenUntil = Date.now() + 1200; pendingGroupWallpaperId = groupId; groupWallpaperUploadInput?.click(); } });
     items.push({ sep: true });
     items.push({ icon: '➕', label: 'Добавить участников', action: () => { closeGroupMenu(); openGroupAddMembersModal(groupId); } });
     items.push({ icon: '➖', label: 'Удалить участника', action: () => { closeGroupMenu(); openGroupRemoveMemberModal(groupId); } });
     items.push({ sep: true });
     items.push({ icon: '🗑️', label: 'Удалить группу', danger: true, action: () => { closeGroupMenu(); if (confirm('Удалить группу целиком?')) ws.send(JSON.stringify({ type: 'leave_group', groupId })); } });
   } else {
-    items.push({ icon: '🖼️', label: 'Фон чата', action: () => { closeGroupMenu(); pendingGroupWallpaperId = groupId; groupWallpaperUploadInput?.click(); } });
+    items.push({ icon: '🖼️', label: 'Фон чата', action: () => { closeGroupMenu(); suppressProfileOpenUntil = Date.now() + 1200; pendingGroupWallpaperId = groupId; groupWallpaperUploadInput?.click(); } });
     items.push({ sep: true });
     items.push({ icon: '🚪', label: 'Выйти из группы', danger: true, action: () => { closeGroupMenu(); if (confirm('Выйти из группы?')) ws.send(JSON.stringify({ type: 'leave_group', groupId })); } });
   }
@@ -4512,13 +4512,21 @@ function openGroupMenu(groupId, anchorEl) {
   groupMenuPortal.appendChild(menu);
   groupMenuPortal.style.display = 'block';
 
-  // Position near anchor
+  // Position to the right of the anchor button, same style as DM menu
   const rect = anchorEl.getBoundingClientRect();
-  const menuW = 200, menuH = items.length * 38;
-  let left = rect.right - menuW;
-  let top = rect.bottom + 4;
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+  let left = rect.right + 8;
+  let top = rect.top;
+  // If overflows right edge — show to the left of the button
+  if (left + 200 > vw - 8) left = rect.left - 200 - 8;
   if (left < 8) left = 8;
-  if (top + menuH > window.innerHeight - 8) top = rect.top - menuH - 4;
+  // If overflows bottom — shift up
+  requestAnimationFrame(() => {
+    const mh = groupMenuPortal.firstChild?.offsetHeight || 200;
+    if (top + mh > vh - 8) top = Math.max(8, vh - mh - 8);
+    groupMenuPortal.style.top = top + 'px';
+  });
   groupMenuPortal.style.left = left + 'px';
   groupMenuPortal.style.top = top + 'px';
 }
