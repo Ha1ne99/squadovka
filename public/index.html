@@ -1125,6 +1125,7 @@ body[data-theme='midnight'] { --bg:#101217; --bg2:#0b0d12; }
 
 #callBtn { display:none; }
 #callBtn.activeCall { border-color: rgba(65,194,114,.5); box-shadow: 0 0 0 1px rgba(65,194,114,.2) inset; }
+#groupCallBtn.activeCall { border-color: rgba(65,194,114,.5); box-shadow: 0 0 0 1px rgba(65,194,114,.2) inset; }
 #callOverlay {
   position: fixed;
   inset: 0;
@@ -1263,6 +1264,7 @@ body[data-theme='midnight'] { --bg:#101217; --bg2:#0b0d12; }
           <button class="langBtn" data-lang="en">EN</button>
         </div>
         <button id="callBtn" class="ghostBtn">📞 <span id="callBtnLabel">Звонок</span></button>
+        <button id="groupCallBtn" class="ghostBtn" style="display:none;">📞 <span id="groupCallBtnLabel">Голосовой</span></button>
         <button id="headerFriendsBtn" class="ghostBtn">👥 <span id="headerFriendsBtnLabel">Друзья</span></button>
       </div>
     </div>
@@ -1517,6 +1519,21 @@ body[data-theme='midnight'] { --bg:#101217; --bg2:#0b0d12; }
   </div>
 </div>
 
+<!-- GROUP CALL OVERLAY -->
+<div id="groupCallOverlay" style="display:none;position:fixed;inset:0;align-items:center;justify-content:center;background:rgba(0,0,0,.56);z-index:7100;backdrop-filter:blur(8px);">
+  <div id="groupCallModal" style="width:min(92vw,460px);background:linear-gradient(180deg,rgba(23,27,35,.98),rgba(12,15,22,.98));border:1px solid rgba(255,255,255,.08);border-radius:26px;padding:22px;box-shadow:0 24px 70px rgba(0,0,0,.45);">
+    <div style="font-size:18px;font-weight:800;margin-bottom:14px;">📞 <span id="groupCallTitle">Групповой звонок</span></div>
+    <div id="groupCallParticipants" style="display:flex;flex-wrap:wrap;gap:10px;min-height:48px;margin-bottom:16px;"></div>
+    <div style="margin-bottom:14px;">
+      <div class="callMeterBar"><div id="groupCallVoiceBar" style="height:100%;width:6%;background:linear-gradient(90deg,var(--green),var(--accent));transition:width .12s ease;"></div></div>
+    </div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;">
+      <button id="groupCallMuteBtn" class="callActionBtn">🎙️ Микрофон</button>
+      <button id="groupCallLeaveBtn" class="callActionBtn danger">📵 Выйти</button>
+    </div>
+  </div>
+</div>
+
 <script>
 const loginDiv = document.getElementById('login');
 const appDiv = document.getElementById('app');
@@ -1645,6 +1662,14 @@ const callVolumeSlider = document.getElementById('callVolumeSlider');
 const callHangupBtn = document.getElementById('callHangupBtn');
 const callCloseBtn = document.getElementById('callCloseBtn');
 const remoteAudio = document.getElementById('remoteAudio');
+const groupCallBtn = document.getElementById('groupCallBtn');
+const groupCallBtnLabel = document.getElementById('groupCallBtnLabel');
+const groupCallOverlay = document.getElementById('groupCallOverlay');
+const groupCallTitle = document.getElementById('groupCallTitle');
+const groupCallParticipants = document.getElementById('groupCallParticipants');
+const groupCallMuteBtn = document.getElementById('groupCallMuteBtn');
+const groupCallLeaveBtn = document.getElementById('groupCallLeaveBtn');
+const groupCallVoiceBar = document.getElementById('groupCallVoiceBar');
 
 let ws;
 let authToken = localStorage.getItem('messenger_token') || '';
@@ -1691,6 +1716,16 @@ let localCallSourceNode = null;
 let localCallGainNode = null;
 let localCallDestination = null;
 let remoteAudioContext = null;
+
+// ── GROUP CALL STATE ──────────────────────────────────────────────────────────
+let groupCallGroupId = null;          // groupId of the active group call
+let groupCallParticipantLogins = [];  // logins of all participants (including self)
+let groupCallPeerConnections = {};    // login -> RTCPeerConnection
+let groupCallRemoteStreams = {};      // login -> MediaStream
+let groupCallRemoteAudios = {};       // login -> <audio> element
+let groupCallMicMuted = false;
+let groupCallVoiceMeterTimer = null;
+// ─────────────────────────────────────────────────────────────────────────────
 let remoteAudioSourceNode = null;
 let remoteAudioGainNode = null;
 let callVoiceMeterTimer = null;
@@ -2496,6 +2531,163 @@ function resetCallState(closeOverlay = true) {
   if (closeOverlay) hideCallOverlay();
   updateCallUi();
 }
+
+// ── GROUP CALL FUNCTIONS ──────────────────────────────────────────────────────
+function renderGroupCallParticipants() {
+  if (!groupCallParticipants) return;
+  groupCallParticipants.innerHTML = '';
+  for (const l of groupCallParticipantLogins) {
+    const friend = findFriendData(l) || { login: l, nickname: l };
+    const div = document.createElement('div');
+    div.style.cssText = 'display:flex;flex-direction:column;align-items:center;gap:4px;';
+    const av = document.createElement('div');
+    av.className = 'avatar';
+    av.style.cssText = 'width:44px;height:44px;font-size:18px;background:#5865f2;';
+    av.textContent = (friend.nickname || l)[0]?.toUpperCase() || '?';
+    if (friend.avatar?.image) { av.textContent = ''; av.style.backgroundImage = `url(${friend.avatar.image})`; av.style.backgroundColor = '#2a2f3a'; }
+    else if (friend.avatar?.color) av.style.background = friend.avatar.color;
+    const name = document.createElement('span');
+    name.style.cssText = 'font-size:11px;color:var(--muted);max-width:52px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
+    name.textContent = l === login ? 'Вы' : (friend.nickname || l);
+    div.appendChild(av);
+    div.appendChild(name);
+    groupCallParticipants.appendChild(div);
+  }
+}
+
+function startGroupCallVoiceMeter(stream) {
+  if (groupCallVoiceMeterTimer) clearInterval(groupCallVoiceMeterTimer);
+  try {
+    const AudioContextRef = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContextRef) return;
+    const ctx = new AudioContextRef();
+    const analyser = ctx.createAnalyser();
+    analyser.fftSize = 256;
+    ctx.createMediaStreamSource(stream).connect(analyser);
+    const data = new Uint8Array(analyser.frequencyBinCount);
+    groupCallVoiceMeterTimer = setInterval(() => {
+      analyser.getByteFrequencyData(data);
+      let sum = 0; for (let i = 0; i < data.length; i++) sum += data[i];
+      const level = Math.max(6, Math.min(100, Math.round((sum / data.length) / 2.2)));
+      if (groupCallVoiceBar) groupCallVoiceBar.style.width = level + '%';
+    }, 120);
+  } catch {}
+}
+
+function cleanupGroupCallPeer(peerLogin) {
+  const pc = groupCallPeerConnections[peerLogin];
+  if (pc) { try { pc.close(); } catch {} delete groupCallPeerConnections[peerLogin]; }
+  const audio = groupCallRemoteAudios[peerLogin];
+  if (audio) { audio.pause(); audio.srcObject = null; audio.remove(); delete groupCallRemoteAudios[peerLogin]; }
+  delete groupCallRemoteStreams[peerLogin];
+}
+
+function cleanupGroupCall() {
+  if (groupCallVoiceMeterTimer) { clearInterval(groupCallVoiceMeterTimer); groupCallVoiceMeterTimer = null; }
+  for (const l of Object.keys(groupCallPeerConnections)) cleanupGroupCallPeer(l);
+  groupCallPeerConnections = {};
+  groupCallRemoteStreams = {};
+  groupCallRemoteAudios = {};
+  groupCallParticipantLogins = [];
+  groupCallGroupId = null;
+  groupCallMicMuted = false;
+  stopLocalCallStream();
+  if (groupCallOverlay) groupCallOverlay.style.display = 'none';
+  updateChatHeader();
+}
+
+async function createGroupCallPeerConnection(peerLogin) {
+  cleanupGroupCallPeer(peerLogin);
+  const stream = await ensureLocalCallStream();
+  const pc = new RTCPeerConnection(rtcConfig || { iceServers: [{ urls: ['stun:stun.l.google.com:19302'] }] });
+  stream.getTracks().forEach(track => pc.addTrack(track, stream));
+  pc.onicecandidate = ev => {
+    if (ev.candidate && ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type: 'group_call_signal', groupId: groupCallGroupId, to: peerLogin, signal: { type: 'candidate', candidate: ev.candidate } }));
+    }
+  };
+  pc.ontrack = ev => {
+    if (!groupCallRemoteStreams[peerLogin]) groupCallRemoteStreams[peerLogin] = new MediaStream();
+    const stream = ev.streams?.[0] || null;
+    if (stream) {
+      stream.getAudioTracks().forEach(t => { if (!groupCallRemoteStreams[peerLogin].getTracks().some(e => e.id === t.id)) groupCallRemoteStreams[peerLogin].addTrack(t); });
+    } else if (ev.track) {
+      if (!groupCallRemoteStreams[peerLogin].getTracks().some(e => e.id === ev.track.id)) groupCallRemoteStreams[peerLogin].addTrack(ev.track);
+    }
+    if (!groupCallRemoteAudios[peerLogin]) {
+      const audio = document.createElement('audio');
+      audio.autoplay = true; audio.style.display = 'none';
+      document.body.appendChild(audio);
+      groupCallRemoteAudios[peerLogin] = audio;
+    }
+    groupCallRemoteAudios[peerLogin].srcObject = groupCallRemoteStreams[peerLogin];
+    groupCallRemoteAudios[peerLogin].play().catch(() => {});
+  };
+  groupCallPeerConnections[peerLogin] = pc;
+  return pc;
+}
+
+async function groupCallSendOffer(peerLogin) {
+  const pc = await createGroupCallPeerConnection(peerLogin);
+  const offer = await pc.createOffer({ offerToReceiveAudio: true });
+  await pc.setLocalDescription(offer);
+  ws.send(JSON.stringify({ type: 'group_call_signal', groupId: groupCallGroupId, to: peerLogin, signal: { type: 'offer', sdp: offer.sdp } }));
+}
+
+async function handleGroupCallSignal(from, signal) {
+  if (!signal || !from || !groupCallGroupId) return;
+  if (signal.type === 'offer') {
+    const pc = await createGroupCallPeerConnection(from);
+    await pc.setRemoteDescription({ type: 'offer', sdp: signal.sdp });
+    const answer = await pc.createAnswer();
+    await pc.setLocalDescription(answer);
+    ws.send(JSON.stringify({ type: 'group_call_signal', groupId: groupCallGroupId, to: from, signal: { type: 'answer', sdp: answer.sdp } }));
+    return;
+  }
+  if (signal.type === 'answer') {
+    const pc = groupCallPeerConnections[from];
+    if (pc) await pc.setRemoteDescription({ type: 'answer', sdp: signal.sdp });
+    return;
+  }
+  if (signal.type === 'candidate' && signal.candidate) {
+    const pc = groupCallPeerConnections[from];
+    if (pc && pc.remoteDescription) { try { await pc.addIceCandidate(signal.candidate); } catch {} }
+  }
+}
+
+async function startGroupCall(groupId) {
+  if (groupCallGroupId) { leaveGroupCall(); return; }
+  try { await ensureLocalCallStream(); } catch { alert(t('allowMic')); return; }
+  groupCallGroupId = groupId;
+  groupCallParticipantLogins = [login];
+  groupCallMicMuted = false;
+  startGroupCallVoiceMeter(localCallSourceStream || localCallStream);
+  if (groupCallOverlay) groupCallOverlay.style.display = 'flex';
+  if (groupCallTitle) { const g = findGroupData(groupId); groupCallTitle.textContent = g?.name || 'Групповой звонок'; }
+  renderGroupCallParticipants();
+  updateChatHeader();
+  ws.send(JSON.stringify({ type: 'group_call_start', groupId }));
+}
+
+async function joinGroupCall(groupId) {
+  if (groupCallGroupId === groupId) return;
+  if (groupCallGroupId) leaveGroupCall();
+  try { await ensureLocalCallStream(); } catch { alert(t('allowMic')); return; }
+  groupCallGroupId = groupId;
+  groupCallMicMuted = false;
+  startGroupCallVoiceMeter(localCallSourceStream || localCallStream);
+  if (groupCallOverlay) groupCallOverlay.style.display = 'flex';
+  if (groupCallTitle) { const g = findGroupData(groupId); groupCallTitle.textContent = g?.name || 'Групповой звонок'; }
+  ws.send(JSON.stringify({ type: 'group_call_join', groupId }));
+}
+
+function leaveGroupCall() {
+  if (!groupCallGroupId) return;
+  const gid = groupCallGroupId;
+  ws.send(JSON.stringify({ type: 'group_call_leave', groupId: gid }));
+  cleanupGroupCall();
+}
+// ─────────────────────────────────────────────────────────────────────────────
 async function createCallPeerConnection() {
   cleanupPeerConnection();
   const pc = new RTCPeerConnection(rtcConfig || { iceServers:[{ urls:['stun:stun.l.google.com:19302'] }] });
@@ -3076,8 +3268,16 @@ function updateChatHeader(peerLogin = null, peerNick = null, avatar = null) {
     chatAvatar.style.backgroundImage = '';
     chatAvatar.style.background = '#5865f2';
     setCallButtonVisible(false);
+    // Show group call button
+    if (groupCallBtn) {
+      groupCallBtn.style.display = 'inline-flex';
+      const inCall = groupCallGroupId === currentGroupId;
+      groupCallBtn.classList.toggle('activeCall', inCall);
+      if (groupCallBtnLabel) groupCallBtnLabel.textContent = inCall ? '📵 Выйти' : '📞 Голосовой';
+    }
     return;
   }
+  if (groupCallBtn) groupCallBtn.style.display = 'none';
   currentDMAvatar = avatar || currentDMAvatar;
   if (!peerLogin) {
     chatTitle.textContent = 'Squadovka'; chatStatus.textContent = t('chooseFriend'); chatAvatar.textContent = 'S'; chatAvatar.style.backgroundImage = ''; chatAvatar.style.background = '#5865f2'; setCallButtonVisible(false); return;
@@ -3463,6 +3663,64 @@ function handle(d) {
   if (d.type === 'group_message_edited') { updateGroupMessageLocally(d.groupId, d.id, { text:d.text, edited:d.edited, editedAt:d.editedAt }); saveLocalChatState(); if (currentChatType === 'group' && Number(currentGroupId) === Number(d.groupId)) scheduleRenderCurrentChat(); return; }
   if (d.type === 'group_message_deleted') { removeGroupMessageLocally(d.groupId, d.id); if (replyingToMessage && Number(replyingToMessage.id) === Number(d.id)) clearReplyMessage(); saveLocalChatState(); if (currentChatType === 'group' && Number(currentGroupId) === Number(d.groupId)) scheduleRenderCurrentChat(); return; }
   if (d.type === 'group_history') { replaceChatHistory(getGroupChatKey(d.groupId), (d.messages || []).map(msg => ({ ...msg, attachment: normalizeAttachment(msg.attachment), replyTo: normalizeReplyPayload(msg.replyTo) }))); saveLocalChatState(); if (currentChatType === 'group' && Number(currentGroupId) === Number(d.groupId)) scheduleRenderCurrentChat(true); return; }
+
+  // ── GROUP CALL EVENTS ───────────────────────────────────────────────────────
+  if (d.type === 'group_call_state') {
+    const gid = Number(d.groupId);
+    const participants = Array.isArray(d.participants) ? d.participants : [];
+    if (groupCallGroupId === gid) {
+      groupCallParticipantLogins = participants;
+      renderGroupCallParticipants();
+    }
+    // Always update header if we're viewing this group (shows join button state)
+    if (currentChatType === 'group' && Number(currentGroupId) === gid) {
+      const group = findGroupData(gid);
+      if (group) {
+        const membersCount = Array.isArray(group.members) ? group.members.length : 0;
+        if (chatStatus) chatStatus.textContent = participants.length > 0
+          ? `🔊 ${participants.length} в звонке · ${membersCount} участ.`
+          : (membersCount ? `${membersCount} участ.` : 'Групповой чат');
+      }
+      updateChatHeader();
+    }
+    return;
+  }
+  if (d.type === 'group_call_joined') {
+    // We just joined — d.participants are the people already in the call
+    const existingParticipants = Array.isArray(d.participants) ? d.participants : [];
+    groupCallParticipantLogins = [login, ...existingParticipants];
+    renderGroupCallParticipants();
+    // Initiate offers to everyone already in the call
+    for (const peer of existingParticipants) {
+      groupCallSendOffer(peer).catch(() => {});
+    }
+    return;
+  }
+  if (d.type === 'group_call_peer_joined') {
+    const peerLogin = d.login;
+    if (!groupCallGroupId || Number(d.groupId) !== groupCallGroupId) return;
+    if (!groupCallParticipantLogins.includes(peerLogin)) groupCallParticipantLogins.push(peerLogin);
+    renderGroupCallParticipants();
+    // The new peer will send us an offer, we just wait
+    return;
+  }
+  if (d.type === 'group_call_peer_left') {
+    const peerLogin = d.login;
+    if (!groupCallGroupId || Number(d.groupId) !== groupCallGroupId) return;
+    groupCallParticipantLogins = groupCallParticipantLogins.filter(l => l !== peerLogin);
+    cleanupGroupCallPeer(peerLogin);
+    renderGroupCallParticipants();
+    return;
+  }
+  if (d.type === 'group_call_ended') {
+    if (groupCallGroupId && Number(d.groupId) === groupCallGroupId) cleanupGroupCall();
+    return;
+  }
+  if (d.type === 'group_call_signal') {
+    handleGroupCallSignal(d.from, d.signal).catch(() => {});
+    return;
+  }
+  // ───────────────────────────────────────────────────────────────────────────
 }
 
 function openDM(l, n, avatar = null) {
@@ -4086,6 +4344,27 @@ if (callMicVolumeSlider) callMicVolumeSlider.oninput = () => setLocalMicVolume(c
 callVolumeSlider.oninput = () => setOpponentVolume(callVolumeSlider.value);
 callCloseBtn.onclick = () => { if (callState === 'incoming') declineIncomingCall(); else hideCallOverlay(); };
 callOverlay.addEventListener('click', e => { if (e.target === callOverlay && callState === 'idle') hideCallOverlay(); });
+
+// Group call button
+if (groupCallBtn) {
+  groupCallBtn.onclick = async () => {
+    if (currentChatType !== 'group' || !currentGroupId) return;
+    if (groupCallGroupId === currentGroupId) { leaveGroupCall(); return; }
+    await startGroupCall(currentGroupId);
+  };
+}
+if (groupCallLeaveBtn) groupCallLeaveBtn.onclick = leaveGroupCall;
+if (groupCallMuteBtn) {
+  groupCallMuteBtn.onclick = () => {
+    groupCallMicMuted = !groupCallMicMuted;
+    if (localCallGainNode) localCallGainNode.gain.value = groupCallMicMuted ? 0 : 1;
+    if (localCallStream) localCallStream.getAudioTracks().forEach(t => { t.enabled = !groupCallMicMuted; });
+    groupCallMuteBtn.textContent = groupCallMicMuted ? '🎙️ Включить' : '🎙️ Выключить';
+  };
+}
+if (groupCallOverlay) {
+  groupCallOverlay.addEventListener('click', e => { if (e.target === groupCallOverlay) groupCallOverlay.style.display = 'none'; });
+}
 
 
 document.querySelectorAll('.themePresetBtn').forEach(btn => btn.addEventListener('click', () => {

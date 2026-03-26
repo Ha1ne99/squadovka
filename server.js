@@ -49,7 +49,11 @@ const ACTION_LIMITS = {
   call_start: 12,
   call_signal: 600,
   call_response: 30,
-  call_end: 60
+  call_end: 60,
+  group_call_start: 10,
+  group_call_join: 20,
+  group_call_leave: 30,
+  group_call_signal: 600
 };
 const MAX_MESSAGE_LENGTH = 4000;
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
@@ -499,6 +503,8 @@ async function initDb() {
 const clients = new Map();
 const pendingCalls = new Map();
 const activeCalls = new Map();
+// groupId (number) -> Set of logins currently in the call
+const activeGroupCalls = new Map();
 
 function send(ws, data) {
   if (ws.readyState === WebSocket.OPEN) {
@@ -836,6 +842,14 @@ async function sendGroupToMembers(groupId, data) {
     sendToUser(row.userlogin, data);
   }
 }
+
+// Send only to currently online group members (no DB query, uses activeGroupCalls participants)
+function sendToGroupMembers(groupId, data) {
+  const members = activeGroupCalls.get(groupId);
+  if (!members) return;
+  for (const login of members) sendToUser(login, data);
+}
+
 
 async function broadcastOnlineFriends() {
   for (const [ws, info] of clients) {
@@ -1527,6 +1541,77 @@ wss.on('connection', (ws, req) => {
         return;
       }
 
+      // ── GROUP CALLS ──────────────────────────────────────────────────────────
+      if (data.type === 'group_call_start') {
+        if (!requireActionAllowed(ws, clientIp, 'group_call_start')) return;
+        const groupId = Number(data.groupId);
+        if (!Number.isFinite(groupId) || groupId <= 0) return;
+        if (!(await isGroupMember(groupId, userLogin))) return;
+        if (!activeGroupCalls.has(groupId)) activeGroupCalls.set(groupId, new Set());
+        const members = activeGroupCalls.get(groupId);
+        members.add(userLogin);
+        // Notify all group members about the call
+        await sendGroupToMembers(groupId, {
+          type: 'group_call_state',
+          groupId,
+          participants: [...members],
+          startedBy: userLogin
+        });
+        return;
+      }
+
+      if (data.type === 'group_call_join') {
+        if (!requireActionAllowed(ws, clientIp, 'group_call_join')) return;
+        const groupId = Number(data.groupId);
+        if (!Number.isFinite(groupId) || groupId <= 0) return;
+        if (!(await isGroupMember(groupId, userLogin))) return;
+        if (!activeGroupCalls.has(groupId)) return; // no active call to join
+        const members = activeGroupCalls.get(groupId);
+        const existingParticipants = [...members];
+        members.add(userLogin);
+        // Tell the new joiner who is already in the call
+        send(ws, { type: 'group_call_joined', groupId, participants: existingParticipants });
+        // Tell existing participants about the new joiner
+        for (const peer of existingParticipants) {
+          sendToUser(peer, { type: 'group_call_peer_joined', groupId, login: userLogin });
+        }
+        await sendGroupToMembers(groupId, { type: 'group_call_state', groupId, participants: [...members] });
+        return;
+      }
+
+      if (data.type === 'group_call_leave') {
+        if (!requireActionAllowed(ws, clientIp, 'group_call_leave')) return;
+        const groupId = Number(data.groupId);
+        if (!Number.isFinite(groupId) || groupId <= 0) return;
+        const members = activeGroupCalls.get(groupId);
+        if (!members || !members.has(userLogin)) return;
+        members.delete(userLogin);
+        for (const peer of members) {
+          sendToUser(peer, { type: 'group_call_peer_left', groupId, login: userLogin });
+        }
+        if (members.size === 0) {
+          activeGroupCalls.delete(groupId);
+          await sendGroupToMembers(groupId, { type: 'group_call_ended', groupId });
+        } else {
+          await sendGroupToMembers(groupId, { type: 'group_call_state', groupId, participants: [...members] });
+        }
+        return;
+      }
+
+      if (data.type === 'group_call_signal') {
+        if (!requireActionAllowed(ws, clientIp, 'group_call_signal')) return;
+        const groupId = Number(data.groupId);
+        const targetLogin = sanitizeLogin(data.to);
+        const signal = data.signal && typeof data.signal === 'object' ? data.signal : null;
+        if (!Number.isFinite(groupId) || !targetLogin || !signal) return;
+        const members = activeGroupCalls.get(groupId);
+        if (!members || !members.has(userLogin) || !members.has(targetLogin)) return;
+        sendToUser(targetLogin, { type: 'group_call_signal', groupId, from: userLogin, signal });
+        return;
+      }
+      // ─────────────────────────────────────────────────────────────────────────
+
+
       if (data.type === 'get_user_profile') {
         const targetLogin = sanitizeLogin(data.login);
         if (!targetLogin) return;
@@ -1748,6 +1833,20 @@ wss.on('connection', (ws, req) => {
       if (activePeer) {
         clearActiveBetween(userLogin, activePeer);
         sendToUser(activePeer, { type: 'call_ended', reason: 'ended', with: userLogin });
+      }
+      // Clean up group calls
+      for (const [groupId, members] of activeGroupCalls.entries()) {
+        if (members.has(userLogin)) {
+          members.delete(userLogin);
+          for (const member of members) {
+            sendToUser(member, { type: 'group_call_peer_left', groupId, login: userLogin });
+          }
+          if (members.size === 0) {
+            activeGroupCalls.delete(groupId);
+          } else {
+            sendToGroupMembers(groupId, { type: 'group_call_state', groupId, participants: [...members] });
+          }
+        }
       }
     }
 
