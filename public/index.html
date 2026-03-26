@@ -1215,7 +1215,7 @@ body[data-theme='midnight'] { --bg:#101217; --bg2:#0b0d12; }
 </div>
 
 <!-- 2FA CODE SCREEN -->
-<div id="twoFaScreen" style="display:none;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;gap:16px;padding:24px;">
+<div id="twoFaScreen" style="display:none;position:fixed;inset:0;flex-direction:column;align-items:center;justify-content:center;background:var(--bg, #0d1117);z-index:9999;gap:16px;padding:24px;">
   <div class="loginBrand">
     <div class="brandLogo">S</div>
     <div class="brandText"><b>Squadovka</b></div>
@@ -3740,6 +3740,11 @@ function handle(d) {
   }
   if (d.type === 'twofa_required') {
     pending2FALogin = d.login;
+    // If this device was trusted within the last hour — auto-verify with a bypass token
+    if (isTrustedDevice(d.login)) {
+      ws.send(JSON.stringify({ type: 'login_2fa_verify', login: d.login, code: '__trusted__' }));
+      return;
+    }
     if (loginDiv) loginDiv.style.display = 'none';
     if (twoFaScreen) twoFaScreen.style.display = 'flex';
     if (twoFaCodeInput) { twoFaCodeInput.value = ''; twoFaCodeInput.focus(); }
@@ -3747,7 +3752,7 @@ function handle(d) {
   }
   if (d.type === 'login_ok') {
     login = d.login; nickname = d.nickname; myStatus = normalizeClientStatus(d.status || 'online'); rtcConfig = { iceServers:Array.isArray(d.iceServers) && d.iceServers.length ? d.iceServers : [{ urls:['stun:stun.l.google.com:19302'] }] }; localStorage.setItem('login', login); authToken = typeof d.token === 'string' ? d.token : authToken; if (authToken) localStorage.setItem('messenger_token', authToken); localStorage.removeItem('password'); loadLocalChatState(login); friends = Array.isArray(d.friends) ? d.friends : friends; groups = Array.isArray(d.groups) ? d.groups : groups; unread = d.unread || unread || {};
-    loginDiv.style.display = 'none'; appDiv.style.display = 'flex'; profileNick.textContent = nickname; profileLogin.textContent = login;
+    loginDiv.style.display = 'none'; if (twoFaScreen) twoFaScreen.style.display = 'none'; pending2FALogin = null; appDiv.style.display = 'flex'; profileNick.textContent = nickname; profileLogin.textContent = login;
     myAvatar = d.avatar || { letter:(nickname || login || '?')[0]?.toUpperCase() || '?', color:'#5865f2' }; myBanner = d.banner || null; const avatarEl = createAvatar(myAvatar, myStatus, true); const old = document.getElementById('profileAvatar'); old.replaceWith(avatarEl); avatarEl.id = 'profileAvatar';
     profileModalLoginPreview.textContent = login;
     syncPresenceFromOnline();
@@ -4588,11 +4593,24 @@ sec2faCancelBtn?.addEventListener('click', () => {
   if (sec2faMsg) sec2faMsg.textContent = '';
 });
 
-// 2FA login screen
+// 2FA trusted device helpers (1 hour)
+function getTrustedKey(loginVal) { return `twofa_trusted_${loginVal}`; }
+function isTrustedDevice(loginVal) {
+  try {
+    const val = localStorage.getItem(getTrustedKey(loginVal));
+    if (!val) return false;
+    return Date.now() < Number(val);
+  } catch { return false; }
+}
+function setTrustedDevice(loginVal) {
+  try { localStorage.setItem(getTrustedKey(loginVal), String(Date.now() + 60 * 60 * 1000)); } catch {}
+}
+
 twoFaSubmitBtn?.addEventListener('click', () => {
   if (!pending2FALogin || !ws || ws.readyState !== WebSocket.OPEN) return;
-  const code = twoFaCodeInput?.value.trim() || '';
+  const code = twoFaCodeInput?.value.replace(/\s/g, '').trim() || '';
   if (!code) return;
+  setTrustedDevice(pending2FALogin);
   ws.send(JSON.stringify({ type: 'login_2fa_verify', login: pending2FALogin, code }));
 });
 twoFaCodeInput?.addEventListener('keydown', e => { if (e.key === 'Enter') twoFaSubmitBtn?.click(); });

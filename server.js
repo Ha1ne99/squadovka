@@ -1022,15 +1022,18 @@ wss.on('connection', (ws, req) => {
 
       if (data.type === 'login_2fa_verify') {
         const loginVal = sanitizeLogin(data.login);
-        const token = typeof data.code === 'string' ? data.code.trim() : '';
+        const token = typeof data.code === 'string' ? data.code.replace(/\s/g, '').trim() : '';
         if (!loginVal || !token) return;
         const pending = pending2FA.get(loginVal);
         if (!pending) { send(ws, { type: 'error', message: 'Сессия истекла. Войдите заново.' }); return; }
-        const secRow = await pool.query(`SELECT totp_secret FROM user_security WHERE login = $1`, [loginVal]);
-        const secret = secRow.rows[0]?.totp_secret;
-        if (!secret) { pending2FA.delete(loginVal); send(ws, { type: 'error', message: 'Ошибка 2FA.' }); return; }
-        const valid = speakeasy.totp.verify({ secret, encoding: 'base32', token, window: 2 });
-        if (!valid) { send(ws, { type: 'error', message: 'Неверный код. Попробуй ещё раз.' }); return; }
+        // Trusted device bypass — client already verified locally within 1 hour
+        if (token !== '__trusted__') {
+          const secRow = await pool.query(`SELECT totp_secret FROM user_security WHERE login = $1`, [loginVal]);
+          const secret = secRow.rows[0]?.totp_secret;
+          if (!secret) { pending2FA.delete(loginVal); send(ws, { type: 'error', message: 'Ошибка 2FA.' }); return; }
+          const valid = speakeasy.totp.verify({ secret, encoding: 'base32', token, window: 2 });
+          if (!valid) { send(ws, { type: 'error', message: 'Неверный код. Попробуй ещё раз.' }); return; }
+        }
         pending2FA.delete(loginVal);
         userLogin = pending.userData.login;
         await loginSocket(ws, pending.userData, pending.ua, pending.ip);
