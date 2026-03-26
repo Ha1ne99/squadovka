@@ -9,6 +9,9 @@ const fs = require('fs');
 const fsp = fs.promises;
 const nodemailer = require('nodemailer');
 
+// Load .env if present
+try { require('dotenv').config(); } catch {}
+
 const app = express();
 const server = http.createServer(app);
 const wss = new WebSocket.Server({ server, maxPayload: 2 * 1024 * 1024 });
