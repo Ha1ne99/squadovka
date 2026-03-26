@@ -373,10 +373,6 @@ app.get('/', (req, res) => {
   return res.sendFile(rootIndex);
 });
 
-app.get('/api/config', (req, res) => {
-  res.json({ tenorKey: process.env.TENOR_API_KEY || '', giphyKey: process.env.GIPHY_API_KEY || '' });
-});
-
 if (!process.env.DATABASE_URL) {
   console.error('DATABASE_URL not found in environment variables');
   process.exit(1);
