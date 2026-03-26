@@ -1653,10 +1653,17 @@ body[data-theme='midnight'] { --bg:#101217; --bg2:#0b0d12; }
     <div class="callRow" id="callMainActions">
       <button id="callMuteBtn" class="callActionBtn">🎙️ Микрофон</button>
       <button id="callSpeakerBtn" class="callActionBtn">🔊 Звук</button>
+      <button id="callScreenBtn" class="callActionBtn">🖥️ Экран</button>
       <label class="callVolumeControl"><span id="callMicVolumeLabel">🎙️ Микрофон:</span><input id="callMicVolumeSlider" type="range" min="0" max="200" step="1" value="100"></label>
       <label class="callVolumeControl"><span id="callVolumeLabel">🔊 Собеседник:</span><input id="callVolumeSlider" type="range" min="0" max="300" step="1" value="100"></label>
       <button id="callHangupBtn" class="callActionBtn danger">Сбросить</button>
       <button id="callCloseBtn" class="callActionBtn">Закрыть</button>
+    </div>
+    <!-- Screen share video area -->
+    <div id="callScreenArea" style="display:none;margin-top:14px;border-radius:12px;overflow:hidden;background:#000;position:relative;">
+      <video id="remoteScreenVideo" autoplay playsinline style="width:100%;max-height:220px;display:block;object-fit:contain;"></video>
+      <video id="localScreenVideo" autoplay playsinline muted style="position:absolute;bottom:8px;right:8px;width:120px;border-radius:8px;display:none;object-fit:cover;"></video>
+      <div id="callScreenLabel" style="position:absolute;top:6px;left:8px;font-size:11px;color:rgba(255,255,255,.7);background:rgba(0,0,0,.5);padding:2px 8px;border-radius:6px;">Демонстрация экрана</div>
     </div>
     <audio id="remoteAudio" autoplay playsinline></audio>
   </div>
@@ -1672,7 +1679,14 @@ body[data-theme='midnight'] { --bg:#101217; --bg2:#0b0d12; }
     </div>
     <div style="display:flex;gap:10px;flex-wrap:wrap;">
       <button id="groupCallMuteBtn" class="callActionBtn">🎙️ Микрофон</button>
+      <button id="groupCallScreenBtn" class="callActionBtn">🖥️ Экран</button>
       <button id="groupCallLeaveBtn" class="callActionBtn danger">📵 Выйти</button>
+    </div>
+    <!-- Screen share area for group call -->
+    <div id="groupCallScreenArea" style="display:none;margin-top:14px;border-radius:12px;overflow:hidden;background:#000;position:relative;">
+      <video id="groupRemoteScreenVideo" autoplay playsinline style="width:100%;max-height:200px;display:block;object-fit:contain;"></video>
+      <video id="groupLocalScreenVideo" autoplay playsinline muted style="position:absolute;bottom:8px;right:8px;width:100px;border-radius:8px;display:none;object-fit:cover;"></video>
+      <div id="groupCallScreenLabel" style="position:absolute;top:6px;left:8px;font-size:11px;color:rgba(255,255,255,.7);background:rgba(0,0,0,.5);padding:2px 8px;border-radius:6px;">Демонстрация экрана</div>
     </div>
   </div>
 </div>
@@ -1864,6 +1878,14 @@ const groupCallParticipants = document.getElementById('groupCallParticipants');
 const groupCallMuteBtn = document.getElementById('groupCallMuteBtn');
 const groupCallLeaveBtn = document.getElementById('groupCallLeaveBtn');
 const groupCallVoiceBar = document.getElementById('groupCallVoiceBar');
+const groupCallScreenBtn = document.getElementById('groupCallScreenBtn');
+const groupCallScreenArea = document.getElementById('groupCallScreenArea');
+const groupRemoteScreenVideo = document.getElementById('groupRemoteScreenVideo');
+const groupLocalScreenVideo = document.getElementById('groupLocalScreenVideo');
+const callScreenBtn = document.getElementById('callScreenBtn');
+const callScreenArea = document.getElementById('callScreenArea');
+const remoteScreenVideo = document.getElementById('remoteScreenVideo');
+const localScreenVideo = document.getElementById('localScreenVideo');
 
 let ws;
 let authToken = localStorage.getItem('messenger_token') || '';
@@ -1921,6 +1943,11 @@ let groupCallMicMuted = false;
 let groupCallVoiceMeterTimer = null;
 // Map of groupId -> participant count for groups with active calls (for non-participants)
 const activeGroupCallsClient = new Map();
+// Screen share state
+let localScreenStream = null;       // getDisplayMedia stream
+let isScreenSharing = false;        // DM call screen share active
+let isGroupScreenSharing = false;   // Group call screen share active
+let groupScreenSharerId = null;     // login of who is sharing in group call
 // ─────────────────────────────────────────────────────────────────────────────
 let remoteAudioSourceNode = null;
 let remoteAudioGainNode = null;
@@ -2828,6 +2855,7 @@ function stopLocalCallStream() {
 function resetCallState(closeOverlay = true) {
   cleanupPeerConnection();
   stopLocalCallStream();
+  stopScreenShare();
   pendingIncomingCall = null;
   callState = 'idle';
   callPeerLogin = null;
@@ -2839,6 +2867,62 @@ function resetCallState(closeOverlay = true) {
   if (closeOverlay) hideCallOverlay();
   updateCallUi();
 }
+
+// ── SCREEN SHARE ──────────────────────────────────────────────────────────────
+function stopScreenShare() {
+  if (localScreenStream) {
+    localScreenStream.getTracks().forEach(t => t.stop());
+    localScreenStream = null;
+  }
+  isScreenSharing = false;
+  isGroupScreenSharing = false;
+  if (callScreenBtn) callScreenBtn.classList.remove('activeCall');
+  if (groupCallScreenBtn) groupCallScreenBtn.classList.remove('activeCall');
+  if (localScreenVideo) { localScreenVideo.srcObject = null; localScreenVideo.style.display = 'none'; }
+  if (groupLocalScreenVideo) { groupLocalScreenVideo.srcObject = null; groupLocalScreenVideo.style.display = 'none'; }
+  if (callScreenArea) callScreenArea.style.display = 'none';
+  if (groupCallScreenArea) groupCallScreenArea.style.display = 'none';
+}
+
+async function startScreenShare(isGroup) {
+  if (!navigator.mediaDevices?.getDisplayMedia) {
+    alert('Демонстрация экрана не поддерживается в этом браузере');
+    return;
+  }
+  try {
+    const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
+    localScreenStream = stream;
+    const videoTrack = stream.getVideoTracks()[0];
+    if (!videoTrack) return;
+
+    // Show local preview
+    const localVid = isGroup ? groupLocalScreenVideo : localScreenVideo;
+    const screenArea = isGroup ? groupCallScreenArea : callScreenArea;
+    if (localVid) { localVid.srcObject = stream; localVid.style.display = 'block'; }
+    if (screenArea) screenArea.style.display = 'block';
+
+    // Add track to all peer connections
+    if (isGroup) {
+      isGroupScreenSharing = true;
+      if (groupCallScreenBtn) groupCallScreenBtn.classList.add('activeCall');
+      for (const pc of Object.values(groupCallPeerConnections)) {
+        try { pc.addTrack(videoTrack, stream); } catch {}
+      }
+    } else {
+      isScreenSharing = true;
+      if (callScreenBtn) callScreenBtn.classList.add('activeCall');
+      if (callPeerConnection) {
+        try { callPeerConnection.addTrack(videoTrack, stream); } catch {}
+      }
+    }
+
+    // Auto-stop when user clicks "Stop sharing"
+    videoTrack.onended = () => stopScreenShare();
+  } catch (e) {
+    if (e.name !== 'NotAllowedError') alert('Не удалось начать демонстрацию: ' + e.message);
+  }
+}
+// ─────────────────────────────────────────────────────────────────────────────
 
 // ── GROUP CALL FUNCTIONS ──────────────────────────────────────────────────────
 function renderGroupCallParticipants() {
@@ -2901,6 +2985,7 @@ function cleanupGroupCall() {
   groupCallGroupId = null;
   groupCallMicMuted = false;
   stopLocalCallStream();
+  stopScreenShare();
   if (groupCallOverlay) groupCallOverlay.style.display = 'none';
   if (prevGroupId) activeGroupCallsClient.delete(prevGroupId);
   updateChatHeader();
@@ -2928,6 +3013,24 @@ async function createGroupCallPeerConnection(peerLogin) {
     }
   };
   pc.ontrack = ev => {
+    // Video track = screen share
+    if (ev.track.kind === 'video') {
+      const vStream = ev.streams?.[0] || new MediaStream([ev.track]);
+      if (groupRemoteScreenVideo) {
+        groupRemoteScreenVideo.srcObject = vStream;
+        groupRemoteScreenVideo.play().catch(() => {});
+      }
+      if (groupCallScreenArea) groupCallScreenArea.style.display = 'block';
+      groupScreenSharerId = peerLogin;
+      ev.track.onended = () => {
+        if (groupScreenSharerId === peerLogin) {
+          groupScreenSharerId = null;
+          if (groupCallScreenArea) groupCallScreenArea.style.display = 'none';
+          if (groupRemoteScreenVideo) groupRemoteScreenVideo.srcObject = null;
+        }
+      };
+      return;
+    }
     if (!groupCallRemoteStreams[peerLogin]) groupCallRemoteStreams[peerLogin] = new MediaStream();
     const inStream = ev.streams?.[0] || null;
     if (inStream) {
@@ -3052,6 +3155,19 @@ async function createCallPeerConnection() {
   pc.ontrack = ev => {
     if (!remoteCallStream) remoteCallStream = new MediaStream();
     const incomingStream = ev.streams?.[0];
+    // Video track = screen share from remote
+    if (ev.track.kind === 'video') {
+      if (remoteScreenVideo) {
+        remoteScreenVideo.srcObject = ev.streams?.[0] || new MediaStream([ev.track]);
+        remoteScreenVideo.play().catch(() => {});
+      }
+      if (callScreenArea) callScreenArea.style.display = 'block';
+      ev.track.onended = () => {
+        if (callScreenArea) callScreenArea.style.display = 'none';
+        if (remoteScreenVideo) remoteScreenVideo.srcObject = null;
+      };
+      return;
+    }
     if (incomingStream) {
       incomingStream.getAudioTracks().forEach(track => {
         if (!remoteCallStream.getTracks().some(existing => existing.id === track.id)) remoteCallStream.addTrack(track);
@@ -5125,6 +5241,18 @@ if (groupCallMuteBtn) {
     if (localCallStream) localCallStream.getAudioTracks().forEach(t => { t.enabled = !groupCallMicMuted; });
     if (localCallSourceStream) localCallSourceStream.getAudioTracks().forEach(t => { t.enabled = !groupCallMicMuted; });
     groupCallMuteBtn.textContent = groupCallMicMuted ? '🎙️ Включить' : '🎙️ Выключить';
+  };
+}
+if (groupCallScreenBtn) {
+  groupCallScreenBtn.onclick = () => {
+    if (isGroupScreenSharing) stopScreenShare();
+    else startScreenShare(true);
+  };
+}
+if (callScreenBtn) {
+  callScreenBtn.onclick = () => {
+    if (isScreenSharing) stopScreenShare();
+    else startScreenShare(false);
   };
 }
 if (groupCallOverlay) {
