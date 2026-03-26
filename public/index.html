@@ -2682,8 +2682,19 @@ function cleanupGroupCall() {
 async function createGroupCallPeerConnection(peerLogin) {
   cleanupGroupCallPeer(peerLogin);
   const stream = await ensureLocalCallStream();
+  // Resume AudioContext if suspended (browser autoplay policy)
+  if (localCallAudioContext && localCallAudioContext.state === 'suspended') {
+    try { await localCallAudioContext.resume(); } catch {}
+  }
+  // Ensure gain is not zero for group call
+  if (localCallGainNode) {
+    localCallGainNode.gain.value = groupCallMicMuted ? 0 : 1;
+  }
   const pc = new RTCPeerConnection(rtcConfig || { iceServers: [{ urls: ['stun:stun.l.google.com:19302'] }] });
   stream.getTracks().forEach(track => pc.addTrack(track, stream));
+  // Buffer ICE candidates until remote description is set
+  const pendingCandidates = [];
+  pc._pendingCandidates = pendingCandidates;
   pc.onicecandidate = ev => {
     if (ev.candidate && ws && ws.readyState === WebSocket.OPEN) {
       ws.send(JSON.stringify({ type: 'group_call_signal', groupId: groupCallGroupId, to: peerLogin, signal: { type: 'candidate', candidate: ev.candidate } }));
@@ -2691,15 +2702,15 @@ async function createGroupCallPeerConnection(peerLogin) {
   };
   pc.ontrack = ev => {
     if (!groupCallRemoteStreams[peerLogin]) groupCallRemoteStreams[peerLogin] = new MediaStream();
-    const stream = ev.streams?.[0] || null;
-    if (stream) {
-      stream.getAudioTracks().forEach(t => { if (!groupCallRemoteStreams[peerLogin].getTracks().some(e => e.id === t.id)) groupCallRemoteStreams[peerLogin].addTrack(t); });
+    const inStream = ev.streams?.[0] || null;
+    if (inStream) {
+      inStream.getAudioTracks().forEach(t => { if (!groupCallRemoteStreams[peerLogin].getTracks().some(e => e.id === t.id)) groupCallRemoteStreams[peerLogin].addTrack(t); });
     } else if (ev.track) {
       if (!groupCallRemoteStreams[peerLogin].getTracks().some(e => e.id === ev.track.id)) groupCallRemoteStreams[peerLogin].addTrack(ev.track);
     }
     if (!groupCallRemoteAudios[peerLogin]) {
       const audio = document.createElement('audio');
-      audio.autoplay = true; audio.style.display = 'none';
+      audio.autoplay = true; audio.playsInline = true; audio.style.display = 'none';
       document.body.appendChild(audio);
       groupCallRemoteAudios[peerLogin] = audio;
     }
@@ -2712,7 +2723,7 @@ async function createGroupCallPeerConnection(peerLogin) {
 
 async function groupCallSendOffer(peerLogin) {
   const pc = await createGroupCallPeerConnection(peerLogin);
-  const offer = await pc.createOffer({ offerToReceiveAudio: true });
+  const offer = await pc.createOffer({ offerToReceiveAudio: true, offerToSendAudio: true });
   await pc.setLocalDescription(offer);
   ws.send(JSON.stringify({ type: 'group_call_signal', groupId: groupCallGroupId, to: peerLogin, signal: { type: 'offer', sdp: offer.sdp } }));
 }
@@ -2722,6 +2733,11 @@ async function handleGroupCallSignal(from, signal) {
   if (signal.type === 'offer') {
     const pc = await createGroupCallPeerConnection(from);
     await pc.setRemoteDescription({ type: 'offer', sdp: signal.sdp });
+    // Flush buffered candidates
+    if (pc._pendingCandidates) {
+      for (const c of pc._pendingCandidates) { try { await pc.addIceCandidate(c); } catch {} }
+      pc._pendingCandidates = [];
+    }
     const answer = await pc.createAnswer();
     await pc.setLocalDescription(answer);
     ws.send(JSON.stringify({ type: 'group_call_signal', groupId: groupCallGroupId, to: from, signal: { type: 'answer', sdp: answer.sdp } }));
@@ -2729,21 +2745,40 @@ async function handleGroupCallSignal(from, signal) {
   }
   if (signal.type === 'answer') {
     const pc = groupCallPeerConnections[from];
-    if (pc) await pc.setRemoteDescription({ type: 'answer', sdp: signal.sdp });
+    if (!pc) return;
+    await pc.setRemoteDescription({ type: 'answer', sdp: signal.sdp });
+    // Flush buffered candidates
+    if (pc._pendingCandidates) {
+      for (const c of pc._pendingCandidates) { try { await pc.addIceCandidate(c); } catch {} }
+      pc._pendingCandidates = [];
+    }
     return;
   }
   if (signal.type === 'candidate' && signal.candidate) {
     const pc = groupCallPeerConnections[from];
-    if (pc && pc.remoteDescription) { try { await pc.addIceCandidate(signal.candidate); } catch {} }
+    if (!pc) return;
+    if (!pc.remoteDescription) {
+      // Buffer until remote description is set
+      if (!pc._pendingCandidates) pc._pendingCandidates = [];
+      pc._pendingCandidates.push(signal.candidate);
+      return;
+    }
+    try { await pc.addIceCandidate(signal.candidate); } catch {}
   }
 }
 
 async function startGroupCall(groupId) {
   if (groupCallGroupId) { leaveGroupCall(); return; }
   try { await ensureLocalCallStream(); } catch { alert(t('allowMic')); return; }
+  // Resume AudioContext — browser may suspend it until user gesture
+  if (localCallAudioContext && localCallAudioContext.state === 'suspended') {
+    try { await localCallAudioContext.resume(); } catch {}
+  }
   groupCallGroupId = groupId;
   groupCallParticipantLogins = [login];
   groupCallMicMuted = false;
+  // Set gain to 1 (full volume) for group call
+  if (localCallGainNode) localCallGainNode.gain.value = 1;
   startGroupCallVoiceMeter(localCallSourceStream || localCallStream);
   if (groupCallOverlay) groupCallOverlay.style.display = 'flex';
   if (groupCallTitle) { const g = findGroupData(groupId); groupCallTitle.textContent = g?.name || 'Групповой звонок'; }
@@ -2756,8 +2791,14 @@ async function joinGroupCall(groupId) {
   if (groupCallGroupId === groupId) return;
   if (groupCallGroupId) leaveGroupCall();
   try { await ensureLocalCallStream(); } catch { alert(t('allowMic')); return; }
+  // Resume AudioContext — browser may suspend it until user gesture
+  if (localCallAudioContext && localCallAudioContext.state === 'suspended') {
+    try { await localCallAudioContext.resume(); } catch {}
+  }
   groupCallGroupId = groupId;
   groupCallMicMuted = false;
+  // Set gain to 1 (full volume) for group call
+  if (localCallGainNode) localCallGainNode.gain.value = 1;
   startGroupCallVoiceMeter(localCallSourceStream || localCallStream);
   if (groupCallOverlay) groupCallOverlay.style.display = 'flex';
   if (groupCallTitle) { const g = findGroupData(groupId); groupCallTitle.textContent = g?.name || 'Групповой звонок'; }
@@ -4441,7 +4482,12 @@ if (groupCallBtn) {
   groupCallBtn.onclick = async () => {
     if (currentChatType !== 'group' || !currentGroupId) return;
     if (groupCallGroupId === currentGroupId) { leaveGroupCall(); return; }
-    await startGroupCall(currentGroupId);
+    // If there's already an active call in this group — join it, otherwise start new
+    if (activeGroupCallsClient.has(currentGroupId)) {
+      await joinGroupCall(currentGroupId);
+    } else {
+      await startGroupCall(currentGroupId);
+    }
   };
 }
 if (groupCallLeaveBtn) groupCallLeaveBtn.onclick = leaveGroupCall;
@@ -4450,6 +4496,7 @@ if (groupCallMuteBtn) {
     groupCallMicMuted = !groupCallMicMuted;
     if (localCallGainNode) localCallGainNode.gain.value = groupCallMicMuted ? 0 : 1;
     if (localCallStream) localCallStream.getAudioTracks().forEach(t => { t.enabled = !groupCallMicMuted; });
+    if (localCallSourceStream) localCallSourceStream.getAudioTracks().forEach(t => { t.enabled = !groupCallMicMuted; });
     groupCallMuteBtn.textContent = groupCallMicMuted ? '🎙️ Включить' : '🎙️ Выключить';
   };
 }
