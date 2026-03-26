@@ -1725,6 +1725,8 @@ let groupCallRemoteStreams = {};      // login -> MediaStream
 let groupCallRemoteAudios = {};       // login -> <audio> element
 let groupCallMicMuted = false;
 let groupCallVoiceMeterTimer = null;
+// Map of groupId -> participant count for groups with active calls (for non-participants)
+const activeGroupCallsClient = new Map();
 // ─────────────────────────────────────────────────────────────────────────────
 let remoteAudioSourceNode = null;
 let remoteAudioGainNode = null;
@@ -2361,7 +2363,8 @@ function updateCallUi() {
   callPeerName.textContent = user?.nickname || user?.login || 'Call';
   callPeerSub.textContent = callPeerLogin ? '@' + callPeerLogin : 'Squadovka Call';
   callBtn.classList.toggle('activeCall', ['calling','incoming','connecting','connected'].includes(callState));
-  setCallButtonVisible(currentChatType === 'dm' && !!currentDM);
+  // Only show DM call button when in a DM chat (never in group view)
+  setCallButtonVisible(currentChatType === 'dm' && !!currentDM && currentChatType !== 'group');
   callBtnLabel.textContent = ['calling','incoming','connecting','connected'].includes(callState) ? t('hang') : t('call');
   callInfoPill.textContent = callState === 'connected' ? ((isMicMuted ? t('micOff') : t('micOn')) + ' · ' + (isSpeakerMuted ? t('soundOff') : t('soundOn'))) : t('natHint');
   callMuteBtn.textContent = isMicMuted ? '🎙️ ' + t('unmute') : '🎙️ ' + t('mute');
@@ -2588,11 +2591,13 @@ function cleanupGroupCall() {
   groupCallPeerConnections = {};
   groupCallRemoteStreams = {};
   groupCallRemoteAudios = {};
+  const prevGroupId = groupCallGroupId;
   groupCallParticipantLogins = [];
   groupCallGroupId = null;
   groupCallMicMuted = false;
   stopLocalCallStream();
   if (groupCallOverlay) groupCallOverlay.style.display = 'none';
+  if (prevGroupId) activeGroupCallsClient.delete(prevGroupId);
   updateChatHeader();
 }
 
@@ -3263,17 +3268,23 @@ function updateChatHeader(peerLogin = null, peerNick = null, avatar = null) {
     const groupName = group?.name || peerNick || `Group ${currentGroupId}`;
     chatTitle.textContent = groupName;
     const membersCount = Array.isArray(group?.members) ? group.members.length : 0;
-    chatStatus.textContent = membersCount ? `${membersCount} участ.` : 'Групповой чат';
+    const callParticipants = activeGroupCallsClient.get(currentGroupId);
+    if (callParticipants && callParticipants > 0) {
+      chatStatus.textContent = `🔊 ${callParticipants} в звонке · ${membersCount} участ.`;
+    } else {
+      chatStatus.textContent = membersCount ? `${membersCount} участ.` : 'Групповой чат';
+    }
     chatAvatar.textContent = (groupName || 'G')[0]?.toUpperCase() || 'G';
     chatAvatar.style.backgroundImage = '';
     chatAvatar.style.background = '#5865f2';
-    setCallButtonVisible(false);
+    // Always hide DM call button in group view
+    if (callBtn) callBtn.style.display = 'none';
     // Show group call button
     if (groupCallBtn) {
       groupCallBtn.style.display = 'inline-flex';
       const inCall = groupCallGroupId === currentGroupId;
       groupCallBtn.classList.toggle('activeCall', inCall);
-      if (groupCallBtnLabel) groupCallBtnLabel.textContent = inCall ? '📵 Выйти' : '📞 Голосовой';
+      if (groupCallBtnLabel) groupCallBtnLabel.textContent = inCall ? '📵 Выйти' : (callParticipants ? `📞 Войти (${callParticipants})` : '📞 Голосовой');
     }
     return;
   }
@@ -3668,19 +3679,18 @@ function handle(d) {
   if (d.type === 'group_call_state') {
     const gid = Number(d.groupId);
     const participants = Array.isArray(d.participants) ? d.participants : [];
+    // Track active calls for all groups (for non-participants too)
+    if (participants.length > 0) {
+      activeGroupCallsClient.set(gid, participants.length);
+    } else {
+      activeGroupCallsClient.delete(gid);
+    }
     if (groupCallGroupId === gid) {
       groupCallParticipantLogins = participants;
       renderGroupCallParticipants();
     }
-    // Always update header if we're viewing this group (shows join button state)
+    // Refresh header if viewing this group
     if (currentChatType === 'group' && Number(currentGroupId) === gid) {
-      const group = findGroupData(gid);
-      if (group) {
-        const membersCount = Array.isArray(group.members) ? group.members.length : 0;
-        if (chatStatus) chatStatus.textContent = participants.length > 0
-          ? `🔊 ${participants.length} в звонке · ${membersCount} участ.`
-          : (membersCount ? `${membersCount} участ.` : 'Групповой чат');
-      }
       updateChatHeader();
     }
     return;
