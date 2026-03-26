@@ -3775,14 +3775,13 @@ function openSocket(initialPayload) {
   ws.onopen = () => {
     if (initialPayload) ws.send(JSON.stringify(initialPayload));
   };
-  ws.onmessage = e => handle(JSON.parse(e.data));
+  ws.onmessage = e => { try { handle(JSON.parse(e.data)); } catch(err) { console.error('WS message error:', err); } };
   ws.onclose = () => {
     if (appDiv.style.display !== 'none') {
-      // keep token for next reload; just drop broken socket reference
       ws = null;
     }
   };
-  ws.onerror = () => {};
+  ws.onerror = (err) => { console.error('WebSocket error:', err); };
 }
 
 loginBtn.onclick = async () => {
