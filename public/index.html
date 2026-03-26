@@ -2046,7 +2046,7 @@ function saveGroupAvatars() { try { localStorage.setItem('messenger_group_avatar
 function getGroupWallpaper(gid) { const v = groupWallpapers?.[String(gid)]; return typeof v === 'string' && v ? v : null; }
 function setGroupWallpaper(gid, data) { if (data) groupWallpapers[String(gid)] = data; else delete groupWallpapers[String(gid)]; saveGroupWallpapers(); applyChatWallpaper(); }
 function getGroupAvatar(gid) { const v = groupAvatars?.[String(gid)]; return typeof v === 'string' && v ? v : null; }
-function setGroupAvatar(gid, data) { if (data) groupAvatars[String(gid)] = data; else delete groupAvatars[String(gid)]; saveGroupAvatars(); renderGroups(); updateChatHeader(); }
+function setGroupAvatar(gid, data) { if (data) groupAvatars[String(gid)] = data; else delete groupAvatars[String(gid)]; saveGroupAvatars(); renderGroups(); renderOnline(); updateChatHeader(); }
 function applyChatWallpaper() {
   const chatEl = document.getElementById('chat');
   if (!chatEl) return;
