@@ -7,7 +7,8 @@ const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 const fs = require('fs');
 const fsp = fs.promises;
-const nodemailer = require('nodemailer');
+const speakeasy = require('speakeasy');
+const QRCode = require('qrcode');
 
 // Load .env if present
 try { require('dotenv').config(); } catch {}
@@ -67,36 +68,7 @@ const CHAT_HISTORY_LIMIT = 200;
 const MAX_NICKNAME_LENGTH = 32;
 const LOGIN_RE = /^[a-zA-Z0-9_\-.]{3,32}$/;
 
-// Email / 2FA config
-const SMTP_HOST     = process.env.SMTP_HOST     || '';
-const SMTP_PORT     = Number(process.env.SMTP_PORT) || 587;
-const SMTP_USER     = process.env.SMTP_USER     || '';
-const SMTP_PASS     = process.env.SMTP_PASS     || '';
-const SMTP_FROM     = process.env.SMTP_FROM     || SMTP_USER;
-const TWOFA_CODE_TTL_MS = 10 * 60 * 1000; // 10 minutes
-
-let mailerTransport = null;
-function getMailer() {
-  if (!SMTP_HOST || !SMTP_USER || !SMTP_PASS) return null;
-  if (!mailerTransport) {
-    mailerTransport = nodemailer.createTransport({
-      host: SMTP_HOST, port: SMTP_PORT,
-      secure: SMTP_PORT === 465,
-      auth: { user: SMTP_USER, pass: SMTP_PASS }
-    });
-  }
-  return mailerTransport;
-}
-async function sendMail(to, subject, text) {
-  const t = getMailer();
-  if (!t) throw new Error('SMTP not configured');
-  await t.sendMail({ from: SMTP_FROM, to, subject, text });
-}
-function generateCode() {
-  return String(Math.floor(100000 + Math.random() * 900000));
-}
-
-// pending 2FA logins: login -> { code, hash, expiresAt, userData, ua, ip }
+// pending 2FA logins: login -> { userData, ua, ip }
 const pending2FA = new Map();
 const authAttempts = new Map();
 const actionAttempts = new Map();
@@ -540,11 +512,11 @@ async function initDb() {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS user_security (
       login TEXT PRIMARY KEY,
-      email TEXT,
+      totp_secret TEXT,
       twofa_enabled BOOLEAN NOT NULL DEFAULT FALSE
     )
   `);
-  await pool.query(`ALTER TABLE user_security ADD COLUMN IF NOT EXISTS email TEXT`);
+  await pool.query(`ALTER TABLE user_security ADD COLUMN IF NOT EXISTS totp_secret TEXT`);
   await pool.query(`ALTER TABLE user_security ADD COLUMN IF NOT EXISTS twofa_enabled BOOLEAN NOT NULL DEFAULT FALSE`);
 }
 
@@ -1035,18 +1007,11 @@ wss.on('connection', (ws, req) => {
         const ua = typeof req.headers['user-agent'] === 'string' ? req.headers['user-agent'] : '';
 
         // Check if 2FA is enabled for this user
-        const secRow = await pool.query(`SELECT email, twofa_enabled FROM user_security WHERE login = $1`, [user.login]);
+        const secRow = await pool.query(`SELECT totp_secret, twofa_enabled FROM user_security WHERE login = $1`, [user.login]);
         const sec = secRow.rows[0];
-        if (sec?.twofa_enabled && sec?.email) {
-          const code = generateCode();
-          const codeHash = crypto.createHash('sha256').update(code).digest('hex');
-          pending2FA.set(user.login, { codeHash, expiresAt: Date.now() + TWOFA_CODE_TTL_MS, userData: user, ua, ip: clientIp });
-          try {
-            await sendMail(sec.email, 'Код входа в Squadovka', `Ваш код подтверждения: ${code}\n\nКод действителен 10 минут.`);
-            send(ws, { type: 'twofa_required', login: user.login, email: sec.email.replace(/(.{2}).+(@.+)/, '$1***$2') });
-          } catch {
-            send(ws, { type: 'error', message: 'Не удалось отправить код на почту. Проверьте настройки SMTP.' });
-          }
+        if (sec?.twofa_enabled && sec?.totp_secret) {
+          pending2FA.set(user.login, { userData: user, ua, ip: clientIp });
+          send(ws, { type: 'twofa_required', login: user.login });
           return;
         }
 
@@ -1057,19 +1022,15 @@ wss.on('connection', (ws, req) => {
 
       if (data.type === 'login_2fa_verify') {
         const loginVal = sanitizeLogin(data.login);
-        const code = typeof data.code === 'string' ? data.code.trim() : '';
-        if (!loginVal || !code) return;
+        const token = typeof data.code === 'string' ? data.code.trim() : '';
+        if (!loginVal || !token) return;
         const pending = pending2FA.get(loginVal);
-        if (!pending || Date.now() > pending.expiresAt) {
-          pending2FA.delete(loginVal);
-          send(ws, { type: 'error', message: 'Код истёк. Войдите заново.' });
-          return;
-        }
-        const codeHash = crypto.createHash('sha256').update(code).digest('hex');
-        if (codeHash !== pending.codeHash) {
-          send(ws, { type: 'error', message: 'Неверный код подтверждения.' });
-          return;
-        }
+        if (!pending) { send(ws, { type: 'error', message: 'Сессия истекла. Войдите заново.' }); return; }
+        const secRow = await pool.query(`SELECT totp_secret FROM user_security WHERE login = $1`, [loginVal]);
+        const secret = secRow.rows[0]?.totp_secret;
+        if (!secret) { pending2FA.delete(loginVal); send(ws, { type: 'error', message: 'Ошибка 2FA.' }); return; }
+        const valid = speakeasy.totp.verify({ secret, encoding: 'base32', token, window: 1 });
+        if (!valid) { send(ws, { type: 'error', message: 'Неверный код. Попробуй ещё раз.' }); return; }
         pending2FA.delete(loginVal);
         userLogin = pending.userData.login;
         await loginSocket(ws, pending.userData, pending.ua, pending.ip);
@@ -1169,57 +1130,41 @@ wss.on('connection', (ws, req) => {
       }
 
       if (data.type === 'get_security_info') {
-        const row = await pool.query(`SELECT email, twofa_enabled FROM user_security WHERE login = $1`, [userLogin]);
+        const row = await pool.query(`SELECT totp_secret, twofa_enabled FROM user_security WHERE login = $1`, [userLogin]);
         const s = row.rows[0];
-        send(ws, { type: 'security_info', email: s?.email || null, twofa_enabled: !!s?.twofa_enabled });
+        send(ws, { type: 'security_info', twofa_enabled: !!s?.twofa_enabled });
         return;
       }
 
-      if (data.type === 'set_security_email') {
-        const email = typeof data.email === 'string' ? data.email.trim().toLowerCase() : '';
-        if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-          send(ws, { type: 'security_error', message: 'Некорректный email.' });
-          return;
-        }
-        // Send verification code
-        const code = generateCode();
-        const codeHash = crypto.createHash('sha256').update(code).digest('hex');
-        pending2FA.set(`email_verify:${userLogin}`, { codeHash, expiresAt: Date.now() + TWOFA_CODE_TTL_MS, email });
-        try {
-          await sendMail(email, 'Подтверждение email — Squadovka', `Ваш код подтверждения: ${code}\n\nКод действителен 10 минут.`);
-          send(ws, { type: 'security_email_code_sent', email: email.replace(/(.{2}).+(@.+)/, '$1***$2') });
-        } catch {
-          send(ws, { type: 'security_error', message: 'Не удалось отправить письмо. Проверьте адрес или настройки SMTP.' });
-        }
-        return;
-      }
-
-      if (data.type === 'verify_security_email') {
-        const code = typeof data.code === 'string' ? data.code.trim() : '';
-        const key = `email_verify:${userLogin}`;
-        const pending = pending2FA.get(key);
-        if (!pending || Date.now() > pending.expiresAt) {
-          pending2FA.delete(key);
-          send(ws, { type: 'security_error', message: 'Код истёк. Запросите новый.' });
-          return;
-        }
-        const codeHash = crypto.createHash('sha256').update(code).digest('hex');
-        if (codeHash !== pending.codeHash) {
-          send(ws, { type: 'security_error', message: 'Неверный код.' });
-          return;
-        }
-        pending2FA.delete(key);
+      if (data.type === 'totp_setup_start') {
+        // Generate a new secret and return QR code
+        const secret = speakeasy.generateSecret({ name: `Squadovka (${userLogin})`, length: 20 });
+        // Store temp secret (not enabled yet)
         await pool.query(`
-          INSERT INTO user_security (login, email, twofa_enabled)
-          VALUES ($1, $2, TRUE)
-          ON CONFLICT (login) DO UPDATE SET email = $2, twofa_enabled = TRUE
-        `, [userLogin, pending.email]);
-        send(ws, { type: 'security_ok', action: '2fa_enabled', email: pending.email });
+          INSERT INTO user_security (login, totp_secret, twofa_enabled)
+          VALUES ($1, $2, FALSE)
+          ON CONFLICT (login) DO UPDATE SET totp_secret = $2
+        `, [userLogin, secret.base32]);
+        const qrDataUrl = await QRCode.toDataURL(secret.otpauth_url);
+        send(ws, { type: 'totp_setup_qr', qr: qrDataUrl, secret: secret.base32 });
+        return;
+      }
+
+      if (data.type === 'totp_setup_verify') {
+        const token = typeof data.code === 'string' ? data.code.trim() : '';
+        if (!token) return;
+        const row = await pool.query(`SELECT totp_secret FROM user_security WHERE login = $1`, [userLogin]);
+        const secret = row.rows[0]?.totp_secret;
+        if (!secret) { send(ws, { type: 'security_error', message: 'Сначала запросите QR-код.' }); return; }
+        const valid = speakeasy.totp.verify({ secret, encoding: 'base32', token, window: 1 });
+        if (!valid) { send(ws, { type: 'security_error', message: 'Неверный код. Попробуй ещё раз.' }); return; }
+        await pool.query(`UPDATE user_security SET twofa_enabled = TRUE WHERE login = $1`, [userLogin]);
+        send(ws, { type: 'security_ok', action: '2fa_enabled' });
         return;
       }
 
       if (data.type === 'disable_2fa') {
-        await pool.query(`UPDATE user_security SET twofa_enabled = FALSE WHERE login = $1`, [userLogin]);
+        await pool.query(`UPDATE user_security SET twofa_enabled = FALSE, totp_secret = NULL WHERE login = $1`, [userLogin]);
         send(ws, { type: 'security_ok', action: '2fa_disabled' });
         return;
       }

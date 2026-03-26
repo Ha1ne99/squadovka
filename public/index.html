@@ -1221,7 +1221,7 @@ body[data-theme='midnight'] { --bg:#101217; --bg2:#0b0d12; }
     <div class="brandText"><b>Squadovka</b></div>
   </div>
   <h2 style="margin:0;">Подтверждение входа</h2>
-  <p id="twoFaHint" style="color:var(--muted);text-align:center;margin:0;font-size:14px;">Введите код из письма</p>
+  <p id="twoFaHint" style="color:var(--muted);text-align:center;margin:0;font-size:14px;">Введи код из приложения-аутентификатора</p>
   <input id="twoFaCodeInput" class="profileInput" type="text" placeholder="000000" maxlength="6" style="width:200px;text-align:center;letter-spacing:6px;font-size:22px;padding:14px;">
   <button id="twoFaSubmitBtn" style="width:200px;padding:12px;border-radius:12px;background:linear-gradient(135deg,var(--accent),var(--accent-2));border:none;color:#fff;font-weight:800;font-size:15px;cursor:pointer;">Войти</button>
   <button id="twoFaBackBtn" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:13px;">← Назад</button>
@@ -1518,21 +1518,24 @@ body[data-theme='midnight'] { --bg:#101217; --bg2:#0b0d12; }
 
             <div class="profileSection" style="margin-top:20px;">
               <h4>Двухэтапная аутентификация</h4>
-              <div class="profileHint">При входе на почту будет отправлен код подтверждения.</div>
+              <div class="profileHint">Используй Google Authenticator, Authy или любое TOTP-приложение.</div>
               <div id="sec2faStatus" style="margin-top:12px;"></div>
 
               <div id="sec2faSetupBlock" style="margin-top:12px;">
-                <label class="profileFieldLabel" for="sec2faEmail">Email для кодов</label>
-                <input id="sec2faEmail" class="profileInput" type="email" placeholder="your@email.com">
-                <button id="sec2faSendCodeBtn" class="profileActionBtn" style="margin-top:10px;">Отправить код</button>
-              </div>
-
-              <div id="sec2faVerifyBlock" style="display:none;margin-top:12px;">
-                <div class="profileHint" id="sec2faVerifyHint">Введите код из письма</div>
-                <input id="sec2faCodeInput" class="profileInput" type="text" placeholder="6-значный код" maxlength="6" style="margin-top:8px;letter-spacing:4px;font-size:18px;">
-                <div style="display:flex;gap:8px;margin-top:10px;">
-                  <button id="sec2faVerifyBtn" class="profileActionBtn primary">Подтвердить</button>
-                  <button id="sec2faCancelBtn" class="profileActionBtn">Отмена</button>
+                <div class="profileHint" style="margin-bottom:10px;">Отсканируй QR-код в приложении, затем введи код для подтверждения.</div>
+                <button id="sec2faGetQrBtn" class="profileActionBtn">Получить QR-код</button>
+                <div id="sec2faQrWrap" style="display:none;margin-top:14px;text-align:center;">
+                  <img id="sec2faQrImg" src="" alt="QR" style="width:180px;height:180px;border-radius:12px;background:#fff;padding:8px;">
+                  <div style="margin-top:10px;color:var(--muted);font-size:12px;">Или введи секрет вручную:</div>
+                  <div id="sec2faSecretText" style="font-family:monospace;font-size:13px;margin-top:4px;word-break:break-all;color:#eef2fb;"></div>
+                </div>
+                <div id="sec2faVerifyBlock" style="display:none;margin-top:14px;">
+                  <label class="profileFieldLabel">Введи код из приложения для подтверждения</label>
+                  <input id="sec2faCodeInput" class="profileInput" type="text" inputmode="numeric" placeholder="000000" maxlength="6" style="margin-top:6px;letter-spacing:4px;font-size:18px;">
+                  <div style="display:flex;gap:8px;margin-top:10px;">
+                    <button id="sec2faVerifyBtn" class="profileActionBtn primary">Подтвердить</button>
+                    <button id="sec2faCancelBtn" class="profileActionBtn">Отмена</button>
+                  </div>
                 </div>
               </div>
 
@@ -1665,12 +1668,13 @@ const secChangePasswordBtn = document.getElementById('secChangePasswordBtn');
 const sec2faStatus = document.getElementById('sec2faStatus');
 const sec2faSetupBlock = document.getElementById('sec2faSetupBlock');
 const sec2faVerifyBlock = document.getElementById('sec2faVerifyBlock');
-const sec2faEmail = document.getElementById('sec2faEmail');
-const sec2faSendCodeBtn = document.getElementById('sec2faSendCodeBtn');
+const sec2faGetQrBtn = document.getElementById('sec2faGetQrBtn');
+const sec2faQrWrap = document.getElementById('sec2faQrWrap');
+const sec2faQrImg = document.getElementById('sec2faQrImg');
+const sec2faSecretText = document.getElementById('sec2faSecretText');
 const sec2faCodeInput = document.getElementById('sec2faCodeInput');
 const sec2faVerifyBtn = document.getElementById('sec2faVerifyBtn');
 const sec2faCancelBtn = document.getElementById('sec2faCancelBtn');
-const sec2faVerifyHint = document.getElementById('sec2faVerifyHint');
 const sec2faMsg = document.getElementById('sec2faMsg');
 const twoFaScreen = document.getElementById('twoFaScreen');
 const twoFaHint = document.getElementById('twoFaHint');
@@ -2482,21 +2486,22 @@ function renderSecurityInfo(info) {
   if (info.twofa_enabled) {
     sec2faStatus.innerHTML = `<div style="display:flex;align-items:center;gap:10px;padding:12px 14px;background:rgba(46,207,143,.08);border:1px solid rgba(46,207,143,.3);border-radius:12px;">
       <span style="font-size:20px;">✅</span>
-      <div>
+      <div style="flex:1;">
         <div style="font-weight:700;font-size:13px;">Двухэтапная аутентификация включена</div>
-        <div style="color:var(--muted);font-size:12px;">Почта: ${info.email ? info.email.replace(/(.{2}).+(@.+)/, '$1***$2') : '—'}</div>
+        <div style="color:var(--muted);font-size:12px;">Google Authenticator / Authy</div>
       </div>
-      <button id="sec2faDisableBtn" class="profileActionBtn" style="margin-left:auto;flex-shrink:0;background:rgba(185,49,57,.18);border-color:rgba(185,49,57,.4);color:#ed4245;">Отключить</button>
+      <button id="sec2faDisableBtn" class="profileActionBtn" style="flex-shrink:0;background:rgba(185,49,57,.18);border-color:rgba(185,49,57,.4);color:#ed4245;">Отключить</button>
     </div>`;
     if (sec2faSetupBlock) sec2faSetupBlock.style.display = 'none';
-    if (sec2faVerifyBlock) sec2faVerifyBlock.style.display = 'none';
     document.getElementById('sec2faDisableBtn')?.addEventListener('click', () => {
       if (!ws || ws.readyState !== WebSocket.OPEN) return;
       ws.send(JSON.stringify({ type: 'disable_2fa' }));
     });
   } else {
-    sec2faStatus.innerHTML = `<div style="padding:10px 14px;background:rgba(255,255,255,.04);border:1px solid var(--line);border-radius:12px;color:var(--muted);font-size:13px;">🔓 Двухэтапная аутентификация отключена. Введите email ниже и нажмите «Отправить код».</div>`;
+    sec2faStatus.innerHTML = `<div style="padding:10px 14px;background:rgba(255,255,255,.04);border:1px solid var(--line);border-radius:12px;color:var(--muted);font-size:13px;">🔓 Двухэтапная аутентификация отключена</div>`;
     if (sec2faSetupBlock) sec2faSetupBlock.style.display = 'block';
+    if (sec2faQrWrap) sec2faQrWrap.style.display = 'none';
+    if (sec2faVerifyBlock) sec2faVerifyBlock.style.display = 'none';
   }
 }
 function applyProfileUpdateLocal(user) {
@@ -3717,18 +3722,15 @@ function handle(d) {
     return;
   }
   if (d.type === 'security_error') {
-    // Route to correct message element based on active context
-    if (sec2faVerifyBlock?.style.display !== 'none' || sec2faSetupBlock?.style.display !== 'none') {
-      if (sec2faMsg) { sec2faMsg.style.color = '#ed4245'; sec2faMsg.textContent = d.message; }
-    } else {
-      if (secPasswordMsg) { secPasswordMsg.style.color = '#ed4245'; secPasswordMsg.textContent = d.message; }
-    }
+    if (sec2faMsg) { sec2faMsg.style.color = '#ed4245'; sec2faMsg.textContent = d.message; }
+    if (secPasswordMsg && d.message?.includes('пароль')) { secPasswordMsg.style.color = '#ed4245'; secPasswordMsg.textContent = d.message; }
     return;
   }
-  if (d.type === 'security_email_code_sent') {
-    if (sec2faSetupBlock) sec2faSetupBlock.style.display = 'none';
+  if (d.type === 'totp_setup_qr') {
+    if (sec2faQrImg) sec2faQrImg.src = d.qr;
+    if (sec2faSecretText) sec2faSecretText.textContent = d.secret;
+    if (sec2faQrWrap) sec2faQrWrap.style.display = 'block';
     if (sec2faVerifyBlock) sec2faVerifyBlock.style.display = 'block';
-    if (sec2faVerifyHint) sec2faVerifyHint.textContent = `Код отправлен на ${d.email}. Введите его ниже:`;
     if (sec2faMsg) sec2faMsg.textContent = '';
     return;
   }
@@ -3736,7 +3738,6 @@ function handle(d) {
     pending2FALogin = d.login;
     if (loginDiv) loginDiv.style.display = 'none';
     if (twoFaScreen) twoFaScreen.style.display = 'flex';
-    if (twoFaHint) twoFaHint.textContent = `Код отправлен на ${d.email}. Введите его для входа:`;
     if (twoFaCodeInput) { twoFaCodeInput.value = ''; twoFaCodeInput.focus(); }
     return;
   }
@@ -4564,23 +4565,21 @@ secChangePasswordBtn?.addEventListener('click', () => {
   ws.send(JSON.stringify({ type: 'change_password', oldPassword: oldP, newPassword: newP }));
 });
 
-// Security — 2FA setup
-sec2faSendCodeBtn?.addEventListener('click', () => {
+// Security — 2FA TOTP setup
+sec2faGetQrBtn?.addEventListener('click', () => {
   if (!ws || ws.readyState !== WebSocket.OPEN) return;
-  const email = sec2faEmail?.value.trim() || '';
-  if (!email) { if (sec2faMsg) { sec2faMsg.style.color = '#ed4245'; sec2faMsg.textContent = 'Введите email.'; } return; }
   if (sec2faMsg) sec2faMsg.textContent = '';
-  ws.send(JSON.stringify({ type: 'set_security_email', email }));
+  ws.send(JSON.stringify({ type: 'totp_setup_start' }));
 });
 sec2faVerifyBtn?.addEventListener('click', () => {
   if (!ws || ws.readyState !== WebSocket.OPEN) return;
   const code = sec2faCodeInput?.value.trim() || '';
   if (!code) return;
-  ws.send(JSON.stringify({ type: 'verify_security_email', code }));
+  ws.send(JSON.stringify({ type: 'totp_setup_verify', code }));
 });
 sec2faCancelBtn?.addEventListener('click', () => {
   if (sec2faVerifyBlock) sec2faVerifyBlock.style.display = 'none';
-  if (sec2faSetupBlock) sec2faSetupBlock.style.display = 'none';
+  if (sec2faQrWrap) sec2faQrWrap.style.display = 'none';
   if (sec2faCodeInput) sec2faCodeInput.value = '';
   if (sec2faMsg) sec2faMsg.textContent = '';
 });
