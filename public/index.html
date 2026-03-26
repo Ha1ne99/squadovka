@@ -1345,6 +1345,7 @@ body[data-theme='midnight'] { --bg:#101217; --bg2:#0b0d12; }
         <button id="settingsTabProfileBtn" class="settingsNavBtn active" type="button" data-settings-tab="profile">Профиль</button>
         <button id="settingsTabCustomizationBtn" class="settingsNavBtn" type="button" data-settings-tab="customization">Кастомизация</button>
         <button id="settingsTabHotkeysBtn" class="settingsNavBtn" type="button" data-settings-tab="hotkeys">Горячие клавиши</button>
+        <button id="settingsTabDevicesBtn" class="settingsNavBtn" type="button" data-settings-tab="devices">Устройства</button>
       </aside>
 
       <div class="settingsMain">
@@ -1474,6 +1475,18 @@ body[data-theme='midnight'] { --bg:#101217; --bg2:#0b0d12; }
               </div>
             </div>
           </div>
+
+          <div class="settingsPane" id="settingsPaneDevices" data-settings-pane="devices">
+            <h3 class="settingsPaneTitle">Устройства</h3>
+            <div class="profileSection">
+              <h4>Активные сессии</h4>
+              <div class="profileHint">Устройства, на которых выполнен вход в аккаунт. Текущая сессия отмечена.</div>
+              <div id="devicesList" style="margin-top:14px;display:flex;flex-direction:column;gap:10px;">
+                <div style="color:var(--muted);font-size:13px;">Загрузка...</div>
+              </div>
+            </div>
+          </div>
+
         </div>
 
         <div class="profileActions">
@@ -1586,6 +1599,9 @@ const settingsTabHotkeysBtn = document.getElementById('settingsTabHotkeysBtn');
 const settingsPaneProfile = document.getElementById('settingsPaneProfile');
 const settingsPaneCustomization = document.getElementById('settingsPaneCustomization');
 const settingsPaneHotkeys = document.getElementById('settingsPaneHotkeys');
+const settingsPaneDevices = document.getElementById('settingsPaneDevices');
+const settingsTabDevicesBtn = document.getElementById('settingsTabDevicesBtn');
+const devicesList = document.getElementById('devicesList');
 const settingsModalTitle = document.getElementById('settingsModalTitle');
 const settingsModalSubtitle = document.getElementById('settingsModalSubtitle');
 const settingsSidebarTitle = document.getElementById('settingsSidebarTitle');
@@ -2014,22 +2030,23 @@ function appearanceText(key) {
 
 function settingsText(key) {
   const map = {
-    ru:{ title:'Настройки', subtitle:'Профиль и внешний вид', sidebar:'Настройки пользователя', profile:'Профиль', customization:'Кастомизация', hotkeys:'Горячие клавиши' },
-    uk:{ title:'Налаштування', subtitle:'Профіль і зовнішній вигляд', sidebar:'Налаштування користувача', profile:'Профіль', customization:'Кастомізація', hotkeys:'Гарячі клавіші' },
-    en:{ title:'Settings', subtitle:'Profile and appearance', sidebar:'User settings', profile:'Profile', customization:'Customization', hotkeys:'Hotkeys' }
+    ru:{ title:'Настройки', subtitle:'Профиль и внешний вид', sidebar:'Настройки пользователя', profile:'Профиль', customization:'Кастомизация', hotkeys:'Горячие клавиши', devices:'Устройства' },
+    uk:{ title:'Налаштування', subtitle:'Профіль і зовнішній вигляд', sidebar:'Налаштування користувача', profile:'Профіль', customization:'Кастомізація', hotkeys:'Гарячі клавіші', devices:'Пристрої' },
+    en:{ title:'Settings', subtitle:'Profile and appearance', sidebar:'User settings', profile:'Profile', customization:'Customization', hotkeys:'Hotkeys', devices:'Devices' }
   };
   return (map[currentLanguage] || map.ru)[key] || key;
 }
 function setSettingsTab(tab) {
-  activeSettingsTab = ['profile','customization','hotkeys'].includes(tab) ? tab : 'profile';
-  [settingsTabProfileBtn, settingsTabCustomizationBtn, settingsTabHotkeysBtn].forEach(btn => {
+  activeSettingsTab = ['profile','customization','hotkeys','devices'].includes(tab) ? tab : 'profile';
+  [settingsTabProfileBtn, settingsTabCustomizationBtn, settingsTabHotkeysBtn, settingsTabDevicesBtn].forEach(btn => {
     if (!btn) return;
     btn.classList.toggle('active', btn.dataset.settingsTab === activeSettingsTab);
   });
-  [settingsPaneProfile, settingsPaneCustomization, settingsPaneHotkeys].forEach(pane => {
+  [settingsPaneProfile, settingsPaneCustomization, settingsPaneHotkeys, settingsPaneDevices].forEach(pane => {
     if (!pane) return;
     pane.classList.toggle('active', pane.dataset.settingsPane === activeSettingsTab);
   });
+  if (activeSettingsTab === 'devices') loadDevices();
 }
 function applyAppearanceTexts() {
   if (settingsModalTitle) settingsModalTitle.textContent = settingsText('title');
@@ -2038,6 +2055,7 @@ function applyAppearanceTexts() {
   if (settingsTabProfileBtn) settingsTabProfileBtn.textContent = settingsText('profile');
   if (settingsTabCustomizationBtn) settingsTabCustomizationBtn.textContent = settingsText('customization');
   if (settingsTabHotkeysBtn) settingsTabHotkeysBtn.textContent = settingsText('hotkeys');
+  if (settingsTabDevicesBtn) settingsTabDevicesBtn.textContent = settingsText('devices');
   if (settingsPaneProfileTitle) settingsPaneProfileTitle.textContent = settingsText('profile');
   if (settingsPaneCustomizationTitle) settingsPaneCustomizationTitle.textContent = settingsText('customization');
   if (settingsPaneHotkeysTitle) settingsPaneHotkeysTitle.textContent = settingsText('hotkeys');
@@ -2259,12 +2277,13 @@ function setProfileModalMode(mode) {
   wallpaperSection?.classList.toggle('hidden', !isSelfMode);
   settingsTabCustomizationBtn?.classList.toggle('hidden', !isSelfMode);
   settingsTabHotkeysBtn?.classList.toggle('hidden', !isSelfMode);
+  settingsTabDevicesBtn?.classList.toggle('hidden', !isSelfMode);
   profileNicknameInput.readOnly = !isSelfMode;
   profileNicknameInput.disabled = !isSelfMode;
   if (profileBioInput) { profileBioInput.readOnly = !isSelfMode; profileBioInput.disabled = !isSelfMode; }
   profileSettingsTitle.textContent = isSelfMode ? t('profileSettings') : t('profileViewTitle');
   profileNameLabel.textContent = t('displayName');
-  if (!isSelfMode && ['customization','hotkeys'].includes(activeSettingsTab)) setSettingsTab('profile');
+  if (!isSelfMode && ['customization','hotkeys','devices'].includes(activeSettingsTab)) setSettingsTab('profile');
 }
 
 function openProfileModal() {
@@ -2314,6 +2333,65 @@ function openUserProfileModal(userLogin, fetchFresh = true) {
 }
 
 function closeProfileModal() { viewedProfile = null; profileModalOverlay.style.display = 'none'; }
+
+function parseUserAgent(ua) {
+  if (!ua) return { browser: 'Неизвестно', os: 'Неизвестно', icon: '🖥️' };
+  let browser = 'Неизвестно', os = 'Неизвестно', icon = '🖥️';
+  // OS
+  if (/windows/i.test(ua)) { os = 'Windows'; icon = '🖥️'; }
+  else if (/android/i.test(ua)) { os = 'Android'; icon = '📱'; }
+  else if (/iphone|ipad/i.test(ua)) { os = 'iOS'; icon = '📱'; }
+  else if (/mac os/i.test(ua)) { os = 'macOS'; icon = '🖥️'; }
+  else if (/linux/i.test(ua)) { os = 'Linux'; icon = '🖥️'; }
+  // Browser
+  if (/edg\//i.test(ua)) browser = 'Edge';
+  else if (/opr\//i.test(ua) || /opera/i.test(ua)) browser = 'Opera';
+  else if (/chrome\/[\d.]+/i.test(ua) && !/chromium/i.test(ua)) browser = 'Chrome';
+  else if (/firefox\/[\d.]+/i.test(ua)) browser = 'Firefox';
+  else if (/safari\/[\d.]+/i.test(ua) && !/chrome/i.test(ua)) browser = 'Safari';
+  else if (/chromium/i.test(ua)) browser = 'Chromium';
+  return { browser, os, icon };
+}
+
+function loadDevices() {
+  if (!ws || ws.readyState !== WebSocket.OPEN) return;
+  if (devicesList) devicesList.innerHTML = '<div style="color:var(--muted);font-size:13px;">Загрузка...</div>';
+  ws.send(JSON.stringify({ type: 'get_sessions' }));
+}
+
+function renderDevices(sessions) {
+  if (!devicesList) return;
+  if (!sessions || !sessions.length) {
+    devicesList.innerHTML = '<div style="color:var(--muted);font-size:13px;">Нет активных сессий</div>';
+    return;
+  }
+  devicesList.innerHTML = '';
+  for (const s of sessions) {
+    const { browser, os, icon } = parseUserAgent(s.userAgent);
+    const createdDate = new Date(s.createdAt).toLocaleString(currentLanguage === 'en' ? 'en-US' : 'ru-RU', { day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' });
+    const card = document.createElement('div');
+    card.style.cssText = 'display:flex;align-items:center;gap:14px;padding:14px 16px;background:rgba(255,255,255,.04);border:1px solid var(--line);border-radius:14px;';
+    if (s.current) card.style.borderColor = 'rgba(107,124,255,.5)';
+    card.innerHTML = `
+      <div style="font-size:28px;line-height:1;">${icon}</div>
+      <div style="flex:1;min-width:0;">
+        <div style="font-weight:700;font-size:14px;">${browser} · ${os}${s.current ? ' <span style="color:#6b7cff;font-size:12px;">(текущая)</span>' : ''}</div>
+        <div style="color:var(--muted);font-size:12px;margin-top:2px;">IP: ${s.ip || '—'}</div>
+        <div style="color:var(--muted);font-size:12px;">Вход: ${createdDate}</div>
+      </div>
+      ${!s.current ? `<button data-session-id="${s.id}" class="revokeSessionBtn profileActionBtn" style="flex-shrink:0;background:rgba(185,49,57,.18);border-color:rgba(185,49,57,.4);color:#ed4245;">Завершить</button>` : ''}
+    `;
+    devicesList.appendChild(card);
+  }
+  devicesList.querySelectorAll('.revokeSessionBtn').forEach(btn => {
+    btn.onclick = () => {
+      if (!ws || ws.readyState !== WebSocket.OPEN) return;
+      ws.send(JSON.stringify({ type: 'revoke_session', sessionId: btn.dataset.sessionId }));
+      btn.textContent = '...';
+      btn.disabled = true;
+    };
+  });
+}
 function applyProfileUpdateLocal(user) {
   if (!user || !user.login) return;
   friends = friends.map(f => {
@@ -3467,6 +3545,8 @@ function handle(d) {
     return;
   }
   if (d.type === 'logged_out') { resetUiToLoggedOut(); return; }
+  if (d.type === 'sessions_list') { renderDevices(d.sessions); return; }
+  if (d.type === 'session_revoked') { loadDevices(); return; }
   if (d.type === 'login_ok') {
     login = d.login; nickname = d.nickname; myStatus = normalizeClientStatus(d.status || 'online'); rtcConfig = { iceServers:Array.isArray(d.iceServers) && d.iceServers.length ? d.iceServers : [{ urls:['stun:stun.l.google.com:19302'] }] }; localStorage.setItem('login', login); authToken = typeof d.token === 'string' ? d.token : authToken; if (authToken) localStorage.setItem('messenger_token', authToken); localStorage.removeItem('password'); loadLocalChatState(login); friends = Array.isArray(d.friends) ? d.friends : friends; groups = Array.isArray(d.groups) ? d.groups : groups; unread = d.unread || unread || {};
     loginDiv.style.display = 'none'; appDiv.style.display = 'flex'; profileNick.textContent = nickname; profileLogin.textContent = login;
@@ -4275,6 +4355,7 @@ profileModalCloseBtn.onclick = closeProfileModal;
 settingsTabProfileBtn?.addEventListener('click', () => setSettingsTab('profile'));
 settingsTabCustomizationBtn?.addEventListener('click', () => setSettingsTab('customization'));
 settingsTabHotkeysBtn?.addEventListener('click', () => setSettingsTab('hotkeys'));
+settingsTabDevicesBtn?.addEventListener('click', () => setSettingsTab('devices'));
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape' && profileModalOverlay?.style.display === 'flex' && !activeHotkeyCaptureAction) closeProfileModal();
   handleGlobalHotkeys(e);

@@ -111,7 +111,7 @@ function hashSessionId(sessionId) {
   return crypto.createHash('sha256').update(String(sessionId)).digest('base64url');
 }
 
-async function issueSessionToken(login) {
+async function issueSessionToken(login, userAgent = '', ip = '') {
   const now = Date.now();
   const expiresAt = now + SESSION_TTL_MS;
   const sessionId = crypto.randomBytes(24).toString('base64url');
@@ -120,9 +120,9 @@ async function issueSessionToken(login) {
   const signature = signSessionPayload(payload);
 
   await pool.query(`
-    INSERT INTO sessions (id, login, sessionHash, createdAt, expiresAt, revoked)
-    VALUES ($1, $2, $3, $4, $5, FALSE)
-  `, [sessionId, login, hashSessionId(sessionId), now, expiresAt]);
+    INSERT INTO sessions (id, login, sessionHash, createdAt, expiresAt, revoked, userAgent, ip)
+    VALUES ($1, $2, $3, $4, $5, FALSE, $6, $7)
+  `, [sessionId, login, hashSessionId(sessionId), now, expiresAt, userAgent.slice(0, 512), ip.slice(0, 64)]);
 
   return `${payload}.${signature}`;
 }
@@ -496,6 +496,8 @@ async function initDb() {
   await pool.query(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS createdAt BIGINT NOT NULL DEFAULT 0`);
   await pool.query(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS expiresAt BIGINT NOT NULL DEFAULT 0`);
   await pool.query(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS revoked BOOLEAN NOT NULL DEFAULT FALSE`);
+  await pool.query(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS userAgent TEXT NOT NULL DEFAULT ''`);
+  await pool.query(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS ip TEXT NOT NULL DEFAULT ''`);
   await pool.query(`CREATE INDEX IF NOT EXISTS sessions_login_idx ON sessions(login)`);
   await pool.query(`DELETE FROM sessions WHERE revoked = TRUE OR expiresAt < $1`, [Date.now()]);
 }
@@ -569,9 +571,9 @@ async function notifyReceiptUpdate(senderLogin, peerLogin, ids, status) {
 }
 
 
-async function loginSocket(ws, user) {
+async function loginSocket(ws, user, userAgent = '', ip = '') {
   const normalizedStatus = normalizeStatus(user.status);
-  const token = await issueSessionToken(user.login);
+  const token = await issueSessionToken(user.login, userAgent, ip);
   const verifiedToken = await verifySessionToken(token);
 
   clients.set(ws, {
@@ -984,7 +986,8 @@ wss.on('connection', (ws, req) => {
 
         recordAuthAttempt(clientIp, true);
         userLogin = user.login;
-        await loginSocket(ws, user);
+        const ua = typeof req.headers['user-agent'] === 'string' ? req.headers['user-agent'] : '';
+        await loginSocket(ws, user, ua, clientIp);
         await broadcastOnlineFriends();
         return;
       }
@@ -1004,7 +1007,10 @@ wss.on('connection', (ws, req) => {
         }
 
         userLogin = user.login;
-        await loginSocket(ws, user);
+        const ua2 = typeof req.headers['user-agent'] === 'string' ? req.headers['user-agent'] : '';
+        // Update userAgent/ip for re-auth (token reconnect)
+        await pool.query(`UPDATE sessions SET userAgent = $1, ip = $2 WHERE id = $3`, [ua2.slice(0, 512), clientIp.slice(0, 64), verified.sessionId]);
+        await loginSocket(ws, user, ua2, clientIp);
         await broadcastOnlineFriends();
         return;
       }
@@ -1019,6 +1025,45 @@ wss.on('connection', (ws, req) => {
         try { ws.close(); } catch {}
         return;
       }
+
+      if (data.type === 'get_sessions') {
+        const rows = await pool.query(
+          `SELECT id, createdAt, expiresAt, userAgent, ip FROM sessions WHERE login = $1 AND revoked = FALSE AND expiresAt > $2 ORDER BY createdAt DESC`,
+          [userLogin, Date.now()]
+        );
+        const currentSessionId = clients.get(ws)?.sessionId || null;
+        send(ws, {
+          type: 'sessions_list',
+          sessions: rows.rows.map(r => ({
+            id: r.id,
+            createdAt: Number(r.createdat),
+            expiresAt: Number(r.expiresat),
+            userAgent: r.useragent || '',
+            ip: r.ip || '',
+            current: r.id === currentSessionId
+          }))
+        });
+        return;
+      }
+
+      if (data.type === 'revoke_session') {
+        const targetId = typeof data.sessionId === 'string' ? data.sessionId : '';
+        if (!targetId) return;
+        // Only allow revoking own sessions
+        const check = await pool.query(`SELECT id FROM sessions WHERE id = $1 AND login = $2`, [targetId, userLogin]);
+        if (!check.rows.length) return;
+        await pool.query(`UPDATE sessions SET revoked = TRUE WHERE id = $1`, [targetId]);
+        // If the target session is currently connected, force disconnect
+        for (const [client, info] of clients.entries()) {
+          if (info.sessionId === targetId && client !== ws) {
+            send(client, { type: 'logged_out' });
+            try { client.close(); } catch {}
+          }
+        }
+        send(ws, { type: 'session_revoked', sessionId: targetId });
+        return;
+      }
+
       const me = clients.get(ws);
       if (!me) return;
 
