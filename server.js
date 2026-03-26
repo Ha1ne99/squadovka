@@ -377,6 +377,19 @@ app.get('/api/config', (req, res) => {
   res.json({ giphyKey: process.env.GIPHY_API_KEY || '' });
 });
 
+app.get('/api/gifs', async (req, res) => {
+  const key = process.env.GIPHY_API_KEY || '';
+  if (!key) return res.status(503).json({ error: 'GIPHY_API_KEY not set' });
+  const q = typeof req.query.q === 'string' ? req.query.q.slice(0, 100) : 'funny';
+  try {
+    const r = await fetch(`https://api.giphy.com/v1/gifs/search?api_key=${key}&q=${encodeURIComponent(q)}&limit=20&rating=pg-13`);
+    const data = await r.json();
+    res.json(data);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 if (!process.env.DATABASE_URL) {
   console.error('DATABASE_URL not found in environment variables');
   process.exit(1);

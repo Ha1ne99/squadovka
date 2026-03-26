@@ -4318,8 +4318,6 @@ let epActiveTab = 'emoji';
 let epActiveCat = 0;
 let epGifTimer = null;
 let epOpen = false;
-let epGiphyKey = '';
-fetch('/api/config').then(r => r.json()).then(d => { epGiphyKey = d.giphyKey || ''; }).catch(() => {});
 
 function epClose() {
   epOpen = false;
@@ -4388,17 +4386,10 @@ function epRender() {
 
 async function epLoadGifs(q) {
   epContent.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:12px;">Загрузка...</div>';
-  if (!epGiphyKey) {
-    epContent.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:12px;">Добавь GIPHY_API_KEY в переменные окружения Render</div>';
-    return;
-  }
   try {
-    const res = await fetch('https://api.giphy.com/v1/gifs/search?api_key=' + epGiphyKey + '&q=' + encodeURIComponent(q) + '&limit=20&rating=pg-13');
+    const res = await fetch('/api/gifs?q=' + encodeURIComponent(q || 'funny'));
     const data = await res.json();
-    if (data.meta?.status !== 200) {
-      epContent.innerHTML = '<div style="color:#ed4245;font-size:13px;padding:12px;">Ошибка API: ' + (data.meta?.msg || res.status) + '</div>';
-      return;
-    }
+    if (data.error) { epContent.innerHTML = '<div style="color:#ed4245;font-size:13px;padding:12px;">' + data.error + '</div>'; return; }
     epContent.innerHTML = '';
     if (!data.data?.length) { epContent.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:12px;">Ничего не найдено</div>'; return; }
     const grid = document.createElement('div');
