@@ -1214,6 +1214,19 @@ body[data-theme='midnight'] { --bg:#101217; --bg2:#0b0d12; }
   <div id="switchMode">Нет аккаунта? Зарегистрироваться</div>
 </div>
 
+<!-- 2FA CODE SCREEN -->
+<div id="twoFaScreen" style="display:none;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;gap:16px;padding:24px;">
+  <div class="loginBrand">
+    <div class="brandLogo">S</div>
+    <div class="brandText"><b>Squadovka</b></div>
+  </div>
+  <h2 style="margin:0;">Подтверждение входа</h2>
+  <p id="twoFaHint" style="color:var(--muted);text-align:center;margin:0;font-size:14px;">Введите код из письма</p>
+  <input id="twoFaCodeInput" class="profileInput" type="text" placeholder="000000" maxlength="6" style="width:200px;text-align:center;letter-spacing:6px;font-size:22px;padding:14px;">
+  <button id="twoFaSubmitBtn" style="width:200px;padding:12px;border-radius:12px;background:linear-gradient(135deg,var(--accent),var(--accent-2));border:none;color:#fff;font-weight:800;font-size:15px;cursor:pointer;">Войти</button>
+  <button id="twoFaBackBtn" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:13px;">← Назад</button>
+</div>
+
 <!-- APP -->
 <div id="app" style="display:none;">
   <div id="sidebar">
@@ -1346,6 +1359,7 @@ body[data-theme='midnight'] { --bg:#101217; --bg2:#0b0d12; }
         <button id="settingsTabCustomizationBtn" class="settingsNavBtn" type="button" data-settings-tab="customization">Кастомизация</button>
         <button id="settingsTabHotkeysBtn" class="settingsNavBtn" type="button" data-settings-tab="hotkeys">Горячие клавиши</button>
         <button id="settingsTabDevicesBtn" class="settingsNavBtn" type="button" data-settings-tab="devices">Устройства</button>
+        <button id="settingsTabSecurityBtn" class="settingsNavBtn" type="button" data-settings-tab="security">Безопасность</button>
       </aside>
 
       <div class="settingsMain">
@@ -1487,6 +1501,45 @@ body[data-theme='midnight'] { --bg:#101217; --bg2:#0b0d12; }
             </div>
           </div>
 
+          <div class="settingsPane" id="settingsPaneSecurity" data-settings-pane="security">
+            <h3 class="settingsPaneTitle">Безопасность</h3>
+
+            <div class="profileSection">
+              <h4>Смена пароля</h4>
+              <label class="profileFieldLabel" for="secOldPassword">Текущий пароль</label>
+              <input id="secOldPassword" class="profileInput" type="password" placeholder="Введите текущий пароль" autocomplete="current-password">
+              <label class="profileFieldLabel" for="secNewPassword" style="margin-top:10px;">Новый пароль</label>
+              <input id="secNewPassword" class="profileInput" type="password" placeholder="Минимум 6 символов" autocomplete="new-password">
+              <label class="profileFieldLabel" for="secNewPassword2" style="margin-top:10px;">Повторите новый пароль</label>
+              <input id="secNewPassword2" class="profileInput" type="password" placeholder="Повторите пароль" autocomplete="new-password">
+              <div id="secPasswordMsg" style="margin-top:8px;font-size:13px;min-height:18px;"></div>
+              <button id="secChangePasswordBtn" class="profileActionBtn primary" style="margin-top:12px;">Сменить пароль</button>
+            </div>
+
+            <div class="profileSection" style="margin-top:20px;">
+              <h4>Двухэтапная аутентификация</h4>
+              <div class="profileHint">При входе на почту будет отправлен код подтверждения.</div>
+              <div id="sec2faStatus" style="margin-top:12px;"></div>
+
+              <div id="sec2faSetupBlock" style="display:none;margin-top:12px;">
+                <label class="profileFieldLabel" for="sec2faEmail">Email для кодов</label>
+                <input id="sec2faEmail" class="profileInput" type="email" placeholder="your@email.com">
+                <button id="sec2faSendCodeBtn" class="profileActionBtn" style="margin-top:10px;">Отправить код</button>
+              </div>
+
+              <div id="sec2faVerifyBlock" style="display:none;margin-top:12px;">
+                <div class="profileHint" id="sec2faVerifyHint">Введите код из письма</div>
+                <input id="sec2faCodeInput" class="profileInput" type="text" placeholder="6-значный код" maxlength="6" style="margin-top:8px;letter-spacing:4px;font-size:18px;">
+                <div style="display:flex;gap:8px;margin-top:10px;">
+                  <button id="sec2faVerifyBtn" class="profileActionBtn primary">Подтвердить</button>
+                  <button id="sec2faCancelBtn" class="profileActionBtn">Отмена</button>
+                </div>
+              </div>
+
+              <div id="sec2faMsg" style="margin-top:8px;font-size:13px;min-height:18px;"></div>
+            </div>
+          </div>
+
         </div>
 
         <div class="profileActions">
@@ -1602,6 +1655,29 @@ const settingsPaneHotkeys = document.getElementById('settingsPaneHotkeys');
 const settingsPaneDevices = document.getElementById('settingsPaneDevices');
 const settingsTabDevicesBtn = document.getElementById('settingsTabDevicesBtn');
 const devicesList = document.getElementById('devicesList');
+const settingsPaneSecurity = document.getElementById('settingsPaneSecurity');
+const settingsTabSecurityBtn = document.getElementById('settingsTabSecurityBtn');
+const secOldPassword = document.getElementById('secOldPassword');
+const secNewPassword = document.getElementById('secNewPassword');
+const secNewPassword2 = document.getElementById('secNewPassword2');
+const secPasswordMsg = document.getElementById('secPasswordMsg');
+const secChangePasswordBtn = document.getElementById('secChangePasswordBtn');
+const sec2faStatus = document.getElementById('sec2faStatus');
+const sec2faSetupBlock = document.getElementById('sec2faSetupBlock');
+const sec2faVerifyBlock = document.getElementById('sec2faVerifyBlock');
+const sec2faEmail = document.getElementById('sec2faEmail');
+const sec2faSendCodeBtn = document.getElementById('sec2faSendCodeBtn');
+const sec2faCodeInput = document.getElementById('sec2faCodeInput');
+const sec2faVerifyBtn = document.getElementById('sec2faVerifyBtn');
+const sec2faCancelBtn = document.getElementById('sec2faCancelBtn');
+const sec2faVerifyHint = document.getElementById('sec2faVerifyHint');
+const sec2faMsg = document.getElementById('sec2faMsg');
+const twoFaScreen = document.getElementById('twoFaScreen');
+const twoFaHint = document.getElementById('twoFaHint');
+const twoFaCodeInput = document.getElementById('twoFaCodeInput');
+const twoFaSubmitBtn = document.getElementById('twoFaSubmitBtn');
+const twoFaBackBtn = document.getElementById('twoFaBackBtn');
+let pending2FALogin = null;
 const settingsModalTitle = document.getElementById('settingsModalTitle');
 const settingsModalSubtitle = document.getElementById('settingsModalSubtitle');
 const settingsSidebarTitle = document.getElementById('settingsSidebarTitle');
@@ -2030,23 +2106,24 @@ function appearanceText(key) {
 
 function settingsText(key) {
   const map = {
-    ru:{ title:'Настройки', subtitle:'Профиль и внешний вид', sidebar:'Настройки пользователя', profile:'Профиль', customization:'Кастомизация', hotkeys:'Горячие клавиши', devices:'Устройства' },
-    uk:{ title:'Налаштування', subtitle:'Профіль і зовнішній вигляд', sidebar:'Налаштування користувача', profile:'Профіль', customization:'Кастомізація', hotkeys:'Гарячі клавіші', devices:'Пристрої' },
-    en:{ title:'Settings', subtitle:'Profile and appearance', sidebar:'User settings', profile:'Profile', customization:'Customization', hotkeys:'Hotkeys', devices:'Devices' }
+    ru:{ title:'Настройки', subtitle:'Профиль и внешний вид', sidebar:'Настройки пользователя', profile:'Профиль', customization:'Кастомизация', hotkeys:'Горячие клавиши', devices:'Устройства', security:'Безопасность' },
+    uk:{ title:'Налаштування', subtitle:'Профіль і зовнішній вигляд', sidebar:'Налаштування користувача', profile:'Профіль', customization:'Кастомізація', hotkeys:'Гарячі клавіші', devices:'Пристрої', security:'Безпека' },
+    en:{ title:'Settings', subtitle:'Profile and appearance', sidebar:'User settings', profile:'Profile', customization:'Customization', hotkeys:'Hotkeys', devices:'Devices', security:'Security' }
   };
   return (map[currentLanguage] || map.ru)[key] || key;
 }
 function setSettingsTab(tab) {
-  activeSettingsTab = ['profile','customization','hotkeys','devices'].includes(tab) ? tab : 'profile';
-  [settingsTabProfileBtn, settingsTabCustomizationBtn, settingsTabHotkeysBtn, settingsTabDevicesBtn].forEach(btn => {
+  activeSettingsTab = ['profile','customization','hotkeys','devices','security'].includes(tab) ? tab : 'profile';
+  [settingsTabProfileBtn, settingsTabCustomizationBtn, settingsTabHotkeysBtn, settingsTabDevicesBtn, settingsTabSecurityBtn].forEach(btn => {
     if (!btn) return;
     btn.classList.toggle('active', btn.dataset.settingsTab === activeSettingsTab);
   });
-  [settingsPaneProfile, settingsPaneCustomization, settingsPaneHotkeys, settingsPaneDevices].forEach(pane => {
+  [settingsPaneProfile, settingsPaneCustomization, settingsPaneHotkeys, settingsPaneDevices, settingsPaneSecurity].forEach(pane => {
     if (!pane) return;
     pane.classList.toggle('active', pane.dataset.settingsPane === activeSettingsTab);
   });
   if (activeSettingsTab === 'devices') loadDevices();
+  if (activeSettingsTab === 'security') loadSecurityInfo();
 }
 function applyAppearanceTexts() {
   if (settingsModalTitle) settingsModalTitle.textContent = settingsText('title');
@@ -2056,6 +2133,7 @@ function applyAppearanceTexts() {
   if (settingsTabCustomizationBtn) settingsTabCustomizationBtn.textContent = settingsText('customization');
   if (settingsTabHotkeysBtn) settingsTabHotkeysBtn.textContent = settingsText('hotkeys');
   if (settingsTabDevicesBtn) settingsTabDevicesBtn.textContent = settingsText('devices');
+  if (settingsTabSecurityBtn) settingsTabSecurityBtn.textContent = settingsText('security');
   if (settingsPaneProfileTitle) settingsPaneProfileTitle.textContent = settingsText('profile');
   if (settingsPaneCustomizationTitle) settingsPaneCustomizationTitle.textContent = settingsText('customization');
   if (settingsPaneHotkeysTitle) settingsPaneHotkeysTitle.textContent = settingsText('hotkeys');
@@ -2278,12 +2356,13 @@ function setProfileModalMode(mode) {
   settingsTabCustomizationBtn?.classList.toggle('hidden', !isSelfMode);
   settingsTabHotkeysBtn?.classList.toggle('hidden', !isSelfMode);
   settingsTabDevicesBtn?.classList.toggle('hidden', !isSelfMode);
+  settingsTabSecurityBtn?.classList.toggle('hidden', !isSelfMode);
   profileNicknameInput.readOnly = !isSelfMode;
   profileNicknameInput.disabled = !isSelfMode;
   if (profileBioInput) { profileBioInput.readOnly = !isSelfMode; profileBioInput.disabled = !isSelfMode; }
   profileSettingsTitle.textContent = isSelfMode ? t('profileSettings') : t('profileViewTitle');
   profileNameLabel.textContent = t('displayName');
-  if (!isSelfMode && ['customization','hotkeys','devices'].includes(activeSettingsTab)) setSettingsTab('profile');
+  if (!isSelfMode && ['customization','hotkeys','devices','security'].includes(activeSettingsTab)) setSettingsTab('profile');
 }
 
 function openProfileModal() {
@@ -2391,6 +2470,41 @@ function renderDevices(sessions) {
       btn.disabled = true;
     };
   });
+}
+
+function loadSecurityInfo() {
+  if (!ws || ws.readyState !== WebSocket.OPEN) return;
+  ws.send(JSON.stringify({ type: 'get_security_info' }));
+}
+
+function renderSecurityInfo(info) {
+  if (!sec2faStatus) return;
+  if (info.twofa_enabled) {
+    sec2faStatus.innerHTML = `<div style="display:flex;align-items:center;gap:10px;padding:12px 14px;background:rgba(46,207,143,.08);border:1px solid rgba(46,207,143,.3);border-radius:12px;">
+      <span style="font-size:20px;">✅</span>
+      <div>
+        <div style="font-weight:700;font-size:13px;">Двухэтапная аутентификация включена</div>
+        <div style="color:var(--muted);font-size:12px;">Почта: ${info.email ? info.email.replace(/(.{2}).+(@.+)/, '$1***$2') : '—'}</div>
+      </div>
+      <button id="sec2faDisableBtn" class="profileActionBtn" style="margin-left:auto;flex-shrink:0;background:rgba(185,49,57,.18);border-color:rgba(185,49,57,.4);color:#ed4245;">Отключить</button>
+    </div>`;
+    if (sec2faSetupBlock) sec2faSetupBlock.style.display = 'none';
+    document.getElementById('sec2faDisableBtn')?.addEventListener('click', () => {
+      if (!ws || ws.readyState !== WebSocket.OPEN) return;
+      ws.send(JSON.stringify({ type: 'disable_2fa' }));
+    });
+  } else {
+    sec2faStatus.innerHTML = `<div style="display:flex;align-items:center;gap:10px;padding:12px 14px;background:rgba(255,255,255,.04);border:1px solid var(--line);border-radius:12px;">
+      <span style="font-size:20px;">🔓</span>
+      <div style="font-size:13px;color:var(--muted);">Двухэтапная аутентификация отключена</div>
+      <button id="sec2faEnableBtn" class="profileActionBtn primary" style="margin-left:auto;flex-shrink:0;">Включить</button>
+    </div>`;
+    document.getElementById('sec2faEnableBtn')?.addEventListener('click', () => {
+      if (sec2faSetupBlock) sec2faSetupBlock.style.display = 'block';
+      if (sec2faVerifyBlock) sec2faVerifyBlock.style.display = 'none';
+      if (sec2faMsg) sec2faMsg.textContent = '';
+    });
+  }
 }
 function applyProfileUpdateLocal(user) {
   if (!user || !user.login) return;
@@ -3503,6 +3617,8 @@ function resetUiToLoggedOut() {
   loginInput.value = '';
   passwordInput.value = '';
   loginDiv.style.display = 'flex';
+  if (twoFaScreen) twoFaScreen.style.display = 'none';
+  pending2FALogin = null;
   appDiv.style.display = 'none';
   syncMobileLayout(false);
 }
@@ -3588,6 +3704,49 @@ function handle(d) {
   if (d.type === 'logged_out') { resetUiToLoggedOut(); return; }
   if (d.type === 'sessions_list') { renderDevices(d.sessions); return; }
   if (d.type === 'session_revoked') { loadDevices(); return; }
+  if (d.type === 'security_info') { renderSecurityInfo(d); return; }
+  if (d.type === 'security_ok') {
+    if (d.action === 'password_changed') {
+      if (secPasswordMsg) { secPasswordMsg.style.color = '#2ecf8f'; secPasswordMsg.textContent = '✅ Пароль успешно изменён'; }
+      if (secOldPassword) secOldPassword.value = '';
+      if (secNewPassword) secNewPassword.value = '';
+      if (secNewPassword2) secNewPassword2.value = '';
+    } else if (d.action === '2fa_enabled') {
+      if (sec2faMsg) { sec2faMsg.style.color = '#2ecf8f'; sec2faMsg.textContent = '✅ Двухэтапная аутентификация включена'; }
+      if (sec2faVerifyBlock) sec2faVerifyBlock.style.display = 'none';
+      if (sec2faSetupBlock) sec2faSetupBlock.style.display = 'none';
+      if (sec2faCodeInput) sec2faCodeInput.value = '';
+      loadSecurityInfo();
+    } else if (d.action === '2fa_disabled') {
+      if (sec2faMsg) { sec2faMsg.style.color = '#2ecf8f'; sec2faMsg.textContent = ''; }
+      loadSecurityInfo();
+    }
+    return;
+  }
+  if (d.type === 'security_error') {
+    // Route to correct message element based on active context
+    if (sec2faVerifyBlock?.style.display !== 'none' || sec2faSetupBlock?.style.display !== 'none') {
+      if (sec2faMsg) { sec2faMsg.style.color = '#ed4245'; sec2faMsg.textContent = d.message; }
+    } else {
+      if (secPasswordMsg) { secPasswordMsg.style.color = '#ed4245'; secPasswordMsg.textContent = d.message; }
+    }
+    return;
+  }
+  if (d.type === 'security_email_code_sent') {
+    if (sec2faSetupBlock) sec2faSetupBlock.style.display = 'none';
+    if (sec2faVerifyBlock) sec2faVerifyBlock.style.display = 'block';
+    if (sec2faVerifyHint) sec2faVerifyHint.textContent = `Код отправлен на ${d.email}. Введите его ниже:`;
+    if (sec2faMsg) sec2faMsg.textContent = '';
+    return;
+  }
+  if (d.type === 'twofa_required') {
+    pending2FALogin = d.login;
+    if (loginDiv) loginDiv.style.display = 'none';
+    if (twoFaScreen) twoFaScreen.style.display = 'flex';
+    if (twoFaHint) twoFaHint.textContent = `Код отправлен на ${d.email}. Введите его для входа:`;
+    if (twoFaCodeInput) { twoFaCodeInput.value = ''; twoFaCodeInput.focus(); }
+    return;
+  }
   if (d.type === 'login_ok') {
     login = d.login; nickname = d.nickname; myStatus = normalizeClientStatus(d.status || 'online'); rtcConfig = { iceServers:Array.isArray(d.iceServers) && d.iceServers.length ? d.iceServers : [{ urls:['stun:stun.l.google.com:19302'] }] }; localStorage.setItem('login', login); authToken = typeof d.token === 'string' ? d.token : authToken; if (authToken) localStorage.setItem('messenger_token', authToken); localStorage.removeItem('password'); loadLocalChatState(login); friends = Array.isArray(d.friends) ? d.friends : friends; groups = Array.isArray(d.groups) ? d.groups : groups; unread = d.unread || unread || {};
     loginDiv.style.display = 'none'; appDiv.style.display = 'flex'; profileNick.textContent = nickname; profileLogin.textContent = login;
@@ -4397,6 +4556,57 @@ settingsTabProfileBtn?.addEventListener('click', () => setSettingsTab('profile')
 settingsTabCustomizationBtn?.addEventListener('click', () => setSettingsTab('customization'));
 settingsTabHotkeysBtn?.addEventListener('click', () => setSettingsTab('hotkeys'));
 settingsTabDevicesBtn?.addEventListener('click', () => setSettingsTab('devices'));
+settingsTabSecurityBtn?.addEventListener('click', () => setSettingsTab('security'));
+
+// Security — change password
+secChangePasswordBtn?.addEventListener('click', () => {
+  if (!ws || ws.readyState !== WebSocket.OPEN) return;
+  const oldP = secOldPassword?.value || '';
+  const newP = secNewPassword?.value || '';
+  const newP2 = secNewPassword2?.value || '';
+  if (!oldP || !newP || !newP2) { if (secPasswordMsg) { secPasswordMsg.style.color = '#ed4245'; secPasswordMsg.textContent = 'Заполните все поля.'; } return; }
+  if (newP !== newP2) { if (secPasswordMsg) { secPasswordMsg.style.color = '#ed4245'; secPasswordMsg.textContent = 'Пароли не совпадают.'; } return; }
+  if (newP.length < 6) { if (secPasswordMsg) { secPasswordMsg.style.color = '#ed4245'; secPasswordMsg.textContent = 'Пароль должен быть не менее 6 символов.'; } return; }
+  if (secPasswordMsg) secPasswordMsg.textContent = '';
+  ws.send(JSON.stringify({ type: 'change_password', oldPassword: oldP, newPassword: newP }));
+});
+
+// Security — 2FA setup
+sec2faSendCodeBtn?.addEventListener('click', () => {
+  if (!ws || ws.readyState !== WebSocket.OPEN) return;
+  const email = sec2faEmail?.value.trim() || '';
+  if (!email) { if (sec2faMsg) { sec2faMsg.style.color = '#ed4245'; sec2faMsg.textContent = 'Введите email.'; } return; }
+  if (sec2faMsg) sec2faMsg.textContent = '';
+  ws.send(JSON.stringify({ type: 'set_security_email', email }));
+});
+sec2faVerifyBtn?.addEventListener('click', () => {
+  if (!ws || ws.readyState !== WebSocket.OPEN) return;
+  const code = sec2faCodeInput?.value.trim() || '';
+  if (!code) return;
+  ws.send(JSON.stringify({ type: 'verify_security_email', code }));
+});
+sec2faCancelBtn?.addEventListener('click', () => {
+  if (sec2faVerifyBlock) sec2faVerifyBlock.style.display = 'none';
+  if (sec2faSetupBlock) sec2faSetupBlock.style.display = 'none';
+  if (sec2faCodeInput) sec2faCodeInput.value = '';
+  if (sec2faMsg) sec2faMsg.textContent = '';
+});
+
+// 2FA login screen
+twoFaSubmitBtn?.addEventListener('click', () => {
+  if (!pending2FALogin || !ws || ws.readyState !== WebSocket.OPEN) return;
+  const code = twoFaCodeInput?.value.trim() || '';
+  if (!code) return;
+  ws.send(JSON.stringify({ type: 'login_2fa_verify', login: pending2FALogin, code }));
+});
+twoFaCodeInput?.addEventListener('keydown', e => { if (e.key === 'Enter') twoFaSubmitBtn?.click(); });
+twoFaBackBtn?.addEventListener('click', () => {
+  pending2FALogin = null;
+  if (twoFaScreen) twoFaScreen.style.display = 'none';
+  if (loginDiv) loginDiv.style.display = 'flex';
+  if (twoFaCodeInput) twoFaCodeInput.value = '';
+  if (ws) { try { ws.close(); } catch {} ws = null; }
+});
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape' && profileModalOverlay?.style.display === 'flex' && !activeHotkeyCaptureAction) closeProfileModal();
   handleGlobalHotkeys(e);
