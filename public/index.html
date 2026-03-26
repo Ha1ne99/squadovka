@@ -4389,12 +4389,16 @@ function epRender() {
 async function epLoadGifs(q) {
   epContent.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:12px;">Загрузка...</div>';
   if (!epGiphyKey) {
-    epContent.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:12px;">Добавь GIPHY_API_KEY в переменные окружения</div>';
+    epContent.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:12px;">Добавь GIPHY_API_KEY в переменные окружения Render</div>';
     return;
   }
   try {
     const res = await fetch('https://api.giphy.com/v1/gifs/search?api_key=' + epGiphyKey + '&q=' + encodeURIComponent(q) + '&limit=20&rating=pg-13');
     const data = await res.json();
+    if (data.meta?.status !== 200) {
+      epContent.innerHTML = '<div style="color:#ed4245;font-size:13px;padding:12px;">Ошибка API: ' + (data.meta?.msg || res.status) + '</div>';
+      return;
+    }
     epContent.innerHTML = '';
     if (!data.data?.length) { epContent.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:12px;">Ничего не найдено</div>'; return; }
     const grid = document.createElement('div');
@@ -4420,7 +4424,9 @@ async function epLoadGifs(q) {
       grid.appendChild(div);
     });
     epContent.appendChild(grid);
-  } catch { epContent.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:12px;">Ошибка загрузки</div>'; }
+  } catch(err) {
+    epContent.innerHTML = '<div style="color:#ed4245;font-size:13px;padding:12px;">Ошибка: ' + err.message + '</div>';
+  }
 }
 
 document.querySelectorAll('.epTab').forEach(btn => {
