@@ -535,6 +535,17 @@ async function initDb() {
   `);
   await pool.query(`ALTER TABLE user_security ADD COLUMN IF NOT EXISTS totp_secret TEXT`);
   await pool.query(`ALTER TABLE user_security ADD COLUMN IF NOT EXISTS twofa_enabled BOOLEAN NOT NULL DEFAULT FALSE`);
+
+  // Performance indexes
+  await pool.query(`CREATE INDEX IF NOT EXISTS friends_user1_idx ON friends(user1)`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS friends_user2_idx ON friends(user2)`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS friend_requests_touser_idx ON friend_requests(toUser)`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS unread_touser_idx ON unread(toUser)`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS messages_conv_idx ON messages(fromUser, toUser, time DESC)`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS messages_delivered_idx ON messages(fromUser, toUser, deliveredAt) WHERE deliveredAt IS NULL`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS group_members_userlogin_idx ON group_members(userLogin)`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS group_members_groupid_idx ON group_members(groupId)`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS group_messages_groupid_idx ON group_messages(groupId, time DESC)`);
 }
 
 const clients = new Map();
@@ -609,7 +620,15 @@ async function notifyReceiptUpdate(senderLogin, peerLogin, ids, status) {
 async function loginSocket(ws, user, userAgent = '', ip = '') {
   const normalizedStatus = normalizeStatus(user.status);
   const token = await issueSessionToken(user.login, userAgent, ip);
-  const verifiedToken = await verifySessionToken(token);
+
+  // Parallelize all data fetching
+  const [verifiedToken, friends, unread, groups, requestsResult] = await Promise.all([
+    verifySessionToken(token),
+    getFriendUsers(user.login),
+    getUnreadMap(user.login),
+    getGroupsForUser(user.login),
+    pool.query(`SELECT fromUser FROM friend_requests WHERE toUser = $1`, [user.login])
+  ]);
 
   clients.set(ws, {
     login: user.login,
@@ -627,15 +646,14 @@ async function loginSocket(ws, user, userAgent = '', ip = '') {
     status: normalizedStatus,
     avatar: buildAvatar(user.login, user.nickname, user.avatarimage),
     banner: user.bannerimage || null,
-    friends: await getFriendUsers(user.login),
-    unread: await getUnreadMap(user.login),
-    groups: await getGroupsForUser(user.login),
+    friends,
+    unread,
+    groups,
     token,
     iceServers: getIceServers()
   });
 
-  const requests = await pool.query(`SELECT fromUser FROM friend_requests WHERE toUser = $1`, [user.login]);
-  for (const r of requests.rows) {
+  for (const r of requestsResult.rows) {
     send(ws, { type: 'friend_request', from: r.fromuser });
   }
 }
@@ -713,10 +731,21 @@ async function getFriends(login) {
 }
 
 async function getFriendUsers(login) {
-  const friends = await getFriends(login);
-  if (!friends.length) return [];
-  const users = await Promise.all(friends.map(friendLogin => getUserPublic(friendLogin, login)));
-  return users.filter(Boolean);
+  const result = await pool.query(`
+    SELECT u.login, u.nickname, u.avatarImage, u.status
+    FROM users u
+    WHERE u.login IN (
+      SELECT user1 FROM friends WHERE user2 = $1
+      UNION
+      SELECT user2 FROM friends WHERE user1 = $1
+    )
+  `, [login]);
+  return result.rows.map(row => ({
+    login: row.login,
+    nickname: row.nickname,
+    status: getEffectiveStatus(row.login, row.status, login),
+    avatar: buildAvatar(row.login, row.nickname, row.avatarimage)
+  }));
 }
 
 async function getUnreadMap(login) {
@@ -740,32 +769,37 @@ async function getChatHistory(userA, userB) {
     ORDER BY time ASC, id ASC
   `, [userA, userB, CHAT_HISTORY_LIMIT]);
 
-  const senders = new Map();
-  const messages = [];
+  if (!result.rows.length) return [];
 
-  for (const row of result.rows) {
-    let sender = senders.get(row.fromuser);
-    if (!sender) {
-      sender = await getUserPublic(row.fromuser, userA);
-      senders.set(row.fromuser, sender);
-    }
-    messages.push({
-      id: Number(row.id),
-      from: row.fromuser,
-      to: row.touser,
-      text: row.text,
-      time: Number(row.time),
-      edited: Boolean(row.edited),
-      editedAt: row.editedat ? Number(row.editedat) : null,
-      deliveredAt: row.deliveredat ? Number(row.deliveredat) : null,
-      readAt: row.readat ? Number(row.readat) : null,
-      receiptStatus: getMessageReceiptStatus(row),
-      attachment: sanitizeAttachmentPayload(row.attachment),
-      replyTo: sanitizeReplyPayload(row.replyto),
-      avatar: sender?.avatar || buildAvatar(row.fromuser, row.fromuser)
+  // Batch-load unique senders in one query
+  const senderLogins = [...new Set(result.rows.map(r => r.fromuser))];
+  const usersResult = await pool.query(
+    `SELECT login, nickname, avatarImage, status FROM users WHERE login = ANY($1)`,
+    [senderLogins]
+  );
+  const senderMap = new Map();
+  for (const u of usersResult.rows) {
+    senderMap.set(u.login, {
+      avatar: buildAvatar(u.login, u.nickname, u.avatarimage),
+      status: getEffectiveStatus(u.login, u.status, userA)
     });
   }
-  return messages;
+
+  return result.rows.map(row => ({
+    id: Number(row.id),
+    from: row.fromuser,
+    to: row.touser,
+    text: row.text,
+    time: Number(row.time),
+    edited: Boolean(row.edited),
+    editedAt: row.editedat ? Number(row.editedat) : null,
+    deliveredAt: row.deliveredat ? Number(row.deliveredat) : null,
+    readAt: row.readat ? Number(row.readat) : null,
+    receiptStatus: getMessageReceiptStatus(row),
+    attachment: sanitizeAttachmentPayload(row.attachment),
+    replyTo: sanitizeReplyPayload(row.replyto),
+    avatar: senderMap.get(row.fromuser)?.avatar || buildAvatar(row.fromuser, row.fromuser)
+  }));
 }
 
 
@@ -815,20 +849,40 @@ async function getGroupPublic(groupId, viewerLogin = null) {
 }
 
 async function getGroupsForUser(login) {
+  // Single query to get all groups with their members
   const result = await pool.query(`
-    SELECT g.id
+    SELECT
+      g.id, g.name, g.ownerLogin, g.createdAt,
+      gm2.userLogin AS memberLogin, gm2.role,
+      u.nickname AS memberNick, u.avatarImage AS memberAvatar, u.status AS memberStatus
     FROM chat_groups g
-    JOIN group_members gm ON gm.groupId = g.id
-    WHERE gm.userLogin = $1
-    ORDER BY g.createdAt DESC, g.id DESC
+    JOIN group_members gm ON gm.groupId = g.id AND gm.userLogin = $1
+    JOIN group_members gm2 ON gm2.groupId = g.id
+    JOIN users u ON u.login = gm2.userLogin
+    ORDER BY g.createdAt DESC, g.id DESC, CASE WHEN gm2.role = 'owner' THEN 0 ELSE 1 END, u.nickname ASC
   `, [login]);
 
-  const groups = [];
+  const groupMap = new Map();
   for (const row of result.rows) {
-    const group = await getGroupPublic(Number(row.id), login);
-    if (group) groups.push(group);
+    const gid = Number(row.id);
+    if (!groupMap.has(gid)) {
+      groupMap.set(gid, {
+        id: gid,
+        name: row.name,
+        ownerLogin: row.ownerlogin,
+        createdAt: Number(row.createdat),
+        members: []
+      });
+    }
+    groupMap.get(gid).members.push({
+      login: row.memberlogin,
+      nickname: row.membernick,
+      role: row.role,
+      status: getEffectiveStatus(row.memberlogin, row.memberstatus, login),
+      avatar: buildAvatar(row.memberlogin, row.membernick, row.memberavatar)
+    });
   }
-  return groups;
+  return [...groupMap.values()];
 }
 
 async function getGroupHistory(groupId, viewerLogin = null) {
@@ -844,15 +898,22 @@ async function getGroupHistory(groupId, viewerLogin = null) {
     ORDER BY time ASC, id ASC
   `, [groupId, CHAT_HISTORY_LIMIT]);
 
-  const senders = new Map();
-  const messages = [];
-  for (const row of result.rows) {
-    let sender = senders.get(row.fromuser);
-    if (!sender) {
-      sender = await getUserPublic(row.fromuser, viewerLogin);
-      senders.set(row.fromuser, sender);
-    }
-    messages.push({
+  if (!result.rows.length) return [];
+
+  // Batch-load unique senders
+  const senderLogins = [...new Set(result.rows.map(r => r.fromuser))];
+  const usersResult = await pool.query(
+    `SELECT login, nickname, avatarImage FROM users WHERE login = ANY($1)`,
+    [senderLogins]
+  );
+  const senderMap = new Map();
+  for (const u of usersResult.rows) {
+    senderMap.set(u.login, { nickname: u.nickname, avatar: buildAvatar(u.login, u.nickname, u.avatarimage) });
+  }
+
+  return result.rows.map(row => {
+    const sender = senderMap.get(row.fromuser);
+    return {
       id: Number(row.id),
       groupId: Number(row.groupid),
       from: row.fromuser,
@@ -864,9 +925,8 @@ async function getGroupHistory(groupId, viewerLogin = null) {
       attachment: sanitizeAttachmentPayload(row.attachment),
       replyTo: sanitizeReplyPayload(row.replyto),
       avatar: sender?.avatar || buildAvatar(row.fromuser, row.fromuser)
-    });
-  }
-  return messages;
+    };
+  });
 }
 
 async function sendGroupList(login) {
