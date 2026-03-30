@@ -425,6 +425,7 @@ async function initDb() {
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS bannerImage TEXT`);
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'online'`);
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS tag TEXT NOT NULL DEFAULT ''`);
+  await pool.query(`UPDATE users SET tag = '' WHERE tag IS NULL`);
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS messages (
@@ -736,7 +737,7 @@ async function getFriends(login) {
 
 async function getFriendUsers(login) {
   const result = await pool.query(`
-    SELECT u.login, u.nickname, u.avatarImage, u.status
+    SELECT u.login, u.nickname, u.avatarImage, u.status, u.tag
     FROM users u
     WHERE u.login IN (
       SELECT user1 FROM friends WHERE user2 = $1
@@ -748,7 +749,8 @@ async function getFriendUsers(login) {
     login: row.login,
     nickname: row.nickname,
     status: getEffectiveStatus(row.login, row.status, login),
-    avatar: buildAvatar(row.login, row.nickname, row.avatarimage)
+    avatar: buildAvatar(row.login, row.nickname, row.avatarimage),
+    tag: row.tag || ''
   }));
 }
 
