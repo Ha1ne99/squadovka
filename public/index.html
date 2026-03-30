@@ -2605,10 +2605,16 @@ function renderProfileTag(tagId) {
 }
 
 function updateSidebarTag() {
-  if (!profileTagDisplay) return;
+  const el = document.getElementById('profileTagDisplay');
+  if (!el) return;
   const tag = getTagData(myTag);
-  if (tag?.id) profileTagDisplay.innerHTML = renderProfileTag(myTag);
-  else profileTagDisplay.innerHTML = '';
+  if (tag?.id) {
+    el.innerHTML = renderProfileTag(myTag);
+    el.style.display = 'inline-block';
+  } else {
+    el.innerHTML = '';
+    el.style.display = 'none';
+  }
 }
 
 function parseUserAgent(ua) {
@@ -3386,6 +3392,7 @@ function compactStoredMessage(message) {
     readAt: message.readAt || null,
     receiptStatus: message.receiptStatus || null,
     fromNick: message.fromNick || null,
+    fromTag: message.fromTag || null,
     attachment: message.attachment || null,
     replyTo: message.replyTo || null
   };

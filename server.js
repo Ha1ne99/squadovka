@@ -637,6 +637,7 @@ async function loginSocket(ws, user, userAgent = '', ip = '') {
     avatarImage: user.avatarimage,
     bannerImage: user.bannerimage,
     status: normalizedStatus,
+    tag: user.tag || '',
     sessionId: verifiedToken?.sessionId || null
   });
 
@@ -777,14 +778,15 @@ async function getChatHistory(userA, userB) {
   // Batch-load unique senders in one query
   const senderLogins = [...new Set(result.rows.map(r => r.fromuser))];
   const usersResult = await pool.query(
-    `SELECT login, nickname, avatarImage, status FROM users WHERE login = ANY($1)`,
+    `SELECT login, nickname, avatarImage, status, tag FROM users WHERE login = ANY($1)`,
     [senderLogins]
   );
   const senderMap = new Map();
   for (const u of usersResult.rows) {
     senderMap.set(u.login, {
       avatar: buildAvatar(u.login, u.nickname, u.avatarimage),
-      status: getEffectiveStatus(u.login, u.status, userA)
+      status: getEffectiveStatus(u.login, u.status, userA),
+      tag: u.tag || ''
     });
   }
 
@@ -801,7 +803,8 @@ async function getChatHistory(userA, userB) {
     receiptStatus: getMessageReceiptStatus(row),
     attachment: sanitizeAttachmentPayload(row.attachment),
     replyTo: sanitizeReplyPayload(row.replyto),
-    avatar: senderMap.get(row.fromuser)?.avatar || buildAvatar(row.fromuser, row.fromuser)
+    avatar: senderMap.get(row.fromuser)?.avatar || buildAvatar(row.fromuser, row.fromuser),
+    fromTag: senderMap.get(row.fromuser)?.tag || ''
   }));
 }
 
@@ -906,12 +909,12 @@ async function getGroupHistory(groupId, viewerLogin = null) {
   // Batch-load unique senders
   const senderLogins = [...new Set(result.rows.map(r => r.fromuser))];
   const usersResult = await pool.query(
-    `SELECT login, nickname, avatarImage FROM users WHERE login = ANY($1)`,
+    `SELECT login, nickname, avatarImage, tag FROM users WHERE login = ANY($1)`,
     [senderLogins]
   );
   const senderMap = new Map();
   for (const u of usersResult.rows) {
-    senderMap.set(u.login, { nickname: u.nickname, avatar: buildAvatar(u.login, u.nickname, u.avatarimage) });
+    senderMap.set(u.login, { nickname: u.nickname, avatar: buildAvatar(u.login, u.nickname, u.avatarimage), tag: u.tag || '' });
   }
 
   return result.rows.map(row => {
@@ -925,6 +928,7 @@ async function getGroupHistory(groupId, viewerLogin = null) {
       edited: Boolean(row.edited),
       editedAt: row.editedat ? Number(row.editedat) : null,
       fromNick: sender?.nickname || row.fromuser,
+      fromTag: sender?.tag || '',
       attachment: sanitizeAttachmentPayload(row.attachment),
       replyTo: sanitizeReplyPayload(row.replyto),
       avatar: sender?.avatar || buildAvatar(row.fromuser, row.fromuser)
@@ -1370,7 +1374,8 @@ wss.on('connection', (ws, req) => {
           nickname: updatedUser.nickname,
           avatarImage: updatedUser.avatarimage,
           bannerImage: updatedUser.bannerimage,
-          status: normalizeStatus(updatedUser.status)
+          status: normalizeStatus(updatedUser.status),
+          tag: updatedUser.tag || ''
         });
 
         for (const [clientWs, info] of clients) {
@@ -1488,6 +1493,7 @@ wss.on('connection', (ws, req) => {
           attachment,
           replyTo,
           fromNick: me.nickname,
+          fromTag: me.tag || '',
           avatar: buildAvatar(userLogin, me.nickname, me.avatarImage)
         };
 
@@ -1927,6 +1933,7 @@ wss.on('connection', (ws, req) => {
           attachment,
           replyTo,
           fromNick: me.nickname,
+          fromTag: me.tag || '',
           avatar: buildAvatar(userLogin, me.nickname, me.avatarImage),
           unread: unreadCount,
           clientMsgId: typeof data.clientMsgId === 'string' ? data.clientMsgId : null
