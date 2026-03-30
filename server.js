@@ -325,7 +325,9 @@ app.use(express.static(__dirname));
 
 app.post('/api/upload', async (req, res) => {
   try {
+    console.log('Upload request received, headers:', JSON.stringify({ auth: !!req.headers.authorization, ct: req.headers['content-type'], len: req.headers['content-length'] }));
     const auth = await requireAuthFromRequest(req);
+    console.log('Auth result:', auth?.login || 'null');
     if (!auth?.login) return res.status(401).json({ error: 'UNAUTHORIZED' });
 
     const userLogin = auth.login;
