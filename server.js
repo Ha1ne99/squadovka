@@ -9,16 +9,9 @@ const fs = require('fs');
 const fsp = fs.promises;
 const speakeasy = require('speakeasy');
 const QRCode = require('qrcode');
-const cloudinary = require('cloudinary').v2;
 
 // Load .env if present
 try { require('dotenv').config(); } catch {}
-
-cloudinary.config({
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME || '',
-  api_key:    process.env.CLOUDINARY_API_KEY    || '',
-  api_secret: process.env.CLOUDINARY_API_SECRET || '',
-});
 
 const app = express();
 const server = http.createServer(app);
@@ -325,9 +318,7 @@ app.use(express.static(__dirname));
 
 app.post('/api/upload', async (req, res) => {
   try {
-    console.log('Upload request received, headers:', JSON.stringify({ auth: !!req.headers.authorization, ct: req.headers['content-type'], len: req.headers['content-length'] }));
     const auth = await requireAuthFromRequest(req);
-    console.log('Auth result:', auth?.login || 'null');
     if (!auth?.login) return res.status(401).json({ error: 'UNAUTHORIZED' });
 
     const userLogin = auth.login;
@@ -356,41 +347,13 @@ app.post('/api/upload', async (req, res) => {
     const fileBuffer = await readRequestBody(req, MAX_FILE_SIZE);
     if (!fileBuffer.length) return res.status(400).json({ error: 'EMPTY_FILE' });
 
-    console.log(`Upload: file="${originalName}" mime="${mimeType}" size=${fileBuffer.length} cloudName="${process.env.CLOUDINARY_CLOUD_NAME || 'NOT SET'}"`);
-
-    let fileUrl;
-
-    if (process.env.CLOUDINARY_CLOUD_NAME) {
-      // Upload to Cloudinary via stream
-      const isImage = mimeType.startsWith('image/');
-      const isAudio = mimeType.startsWith('audio/');
-      const isVideo = mimeType.startsWith('video/');
-      const resourceType = isImage ? 'image' : (isAudio || isVideo) ? 'video' : 'raw';
-
-      fileUrl = await new Promise((resolve, reject) => {
-        const uploadStream = cloudinary.uploader.upload_stream(
-          { resource_type: resourceType, folder: 'squadovka', use_filename: false },
-          (error, result) => {
-            if (error) {
-              console.error('Cloudinary error:', JSON.stringify(error));
-              return reject(error);
-            }
-            resolve(result.secure_url);
-          }
-        );
-        uploadStream.end(fileBuffer);
-      });
-    } else {
-      // Fallback: local storage
-      const ext = getExtension(originalName);
-      const diskName = `${Date.now()}_${crypto.randomBytes(8).toString('hex')}${ext}`;
-      await fsp.writeFile(path.join(uploadsDir, diskName), fileBuffer);
-      fileUrl = `/uploads/${diskName}`;
-    }
+    const ext = getExtension(originalName);
+    const diskName = `${Date.now()}_${crypto.randomBytes(8).toString('hex')}${ext}`;
+    await fsp.writeFile(path.join(uploadsDir, diskName), fileBuffer);
 
     const attachment = sanitizeAttachmentPayload({
       name: originalName,
-      url: fileUrl,
+      url: `/uploads/${diskName}`,
       size: fileBuffer.length,
       mimeType
     });
@@ -398,8 +361,8 @@ app.post('/api/upload', async (req, res) => {
     res.json({ ok: true, attachment });
   } catch (error) {
     if (error?.code === 'FILE_TOO_LARGE') return res.status(413).json({ error: 'FILE_TOO_LARGE' });
-    console.error('Upload failed:', error?.message || error);
-    res.status(500).json({ error: 'UPLOAD_FAILED', detail: error?.message || String(error) });
+    console.error('Upload failed:', error);
+    res.status(500).json({ error: 'UPLOAD_FAILED' });
   }
 });
 
