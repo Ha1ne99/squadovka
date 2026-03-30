@@ -367,7 +367,10 @@ app.post('/api/upload', async (req, res) => {
         const uploadStream = cloudinary.uploader.upload_stream(
           { resource_type: resourceType, folder: 'squadovka', use_filename: false },
           (error, result) => {
-            if (error) return reject(error);
+            if (error) {
+              console.error('Cloudinary error:', JSON.stringify(error));
+              return reject(error);
+            }
             resolve(result.secure_url);
           }
         );
