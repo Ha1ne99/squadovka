@@ -357,19 +357,22 @@ app.post('/api/upload', async (req, res) => {
     let fileUrl;
 
     if (process.env.CLOUDINARY_CLOUD_NAME) {
-      // Upload to Cloudinary as base64
-      const b64 = fileBuffer.toString('base64');
-      const dataUri = `data:${mimeType};base64,${b64}`;
+      // Upload to Cloudinary via stream
       const isImage = mimeType.startsWith('image/');
-      const isVideo = mimeType.startsWith('video/') || mimeType.startsWith('audio/');
-      const resourceType = isImage ? 'image' : isVideo ? 'video' : 'raw';
-      const result = await cloudinary.uploader.upload(dataUri, {
-        resource_type: resourceType,
-        folder: 'squadovka',
-        use_filename: false,
-        unique_filename: true,
+      const isAudio = mimeType.startsWith('audio/');
+      const isVideo = mimeType.startsWith('video/');
+      const resourceType = isImage ? 'image' : (isAudio || isVideo) ? 'video' : 'raw';
+
+      fileUrl = await new Promise((resolve, reject) => {
+        const uploadStream = cloudinary.uploader.upload_stream(
+          { resource_type: resourceType, folder: 'squadovka', use_filename: false },
+          (error, result) => {
+            if (error) return reject(error);
+            resolve(result.secure_url);
+          }
+        );
+        uploadStream.end(fileBuffer);
       });
-      fileUrl = result.secure_url;
     } else {
       // Fallback: local storage
       const ext = getExtension(originalName);
@@ -388,8 +391,8 @@ app.post('/api/upload', async (req, res) => {
     res.json({ ok: true, attachment });
   } catch (error) {
     if (error?.code === 'FILE_TOO_LARGE') return res.status(413).json({ error: 'FILE_TOO_LARGE' });
-    console.error('Upload failed:', error);
-    res.status(500).json({ error: 'UPLOAD_FAILED' });
+    console.error('Upload failed:', error?.message || error);
+    res.status(500).json({ error: 'UPLOAD_FAILED', detail: error?.message || String(error) });
   }
 });
 
