@@ -9,9 +9,16 @@ const fs = require('fs');
 const fsp = fs.promises;
 const speakeasy = require('speakeasy');
 const QRCode = require('qrcode');
+const cloudinary = require('cloudinary').v2;
 
 // Load .env if present
 try { require('dotenv').config(); } catch {}
+
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME || '',
+  api_key:    process.env.CLOUDINARY_API_KEY    || '',
+  api_secret: process.env.CLOUDINARY_API_SECRET || '',
+});
 
 const app = express();
 const server = http.createServer(app);
@@ -347,13 +354,33 @@ app.post('/api/upload', async (req, res) => {
     const fileBuffer = await readRequestBody(req, MAX_FILE_SIZE);
     if (!fileBuffer.length) return res.status(400).json({ error: 'EMPTY_FILE' });
 
-    const ext = getExtension(originalName);
-    const diskName = `${Date.now()}_${crypto.randomBytes(8).toString('hex')}${ext}`;
-    await fsp.writeFile(path.join(uploadsDir, diskName), fileBuffer);
+    let fileUrl;
+
+    if (process.env.CLOUDINARY_CLOUD_NAME) {
+      // Upload to Cloudinary as base64
+      const b64 = fileBuffer.toString('base64');
+      const dataUri = `data:${mimeType};base64,${b64}`;
+      const isImage = mimeType.startsWith('image/');
+      const isVideo = mimeType.startsWith('video/') || mimeType.startsWith('audio/');
+      const resourceType = isImage ? 'image' : isVideo ? 'video' : 'raw';
+      const result = await cloudinary.uploader.upload(dataUri, {
+        resource_type: resourceType,
+        folder: 'squadovka',
+        use_filename: false,
+        unique_filename: true,
+      });
+      fileUrl = result.secure_url;
+    } else {
+      // Fallback: local storage
+      const ext = getExtension(originalName);
+      const diskName = `${Date.now()}_${crypto.randomBytes(8).toString('hex')}${ext}`;
+      await fsp.writeFile(path.join(uploadsDir, diskName), fileBuffer);
+      fileUrl = `/uploads/${diskName}`;
+    }
 
     const attachment = sanitizeAttachmentPayload({
       name: originalName,
-      url: `/uploads/${diskName}`,
+      url: fileUrl,
       size: fileBuffer.length,
       mimeType
     });
