@@ -424,6 +424,7 @@ async function initDb() {
 
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS bannerImage TEXT`);
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'online'`);
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS tag TEXT NOT NULL DEFAULT ''`);
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS messages (
@@ -646,6 +647,7 @@ async function loginSocket(ws, user, userAgent = '', ip = '') {
     status: normalizedStatus,
     avatar: buildAvatar(user.login, user.nickname, user.avatarimage),
     banner: user.bannerimage || null,
+    tag: user.tag || '',
     friends,
     unread,
     groups,
@@ -709,7 +711,7 @@ function getEffectiveStatus(targetLogin, rawStatus, viewerLogin = null) {
 }
 
 async function getUserPublic(login, viewerLogin = null) {
-  const result = await pool.query(`SELECT login, nickname, avatarImage, bannerImage, status FROM users WHERE login = $1`, [login]);
+  const result = await pool.query(`SELECT login, nickname, avatarImage, bannerImage, status, tag FROM users WHERE login = $1`, [login]);
   const user = result.rows[0];
   if (!user) return null;
   return {
@@ -717,7 +719,8 @@ async function getUserPublic(login, viewerLogin = null) {
     nickname: user.nickname,
     status: getEffectiveStatus(user.login, user.status, viewerLogin),
     avatar: buildAvatar(user.login, user.nickname, user.avatarimage),
-    banner: user.bannerimage || null
+    banner: user.bannerimage || null,
+    tag: user.tag || ''
   };
 }
 
@@ -1053,7 +1056,7 @@ wss.on('connection', (ws, req) => {
           return;
         }
 
-        const result = await pool.query(`SELECT login, password, nickname, avatarImage, bannerImage, status FROM users WHERE login = $1`, [login]);
+        const result = await pool.query(`SELECT login, password, nickname, avatarImage, bannerImage, status, tag FROM users WHERE login = $1`, [login]);
         const user = result.rows[0];
 
         if (!user) {
@@ -1125,7 +1128,7 @@ wss.on('connection', (ws, req) => {
           return;
         }
 
-        const result = await pool.query(`SELECT login, nickname, avatarImage, bannerImage, status FROM users WHERE login = $1`, [verified.login]);
+        const result = await pool.query(`SELECT login, nickname, avatarImage, bannerImage, status, tag FROM users WHERE login = $1`, [verified.login]);
         const user = result.rows[0];
         if (!user) {
           send(ws, { type: 'auth_expired' });
@@ -1353,13 +1356,14 @@ wss.on('connection', (ws, req) => {
         if (!requireActionAllowed(ws, clientIp, 'update_profile')) return;
         const newNickname = sanitizeName(data.nickname, MAX_NICKNAME_LENGTH);
         const newStatus = normalizeStatus(typeof data.status === 'string' ? data.status : 'online');
+        const newTag = typeof data.tag === 'string' ? data.tag.slice(0, 32) : '';
         if (!newNickname) {
           send(ws, { type: 'error', message: 'Введите имя профиля' });
           return;
         }
 
-        await pool.query(`UPDATE users SET nickname = $1, status = $2 WHERE login = $3`, [newNickname, newStatus, userLogin]);
-        const updatedResult = await pool.query(`SELECT login, nickname, avatarImage, bannerImage, status FROM users WHERE login = $1`, [userLogin]);
+        await pool.query(`UPDATE users SET nickname = $1, status = $2, tag = $3 WHERE login = $4`, [newNickname, newStatus, newTag, userLogin]);
+        const updatedResult = await pool.query(`SELECT login, nickname, avatarImage, bannerImage, status, tag FROM users WHERE login = $1`, [userLogin]);
         const updatedUser = updatedResult.rows[0];
         clients.set(ws, {
           login: updatedUser.login,
@@ -1377,7 +1381,8 @@ wss.on('connection', (ws, req) => {
               type: 'my_profile_updated',
               nickname: updatedUser.nickname,
               status: normalizeStatus(updatedUser.status),
-              avatar: buildAvatar(updatedUser.login, updatedUser.nickname, updatedUser.avatarimage)
+              avatar: buildAvatar(updatedUser.login, updatedUser.nickname, updatedUser.avatarimage),
+              tag: updatedUser.tag || ''
             });
           }
         }

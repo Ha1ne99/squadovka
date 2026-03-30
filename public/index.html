@@ -674,6 +674,12 @@ button:hover { transform: translateY(-1px); }
 .profileSection h4 { margin:0 0 12px; font-size:15px; color:#cfd6e6; }
 .profileFieldLabel { display:block; font-size:12px; color:var(--muted); margin-bottom:6px; }
 .profileInput { width:100%; padding:12px 14px; border-radius:12px; background:#0f1420; border:1px solid var(--line); color:#fff; }
+/* Profile tag */
+.tagOption { display:flex;align-items:center;gap:6px;padding:7px 12px;border-radius:10px;border:1px solid var(--line);background:#0f1420;cursor:pointer;font-size:13px;transition:border-color .15s,background .15s; }
+.tagOption:hover { background:#1a2134; }
+.tagOption.active { border-color:var(--accent);background:rgba(107,124,255,.12); }
+.tagOption .tagIcon { font-size:16px; }
+.profileTag { display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:8px;font-size:11px;font-weight:700;letter-spacing:.5px;background:rgba(107,124,255,.15);border:1px solid rgba(107,124,255,.3);color:#a0aaff;vertical-align:middle; }
 .profileActions {
   display:flex;
   justify-content:flex-end;
@@ -1417,6 +1423,10 @@ body[data-theme='midnight'] { --bg:#101217; --bg2:#0b0d12; }
                 <input id="profileNicknameInput" class="profileInput" maxlength="32" placeholder="Введите имя">
                 <label class="profileFieldLabel" id="profileBioLabel" for="profileBioInput" style="margin-top:12px;">О себе</label>
                 <textarea id="profileBioInput" class="profileInput bioInput" maxlength="160" placeholder="Пара слов о себе"></textarea>
+
+                <label class="profileFieldLabel" style="margin-top:14px;">Тег профиля</label>
+                <div id="tagPickerGrid" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:6px;"></div>
+                <div id="tagPreview" style="margin-top:8px;font-size:13px;color:var(--muted);">Тег не выбран</div>
                 <div id="profileBioHint" class="profileHint">Это локальная подпись для твоего клиента — можно сделать себе стильный профиль.</div>
               </div>
             </div>
@@ -1704,6 +1714,10 @@ const profileNameLabel = document.getElementById('profileNameLabel');
 const profileNicknameInput = document.getElementById('profileNicknameInput');
 const profileBioLabel = document.getElementById('profileBioLabel');
 const profileBioInput = document.getElementById('profileBioInput');
+const tagPickerGrid = document.getElementById('tagPickerGrid');
+const tagPreview = document.getElementById('tagPreview');
+let myTag = '';
+let selectedTag = '';
 const profileBioHint = document.getElementById('profileBioHint');
 const appearanceSection = document.getElementById('appearanceSection');
 const appearanceTitle = document.getElementById('appearanceTitle');
@@ -2483,6 +2497,7 @@ function openProfileModal() {
   viewedProfile = null;
   resetCallState();
   selectedProfileStatus = myStatus || 'online';
+  selectedTag = myTag || '';
   setProfileModalMode('self');
   setSettingsTab('profile');
   profileModalNickPreview.textContent = nickname || login || 'User';
@@ -2490,6 +2505,7 @@ function openProfileModal() {
   profileNicknameInput.value = nickname || '';
   profileNicknameInput.placeholder = t('enterDisplayName');
   if (profileBioInput) profileBioInput.value = customization.bio || '';
+  renderTagPicker();
   updateCustomizationControls();
   setProfileBanner(myBanner);
   const currentAvatarNode = document.getElementById('profileAvatar');
@@ -2526,6 +2542,65 @@ function openUserProfileModal(userLogin, fetchFresh = true) {
 }
 
 function closeProfileModal() { viewedProfile = null; profileModalOverlay.style.display = 'none'; }
+
+const PROFILE_TAGS = [
+  { id: '',        icon: '—',  label: 'Нет тега' },
+  { id: 'flower',  icon: '🌸', label: 'FLOWER' },
+  { id: 'dark',    icon: '🌙', label: 'DARK' },
+  { id: 'gamer',   icon: '🎮', label: 'GAMER' },
+  { id: 'music',   icon: '🎵', label: 'MUSIC' },
+  { id: 'fire',    icon: '🔥', label: 'FIRE' },
+  { id: 'star',    icon: '⭐', label: 'STAR' },
+  { id: 'ghost',   icon: '👻', label: 'GHOST' },
+  { id: 'dragon',  icon: '🐉', label: 'DRAGON' },
+  { id: 'crown',   icon: '👑', label: 'KING' },
+  { id: 'alien',   icon: '👽', label: 'ALIEN' },
+  { id: 'ninja',   icon: '🥷', label: 'NINJA' },
+  { id: 'cat',     icon: '🐱', label: 'CAT' },
+  { id: 'wolf',    icon: '🐺', label: 'WOLF' },
+  { id: 'thunder', icon: '⚡', label: 'THUNDER' },
+  { id: 'ice',     icon: '❄️', label: 'ICE' },
+  { id: 'toxic',   icon: '☠️', label: 'TOXIC' },
+  { id: 'angel',   icon: '😇', label: 'ANGEL' },
+  { id: 'demon',   icon: '😈', label: 'DEMON' },
+  { id: 'chill',   icon: '😎', label: 'CHILL' },
+];
+
+function getTagData(tagId) {
+  return PROFILE_TAGS.find(t => t.id === tagId) || null;
+}
+
+function renderTagPicker() {
+  if (!tagPickerGrid) return;
+  tagPickerGrid.innerHTML = '';
+  PROFILE_TAGS.forEach(tag => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'tagOption' + (selectedTag === tag.id ? ' active' : '');
+    btn.innerHTML = `<span class="tagIcon">${tag.icon}</span><span>${tag.label}</span>`;
+    btn.onclick = () => {
+      selectedTag = tag.id;
+      renderTagPicker();
+      if (tagPreview) {
+        if (tag.id) tagPreview.innerHTML = `Тег: <span class="profileTag">${tag.icon} ${tag.label}</span>`;
+        else tagPreview.textContent = 'Тег не выбран';
+      }
+    };
+    tagPickerGrid.appendChild(btn);
+  });
+  if (tagPreview) {
+    const cur = getTagData(selectedTag);
+    if (cur?.id) tagPreview.innerHTML = `Тег: <span class="profileTag">${cur.icon} ${cur.label}</span>`;
+    else tagPreview.textContent = 'Тег не выбран';
+  }
+}
+
+function renderProfileTag(tagId) {
+  if (!tagId) return '';
+  const tag = getTagData(tagId);
+  if (!tag) return '';
+  return `<span class="profileTag">${tag.icon} ${tag.label}</span>`;
+}
 
 function parseUserAgent(ua) {
   if (!ua) return { browser: 'Неизвестно', os: 'Неизвестно', icon: '🖥️' };
@@ -3863,7 +3938,7 @@ function handle(d) {
     return;
   }
   if (d.type === 'login_ok') {
-    login = d.login; nickname = d.nickname; myStatus = normalizeClientStatus(d.status || 'online'); rtcConfig = { iceServers:Array.isArray(d.iceServers) && d.iceServers.length ? d.iceServers : [{ urls:['stun:stun.l.google.com:19302'] }] }; localStorage.setItem('login', login); authToken = typeof d.token === 'string' ? d.token : authToken; if (authToken) localStorage.setItem('messenger_token', authToken); localStorage.removeItem('password'); loadLocalChatState(login); friends = Array.isArray(d.friends) ? d.friends : friends; groups = Array.isArray(d.groups) ? d.groups : groups; unread = d.unread || unread || {};
+    login = d.login; nickname = d.nickname; myStatus = normalizeClientStatus(d.status || 'online'); myTag = d.tag || ''; selectedTag = myTag; rtcConfig = { iceServers:Array.isArray(d.iceServers) && d.iceServers.length ? d.iceServers : [{ urls:['stun:stun.l.google.com:19302'] }] }; localStorage.setItem('login', login); authToken = typeof d.token === 'string' ? d.token : authToken; if (authToken) localStorage.setItem('messenger_token', authToken); localStorage.removeItem('password'); loadLocalChatState(login); friends = Array.isArray(d.friends) ? d.friends : friends; groups = Array.isArray(d.groups) ? d.groups : groups; unread = d.unread || unread || {};
     loginDiv.style.display = 'none'; if (twoFaScreen) twoFaScreen.style.display = 'none'; pending2FALogin = null; appDiv.style.display = 'flex'; profileNick.textContent = nickname; profileLogin.textContent = login;
     myAvatar = d.avatar || { letter:(nickname || login || '?')[0]?.toUpperCase() || '?', color:'#5865f2' }; myBanner = d.banner || null; const avatarEl = createAvatar(myAvatar, myStatus, true); const old = document.getElementById('profileAvatar'); old.replaceWith(avatarEl); avatarEl.id = 'profileAvatar';
     profileModalLoginPreview.textContent = login;
@@ -4991,6 +5066,7 @@ profileSaveBtn.onclick = () => {
   if (!newNickname || !ws || ws.readyState !== WebSocket.OPEN) return;
   customization.bio = (profileBioInput?.value || '').trim();
   nickname = newNickname;
+  myTag = selectedTag;
   myStatus = normalizeClientStatus(selectedProfileStatus);
   profileNick.textContent = nickname;
   profileLogin.textContent = login;
@@ -5000,7 +5076,7 @@ profileSaveBtn.onclick = () => {
   newA.id = 'profileAvatar';
   applyCustomization();
   applyProfileUpdateLocal({ login, nickname, avatar: myAvatar, banner: myBanner, status: myStatus === 'invisible' ? 'offline' : myStatus });
-  ws.send(JSON.stringify({ type:'update_profile', nickname:newNickname, status:selectedProfileStatus }));
+  ws.send(JSON.stringify({ type:'update_profile', nickname:newNickname, status:selectedProfileStatus, tag:selectedTag }));
   closeProfileModal();
 };
 avatarUploadInput.onchange = () => {
