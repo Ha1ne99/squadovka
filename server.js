@@ -354,6 +354,8 @@ app.post('/api/upload', async (req, res) => {
     const fileBuffer = await readRequestBody(req, MAX_FILE_SIZE);
     if (!fileBuffer.length) return res.status(400).json({ error: 'EMPTY_FILE' });
 
+    console.log(`Upload: file="${originalName}" mime="${mimeType}" size=${fileBuffer.length} cloudName="${process.env.CLOUDINARY_CLOUD_NAME || 'NOT SET'}"`);
+
     let fileUrl;
 
     if (process.env.CLOUDINARY_CLOUD_NAME) {
