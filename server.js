@@ -424,8 +424,6 @@ async function initDb() {
 
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS bannerImage TEXT`);
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'online'`);
-  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS tag TEXT NOT NULL DEFAULT ''`);
-  await pool.query(`UPDATE users SET tag = '' WHERE tag IS NULL`);
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS messages (
@@ -638,7 +636,6 @@ async function loginSocket(ws, user, userAgent = '', ip = '') {
     avatarImage: user.avatarimage,
     bannerImage: user.bannerimage,
     status: normalizedStatus,
-    tag: user.tag || '',
     sessionId: verifiedToken?.sessionId || null
   });
 
@@ -649,7 +646,6 @@ async function loginSocket(ws, user, userAgent = '', ip = '') {
     status: normalizedStatus,
     avatar: buildAvatar(user.login, user.nickname, user.avatarimage),
     banner: user.bannerimage || null,
-    tag: user.tag || '',
     friends,
     unread,
     groups,
@@ -713,7 +709,7 @@ function getEffectiveStatus(targetLogin, rawStatus, viewerLogin = null) {
 }
 
 async function getUserPublic(login, viewerLogin = null) {
-  const result = await pool.query(`SELECT login, nickname, avatarImage, bannerImage, status, tag FROM users WHERE login = $1`, [login]);
+  const result = await pool.query(`SELECT login, nickname, avatarImage, bannerImage, status FROM users WHERE login = $1`, [login]);
   const user = result.rows[0];
   if (!user) return null;
   return {
@@ -721,8 +717,7 @@ async function getUserPublic(login, viewerLogin = null) {
     nickname: user.nickname,
     status: getEffectiveStatus(user.login, user.status, viewerLogin),
     avatar: buildAvatar(user.login, user.nickname, user.avatarimage),
-    banner: user.bannerimage || null,
-    tag: user.tag || ''
+    banner: user.bannerimage || null
   };
 }
 
@@ -737,7 +732,7 @@ async function getFriends(login) {
 
 async function getFriendUsers(login) {
   const result = await pool.query(`
-    SELECT u.login, u.nickname, u.avatarImage, u.status, u.tag
+    SELECT u.login, u.nickname, u.avatarImage, u.status
     FROM users u
     WHERE u.login IN (
       SELECT user1 FROM friends WHERE user2 = $1
@@ -749,8 +744,7 @@ async function getFriendUsers(login) {
     login: row.login,
     nickname: row.nickname,
     status: getEffectiveStatus(row.login, row.status, login),
-    avatar: buildAvatar(row.login, row.nickname, row.avatarimage),
-    tag: row.tag || ''
+    avatar: buildAvatar(row.login, row.nickname, row.avatarimage)
   }));
 }
 
@@ -780,15 +774,14 @@ async function getChatHistory(userA, userB) {
   // Batch-load unique senders in one query
   const senderLogins = [...new Set(result.rows.map(r => r.fromuser))];
   const usersResult = await pool.query(
-    `SELECT login, nickname, avatarImage, status, tag FROM users WHERE login = ANY($1)`,
+    `SELECT login, nickname, avatarImage, status FROM users WHERE login = ANY($1)`,
     [senderLogins]
   );
   const senderMap = new Map();
   for (const u of usersResult.rows) {
     senderMap.set(u.login, {
       avatar: buildAvatar(u.login, u.nickname, u.avatarimage),
-      status: getEffectiveStatus(u.login, u.status, userA),
-      tag: u.tag || ''
+      status: getEffectiveStatus(u.login, u.status, userA)
     });
   }
 
@@ -805,8 +798,7 @@ async function getChatHistory(userA, userB) {
     receiptStatus: getMessageReceiptStatus(row),
     attachment: sanitizeAttachmentPayload(row.attachment),
     replyTo: sanitizeReplyPayload(row.replyto),
-    avatar: senderMap.get(row.fromuser)?.avatar || buildAvatar(row.fromuser, row.fromuser),
-    fromTag: senderMap.get(row.fromuser)?.tag || ''
+    avatar: senderMap.get(row.fromuser)?.avatar || buildAvatar(row.fromuser, row.fromuser)
   }));
 }
 
@@ -911,12 +903,12 @@ async function getGroupHistory(groupId, viewerLogin = null) {
   // Batch-load unique senders
   const senderLogins = [...new Set(result.rows.map(r => r.fromuser))];
   const usersResult = await pool.query(
-    `SELECT login, nickname, avatarImage, tag FROM users WHERE login = ANY($1)`,
+    `SELECT login, nickname, avatarImage FROM users WHERE login = ANY($1)`,
     [senderLogins]
   );
   const senderMap = new Map();
   for (const u of usersResult.rows) {
-    senderMap.set(u.login, { nickname: u.nickname, avatar: buildAvatar(u.login, u.nickname, u.avatarimage), tag: u.tag || '' });
+    senderMap.set(u.login, { nickname: u.nickname, avatar: buildAvatar(u.login, u.nickname, u.avatarimage) });
   }
 
   return result.rows.map(row => {
@@ -930,7 +922,6 @@ async function getGroupHistory(groupId, viewerLogin = null) {
       edited: Boolean(row.edited),
       editedAt: row.editedat ? Number(row.editedat) : null,
       fromNick: sender?.nickname || row.fromuser,
-      fromTag: sender?.tag || '',
       attachment: sanitizeAttachmentPayload(row.attachment),
       replyTo: sanitizeReplyPayload(row.replyto),
       avatar: sender?.avatar || buildAvatar(row.fromuser, row.fromuser)
@@ -1362,22 +1353,20 @@ wss.on('connection', (ws, req) => {
         if (!requireActionAllowed(ws, clientIp, 'update_profile')) return;
         const newNickname = sanitizeName(data.nickname, MAX_NICKNAME_LENGTH);
         const newStatus = normalizeStatus(typeof data.status === 'string' ? data.status : 'online');
-        const newTag = typeof data.tag === 'string' ? data.tag.slice(0, 32) : '';
         if (!newNickname) {
           send(ws, { type: 'error', message: 'Введите имя профиля' });
           return;
         }
 
-        await pool.query(`UPDATE users SET nickname = $1, status = $2, tag = $3 WHERE login = $4`, [newNickname, newStatus, newTag, userLogin]);
-        const updatedResult = await pool.query(`SELECT login, nickname, avatarImage, bannerImage, status, tag FROM users WHERE login = $1`, [userLogin]);
+        await pool.query(`UPDATE users SET nickname = $1, status = $2 WHERE login = $3`, [newNickname, newStatus, userLogin]);
+        const updatedResult = await pool.query(`SELECT login, nickname, avatarImage, bannerImage, status FROM users WHERE login = $1`, [userLogin]);
         const updatedUser = updatedResult.rows[0];
         clients.set(ws, {
           login: updatedUser.login,
           nickname: updatedUser.nickname,
           avatarImage: updatedUser.avatarimage,
           bannerImage: updatedUser.bannerimage,
-          status: normalizeStatus(updatedUser.status),
-          tag: updatedUser.tag || ''
+          status: normalizeStatus(updatedUser.status)
         });
 
         for (const [clientWs, info] of clients) {
@@ -1388,8 +1377,7 @@ wss.on('connection', (ws, req) => {
               type: 'my_profile_updated',
               nickname: updatedUser.nickname,
               status: normalizeStatus(updatedUser.status),
-              avatar: buildAvatar(updatedUser.login, updatedUser.nickname, updatedUser.avatarimage),
-              tag: updatedUser.tag || ''
+              avatar: buildAvatar(updatedUser.login, updatedUser.nickname, updatedUser.avatarimage)
             });
           }
         }
@@ -1495,7 +1483,6 @@ wss.on('connection', (ws, req) => {
           attachment,
           replyTo,
           fromNick: me.nickname,
-          fromTag: me.tag || '',
           avatar: buildAvatar(userLogin, me.nickname, me.avatarImage)
         };
 
@@ -1935,7 +1922,6 @@ wss.on('connection', (ws, req) => {
           attachment,
           replyTo,
           fromNick: me.nickname,
-          fromTag: me.tag || '',
           avatar: buildAvatar(userLogin, me.nickname, me.avatarImage),
           unread: unreadCount,
           clientMsgId: typeof data.clientMsgId === 'string' ? data.clientMsgId : null
