@@ -4027,6 +4027,12 @@ function handle(d) {
     const oldA = document.getElementById('profileAvatar');
     if (oldA) oldA.replaceWith(newA);
     newA.id = 'profileAvatar';
+    // обновляем аватар в открытой модалке профиля
+    if (profileModalMode === 'self') {
+      const newModalA = createAvatar(myAvatar, myStatus, true);
+      const oldModalA = document.getElementById('profileModalAvatar');
+      if (oldModalA) { oldModalA.replaceWith(newModalA); newModalA.id = 'profileModalAvatar'; }
+    }
     syncProfileMiniCard();
     if (profileModalMode === 'self') setProfileBanner(myBanner);
     applyProfileUpdateLocal({ login, nickname, avatar: myAvatar, banner: myBanner, status: myStatus === 'invisible' ? 'offline' : myStatus });
