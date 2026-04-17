@@ -72,8 +72,6 @@ const LOGIN_RE = /^[a-zA-Z0-9_\-.]{3,32}$/;
 const pending2FA = new Map();
 const authAttempts = new Map();
 const actionAttempts = new Map();
-// password reset tokens: token -> { login, expiresAt }
-const passwordResetTokens = new Map();
 
 if (!SESSION_SECRET && isProduction()) {
   console.error('SESSION_SECRET not found in environment variables');
@@ -1119,56 +1117,6 @@ wss.on('connection', (ws, req) => {
         await broadcastOnlineFriends();
         return;
       }
-
-      // ── Forgot password: step 1 — check login & 2FA ──────────────────────
-      if (data.type === 'forgot_check_login') {
-        const login = sanitizeLogin(data.login);
-        if (!login) { send(ws, { type: 'error', message: 'Введите логин' }); return; }
-        const userRow = await pool.query(`SELECT login FROM users WHERE login = $1 LIMIT 1`, [login]);
-        if (!userRow.rows.length) { send(ws, { type: 'error', message: 'Пользователь не найден' }); return; }
-        const secRow = await pool.query(`SELECT twofa_enabled FROM user_security WHERE login = $1`, [login]);
-        const has2fa = Boolean(secRow.rows[0]?.twofa_enabled);
-        if (!has2fa) {
-          send(ws, { type: 'forgot_no_2fa' });
-          return;
-        }
-        send(ws, { type: 'forgot_need_2fa', login });
-        return;
-      }
-
-      if (data.type === 'forgot_verify_2fa') {
-        const login = sanitizeLogin(data.login);
-        const code = typeof data.code === 'string' ? data.code.replace(/\s/g, '').trim() : '';
-        if (!login || !code) { send(ws, { type: 'error', message: 'Введите логин и код' }); return; }
-        const secRow = await pool.query(`SELECT totp_secret, twofa_enabled FROM user_security WHERE login = $1`, [login]);
-        const sec = secRow.rows[0];
-        if (!sec?.twofa_enabled || !sec?.totp_secret) { send(ws, { type: 'error', message: 'Двухфакторная аутентификация не настроена' }); return; }
-        const valid = speakeasy.totp.verify({ secret: sec.totp_secret, encoding: 'base32', token: code, window: 2 });
-        if (!valid) { send(ws, { type: 'error', message: 'Неверный код. Попробуй ещё раз.' }); return; }
-        const resetToken = crypto.randomBytes(24).toString('base64url');
-        passwordResetTokens.set(resetToken, { login, expiresAt: Date.now() + 1000 * 60 * 10 });
-        send(ws, { type: 'forgot_2fa_ok', resetToken });
-        return;
-      }
-
-      if (data.type === 'forgot_set_password') {
-        const resetToken = typeof data.resetToken === 'string' ? data.resetToken.trim() : '';
-        const newPassword = typeof data.password === 'string' ? data.password : '';
-        if (!resetToken || newPassword.length < 4) { send(ws, { type: 'error', message: 'Пароль слишком короткий (минимум 4 символа)' }); return; }
-        const entry = passwordResetTokens.get(resetToken);
-        if (!entry || entry.expiresAt < Date.now()) {
-          passwordResetTokens.delete(resetToken);
-          send(ws, { type: 'error', message: 'Ссылка сброса устарела. Начните заново.' });
-          return;
-        }
-        passwordResetTokens.delete(resetToken);
-        const hashed = await bcrypt.hash(newPassword, 12);
-        await pool.query(`UPDATE users SET password = $1 WHERE login = $2`, [hashed, entry.login]);
-        await pool.query(`UPDATE sessions SET revoked = TRUE WHERE login = $1`, [entry.login]);
-        send(ws, { type: 'forgot_password_done' });
-        return;
-      }
-      // ─────────────────────────────────────────────────────────────────────
 
       if (data.type === 'auth_token') {
         const verified = await verifySessionToken(typeof data.token === 'string' ? data.token : '');
