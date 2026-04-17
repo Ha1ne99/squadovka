@@ -377,88 +377,6 @@ app.get('/api/config', (req, res) => {
   res.json({ giphyKey: process.env.GIPHY_API_KEY || '' });
 });
 
-// ── Admin API ──────────────────────────────────────────────────────────────
-async function requireAdmin(req, res) {
-  const auth = await requireAuthFromRequest(req);
-  if (!auth?.login) { res.status(401).json({ error: 'UNAUTHORIZED' }); return null; }
-  const r = await pool.query(`SELECT isAdmin FROM users WHERE login = $1 LIMIT 1`, [auth.login]);
-  if (!r.rows[0]?.isadmin) { res.status(403).json({ error: 'FORBIDDEN' }); return null; }
-  return auth;
-}
-
-app.get('/api/admin/stats', async (req, res) => {
-  if (!await requireAdmin(req, res)) return;
-  const [users, messages, groups, sessions] = await Promise.all([
-    pool.query(`SELECT COUNT(*) FROM users`),
-    pool.query(`SELECT COUNT(*) FROM messages`),
-    pool.query(`SELECT COUNT(*) FROM chat_groups`),
-    pool.query(`SELECT COUNT(*) FROM sessions WHERE revoked = FALSE AND expiresAt > $1`, [Date.now()])
-  ]);
-  const online = [...new Set([...clients.values()].map(c => c.login))].length;
-  res.json({
-    users: Number(users.rows[0].count),
-    messages: Number(messages.rows[0].count),
-    groups: Number(groups.rows[0].count),
-    activeSessions: Number(sessions.rows[0].count),
-    onlineNow: online
-  });
-});
-
-app.get('/api/admin/users', async (req, res) => {
-  if (!await requireAdmin(req, res)) return;
-  const r = await pool.query(`SELECT login, nickname, status, isAdmin FROM users ORDER BY login ASC`);
-  const onlineSet = new Set([...clients.values()].map(c => c.login));
-  res.json(r.rows.map(u => ({ login: u.login, nickname: u.nickname, status: u.status, isAdmin: Boolean(u.isadmin), online: onlineSet.has(u.login) })));
-});
-
-app.delete('/api/admin/users/:login', async (req, res) => {
-  if (!await requireAdmin(req, res)) return;
-  const target = sanitizeLogin(req.params.login);
-  if (!target || target === 'admin') return res.status(400).json({ error: 'BAD_TARGET' });
-  await pool.query(`DELETE FROM sessions WHERE login = $1`, [target]);
-  await pool.query(`DELETE FROM messages WHERE fromUser = $1 OR toUser = $1`, [target]);
-  await pool.query(`DELETE FROM group_messages WHERE fromUser = $1`, [target]);
-  await pool.query(`DELETE FROM group_members WHERE userLogin = $1`, [target]);
-  await pool.query(`DELETE FROM friends WHERE user1 = $1 OR user2 = $1`, [target]);
-  await pool.query(`DELETE FROM friend_requests WHERE fromUser = $1 OR toUser = $1`, [target]);
-  await pool.query(`DELETE FROM unread WHERE fromUser = $1 OR toUser = $1`, [target]);
-  await pool.query(`DELETE FROM user_security WHERE login = $1`, [target]);
-  await pool.query(`DELETE FROM users WHERE login = $1`, [target]);
-  sendToUser(target, { type: 'error', message: 'Ваш аккаунт был удалён администратором.' });
-  res.json({ ok: true });
-});
-
-app.post('/api/admin/users/:login/reset-password', express.json(), async (req, res) => {
-  if (!await requireAdmin(req, res)) return;
-  const target = sanitizeLogin(req.params.login);
-  const newPass = typeof req.body?.password === 'string' ? req.body.password.trim() : '';
-  if (!target || newPass.length < 4) return res.status(400).json({ error: 'BAD_REQUEST' });
-  const hashed = await bcrypt.hash(newPass, 12);
-  await pool.query(`UPDATE users SET password = $1 WHERE login = $2`, [hashed, target]);
-  await pool.query(`UPDATE sessions SET revoked = TRUE WHERE login = $1`, [target]);
-  res.json({ ok: true });
-});
-
-app.get('/api/admin/messages', async (req, res) => {
-  if (!await requireAdmin(req, res)) return;
-  const limit = Math.min(Number(req.query.limit) || 50, 200);
-  const r = await pool.query(`SELECT id, fromUser, toUser, text, time FROM messages ORDER BY time DESC LIMIT $1`, [limit]);
-  res.json(r.rows.map(m => ({ id: Number(m.id), from: m.fromuser, to: m.touser, text: m.text, time: Number(m.time) })));
-});
-
-app.delete('/api/admin/messages/:id', async (req, res) => {
-  if (!await requireAdmin(req, res)) return;
-  const id = Number(req.params.id);
-  if (!Number.isFinite(id)) return res.status(400).json({ error: 'BAD_ID' });
-  await pool.query(`DELETE FROM messages WHERE id = $1`, [id]);
-  res.json({ ok: true });
-});
-
-app.get('/admin', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'admin.html'));
-});
-// ──────────────────────────────────────────────────────────────────────────
-
 app.get('/api/gifs', async (req, res) => {
   const key = process.env.GIPHY_API_KEY || '';
   if (!key) return res.status(503).json({ error: 'GIPHY_API_KEY not set' });
@@ -628,18 +546,6 @@ async function initDb() {
   await pool.query(`CREATE INDEX IF NOT EXISTS group_members_userlogin_idx ON group_members(userLogin)`);
   await pool.query(`CREATE INDEX IF NOT EXISTS group_members_groupid_idx ON group_members(groupId)`);
   await pool.query(`CREATE INDEX IF NOT EXISTS group_messages_groupid_idx ON group_messages(groupId, time DESC)`);
-
-  // Admin support
-  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS isAdmin BOOLEAN NOT NULL DEFAULT FALSE`);
-  const adminPassword = process.env.ADMIN_PASSWORD || 'admin123';
-  const adminExists = await pool.query(`SELECT 1 FROM users WHERE login = 'admin' LIMIT 1`);
-  if (!adminExists.rows.length) {
-    const hashed = await bcrypt.hash(adminPassword, 12);
-    await pool.query(`INSERT INTO users (login, password, nickname, isAdmin, status) VALUES ('admin', $1, 'Admin', TRUE, 'online')`, [hashed]);
-    console.log('Admin account created. Login: admin, Password:', adminPassword);
-  } else {
-    await pool.query(`UPDATE users SET isAdmin = TRUE WHERE login = 'admin'`);
-  }
 }
 
 const clients = new Map();
@@ -744,7 +650,6 @@ async function loginSocket(ws, user, userAgent = '', ip = '') {
     unread,
     groups,
     token,
-    isAdmin: Boolean(user.isadmin),
     iceServers: getIceServers()
   });
 
