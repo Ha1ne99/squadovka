@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Admin Panel — Squadovka</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: Inter, Arial, sans-serif; background: #0d0f14; color: #e2e8f0; min-height: 100vh; }
+#loginScreen {
+  display: flex; align-items: center; justify-content: center; min-height: 100vh;
+}
+.loginBox {
+  background: #161b26; border: 1px solid rgba(255,255,255,.08); border-radius: 20px;
+  padding: 32px; width: min(92vw, 360px); display: flex; flex-direction: column; gap: 14px;
+}
+.loginBox h2 { font-size: 22px; }
+.loginBox p { color: #64748b; font-size: 13px; }
+input {
+  width: 100%; padding: 12px 14px; background: #0f1420; border: 1px solid rgba(255,255,255,.1);
+  border-radius: 12px; color: #fff; font: inherit; outline: none;
+}
+input:focus { border-color: rgba(107,124,255,.5); }
+.btn {
+  padding: 12px 18px; border: none; border-radius: 12px; cursor: pointer;
+  font: inherit; font-weight: 700; transition: opacity .15s;
+}
+.btn:hover { opacity: .85; }
+.btn-primary { background: linear-gradient(135deg, #6b7cff, #8592ff); color: #fff; width: 100%; }
+.btn-danger { background: #ed4245; color: #fff; }
+.btn-sm { padding: 7px 12px; font-size: 13px; border-radius: 9px; }
+.btn-ghost { background: #1e2535; color: #fff; border: 1px solid rgba(255,255,255,.08); }
+#app { display: none; }
+.topbar {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 24px; background: #161b26; border-bottom: 1px solid rgba(255,255,255,.07);
+}
+.topbar h1 { font-size: 18px; }
+.topbar span { color: #64748b; font-size: 13px; margin-left: 10px; }
+.tabs { display: flex; gap: 6px; padding: 16px 24px 0; }
+.tab {
+  padding: 10px 18px; border-radius: 12px 12px 0 0; cursor: pointer; font-weight: 700;
+  font-size: 14px; border: 1px solid transparent; background: transparent; color: #64748b;
+}
+.tab.active { background: #161b26; border-color: rgba(255,255,255,.07); border-bottom-color: #161b26; color: #fff; }
+.tabContent { display: none; padding: 0 24px 24px; background: #161b26; border: 1px solid rgba(255,255,255,.07); border-radius: 0 12px 12px 12px; margin: 0 24px; }
+.tabContent.active { display: block; }
+.statsGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; padding: 20px 0; }
+.statCard { background: #0f1420; border: 1px solid rgba(255,255,255,.07); border-radius: 14px; padding: 16px; }
+.statCard .val { font-size: 32px; font-weight: 800; color: #6b7cff; }
+.statCard .lbl { font-size: 13px; color: #64748b; margin-top: 4px; }
+table { width: 100%; border-collapse: collapse; margin-top: 16px; font-size: 14px; }
+th { text-align: left; padding: 10px 12px; color: #64748b; font-size: 12px; text-transform: uppercase; letter-spacing: .06em; border-bottom: 1px solid rgba(255,255,255,.06); }
+td { padding: 10px 12px; border-bottom: 1px solid rgba(255,255,255,.04); vertical-align: middle; }
+tr:hover td { background: rgba(255,255,255,.02); }
+.badge { display: inline-block; padding: 3px 8px; border-radius: 999px; font-size: 11px; font-weight: 700; }
+.badge-green { background: rgba(65,194,114,.18); color: #41c272; }
+.badge-gray { background: rgba(255,255,255,.07); color: #64748b; }
+.badge-admin { background: rgba(107,124,255,.2); color: #8592ff; }
+.actions { display: flex; gap: 6px; flex-wrap: wrap; }
+.modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.6); align-items: center; justify-content: center; z-index: 100; }
+.modal-overlay.open { display: flex; }
+.modal { background: #161b26; border: 1px solid rgba(255,255,255,.1); border-radius: 18px; padding: 24px; width: min(92vw, 380px); display: flex; flex-direction: column; gap: 14px; }
+.modal h3 { font-size: 17px; }
+.error { color: #ed4245; font-size: 13px; }
+.msgText { max-width: 320px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #94a3b8; }
+</style>
+</head>
+<body>
+
+<div id="loginScreen">
+  <div class="loginBox">
+    <h2>🛡️ Admin Panel</h2>
+    <p>Войдите под аккаунтом admin</p>
+    <input id="loginInput" type="text" placeholder="Логин" value="admin">
+    <input id="passInput" type="password" placeholder="Пароль">
+    <div id="loginError" class="error"></div>
+    <button class="btn btn-primary" onclick="doLogin()">Войти</button>
+  </div>
+</div>
+
+<div id="app">
+  <div class="topbar">
+    <div><h1>🛡️ Admin Panel</h1><span id="adminName"></span></div>
+    <button class="btn btn-ghost btn-sm" onclick="logout()">Выйти</button>
+  </div>
+  <div class="tabs">
+    <button class="tab active" onclick="switchTab('stats')">Статистика</button>
+    <button class="tab" onclick="switchTab('users')">Пользователи</button>
+    <button class="tab" onclick="switchTab('messages')">Сообщения</button>
+  </div>
+
+  <!-- Stats -->
+  <div class="tabContent active" id="tab-stats">
+    <div class="statsGrid" id="statsGrid"></div>
+  </div>
+
+  <!-- Users -->
+  <div class="tabContent" id="tab-users">
+    <table>
+      <thead><tr><th>Логин</th><th>Ник</th><th>Статус</th><th>Онлайн</th><th>Роль</th><th>Действия</th></tr></thead>
+      <tbody id="usersBody"></tbody>
+    </table>
+  </div>
+
+  <!-- Messages -->
+  <div class="tabContent" id="tab-messages">
+    <table>
+      <thead><tr><th>От</th><th>Кому</th><th>Текст</th><th>Время</th><th></th></tr></thead>
+      <tbody id="messagesBody"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Reset password modal -->
+<div class="modal-overlay" id="resetModal">
+  <div class="modal">
+    <h3>Сменить пароль</h3>
+    <p id="resetTarget" style="color:#64748b;font-size:13px;"></p>
+    <input id="newPassInput" type="password" placeholder="Новый пароль">
+    <div id="resetError" class="error"></div>
+    <div style="display:flex;gap:10px;">
+      <button class="btn btn-primary" style="flex:1" onclick="confirmReset()">Сохранить</button>
+      <button class="btn btn-ghost" style="flex:1" onclick="closeModal()">Отмена</button>
+    </div>
+  </div>
+</div>
+
+<script>
+let token = localStorage.getItem('adminToken') || '';
+let currentTab = 'stats';
+let resetLogin = '';
+
+async function api(method, path, body) {
+  const opts = { method, headers: { Authorization: 'Bearer ' + token } };
+  if (body) { opts.headers['Content-Type'] = 'application/json'; opts.body = JSON.stringify(body); }
+  const r = await fetch(path, opts);
+  if (r.status === 401 || r.status === 403) { logout(); throw new Error('Unauthorized'); }
+  return r.json();
+}
+
+async function doLogin() {
+  const login = document.getElementById('loginInput').value.trim();
+  const pass = document.getElementById('passInput').value;
+  document.getElementById('loginError').textContent = '';
+  try {
+    const ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host);
+    ws.onopen = () => ws.send(JSON.stringify({ type: 'login', login, password: pass }));
+    ws.onmessage = e => {
+      const d = JSON.parse(e.data);
+      if (d.type === 'login_ok') {
+        if (!d.isAdmin) { document.getElementById('loginError').textContent = 'Нет прав администратора.'; ws.close(); return; }
+        token = d.token;
+        localStorage.setItem('adminToken', token);
+        ws.close();
+        showApp(d.login);
+      } else if (d.type === 'error') {
+        document.getElementById('loginError').textContent = d.message || 'Ошибка входа';
+        ws.close();
+      }
+    };
+    ws.onerror = () => { document.getElementById('loginError').textContent = 'Ошибка подключения'; };
+  } catch(e) { document.getElementById('loginError').textContent = e.message; }
+}
+
+async function checkExistingToken() {
+  if (!token) return;
+  try {
+    await api('GET', '/api/admin/stats');
+    // token valid — but we need login name, just show app
+    showApp('admin');
+  } catch { token = ''; localStorage.removeItem('adminToken'); }
+}
+
+function showApp(login) {
+  document.getElementById('loginScreen').style.display = 'none';
+  document.getElementById('app').style.display = 'block';
+  document.getElementById('adminName').textContent = login;
+  loadTab(currentTab);
+}
+
+function logout() {
+  token = ''; localStorage.removeItem('adminToken');
+  location.reload();
+}
+
+function switchTab(tab) {
+  currentTab = tab;
+  document.querySelectorAll('.tab').forEach((t, i) => t.classList.toggle('active', ['stats','users','messages'][i] === tab));
+  document.querySelectorAll('.tabContent').forEach(c => c.classList.remove('active'));
+  document.getElementById('tab-' + tab).classList.add('active');
+  loadTab(tab);
+}
+
+async function loadTab(tab) {
+  if (tab === 'stats') loadStats();
+  else if (tab === 'users') loadUsers();
+  else if (tab === 'messages') loadMessages();
+}
+
+async function loadStats() {
+  const s = await api('GET', '/api/admin/stats');
+  document.getElementById('statsGrid').innerHTML = [
+    ['👥', s.users, 'Пользователей'],
+    ['💬', s.messages, 'Сообщений'],
+    ['👥', s.groups, 'Групп'],
+    ['🟢', s.onlineNow, 'Онлайн сейчас'],
+    ['🔑', s.activeSessions, 'Активных сессий']
+  ].map(([icon, val, lbl]) => `<div class="statCard"><div class="val">${val}</div><div class="lbl">${icon} ${lbl}</div></div>`).join('');
+}
+
+async function loadUsers() {
+  const users = await api('GET', '/api/admin/users');
+  document.getElementById('usersBody').innerHTML = users.map(u => `
+    <tr>
+      <td><b>${u.login}</b></td>
+      <td>${u.nickname}</td>
+      <td>${u.status}</td>
+      <td>${u.online ? '<span class="badge badge-green">Онлайн</span>' : '<span class="badge badge-gray">Офлайн</span>'}</td>
+      <td>${u.isAdmin ? '<span class="badge badge-admin">Admin</span>' : ''}</td>
+      <td><div class="actions">
+        ${u.login !== 'admin' ? `<button class="btn btn-ghost btn-sm" onclick="openReset('${u.login}')">Пароль</button>` : ''}
+        ${u.login !== 'admin' ? `<button class="btn btn-danger btn-sm" onclick="deleteUser('${u.login}')">Удалить</button>` : ''}
+      </div></td>
+    </tr>
+  `).join('');
+}
+
+async function loadMessages() {
+  const msgs = await api('GET', '/api/admin/messages?limit=100');
+  document.getElementById('messagesBody').innerHTML = msgs.map(m => `
+    <tr>
+      <td>${m.from}</td>
+      <td>${m.to}</td>
+      <td><div class="msgText">${escHtml(m.text)}</div></td>
+      <td style="color:#64748b;font-size:12px;">${new Date(m.time).toLocaleString('ru')}</td>
+      <td><button class="btn btn-danger btn-sm" onclick="deleteMsg(${m.id})">✕</button></td>
+    </tr>
+  `).join('');
+}
+
+async function deleteUser(login) {
+  if (!confirm(`Удалить пользователя ${login}?`)) return;
+  await api('DELETE', '/api/admin/users/' + login);
+  loadUsers();
+}
+
+async function deleteMsg(id) {
+  await api('DELETE', '/api/admin/messages/' + id);
+  loadMessages();
+}
+
+function openReset(login) {
+  resetLogin = login;
+  document.getElementById('resetTarget').textContent = 'Пользователь: ' + login;
+  document.getElementById('newPassInput').value = '';
+  document.getElementById('resetError').textContent = '';
+  document.getElementById('resetModal').classList.add('open');
+}
+
+function closeModal() { document.getElementById('resetModal').classList.remove('open'); }
+
+async function confirmReset() {
+  const pass = document.getElementById('newPassInput').value.trim();
+  if (pass.length < 4) { document.getElementById('resetError').textContent = 'Минимум 4 символа'; return; }
+  await api('POST', '/api/admin/users/' + resetLogin + '/reset-password', { password: pass });
+  closeModal();
+}
+
+function escHtml(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+document.getElementById('passInput').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+
+checkExistingToken();
+</script>
+</body>
+</html>
