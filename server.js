@@ -617,26 +617,47 @@ async function notifyReceiptUpdate(senderLogin, peerLogin, ids, status) {
 }
 
 
-async function loginSocket(ws, user, userAgent = '', ip = '') {
+async function loginSocket(ws, user, userAgent = '', ip = '', existingSessionId = null) {
   const normalizedStatus = normalizeStatus(user.status);
-  const token = await issueSessionToken(user.login, userAgent, ip);
+
+  let token;
+  let sessionId;
+  if (existingSessionId) {
+    const now = Date.now();
+    const expiresAt = now + SESSION_TTL_MS;
+    const nonce = crypto.randomBytes(16).toString('base64url');
+    const payload = `${user.login}.${expiresAt}.${existingSessionId}.${nonce}`;
+    const signature = signSessionPayload(payload);
+    await pool.query(
+      `UPDATE sessions SET expiresAt = $1, userAgent = $2, ip = $3 WHERE id = $4 AND login = $5`,
+      [expiresAt, userAgent.slice(0, 512), ip.slice(0, 64), existingSessionId, user.login]
+    );
+    token = `${payload}.${signature}`;
+    sessionId = existingSessionId;
+  } else {
+    token = await issueSessionToken(user.login, userAgent, ip);
+    const verified = await verifySessionToken(token);
+    sessionId = verified?.sessionId || null;
+  }
 
   // Parallelize all data fetching
-  const [verifiedToken, friends, unread, groups, requestsResult] = await Promise.all([
-    verifySessionToken(token),
+  const [friends, unread, groups, requestsResult] = await Promise.all([
     getFriendUsers(user.login),
     getUnreadMap(user.login),
     getGroupsForUser(user.login),
     pool.query(`SELECT fromUser FROM friend_requests WHERE toUser = $1`, [user.login])
   ]);
 
+  const avatarImage = user.avatarimage || user.avatarImage || null;
+  const bannerImage = user.bannerimage || user.bannerImage || null;
+
   clients.set(ws, {
     login: user.login,
     nickname: user.nickname,
-    avatarImage: user.avatarimage,
-    bannerImage: user.bannerimage,
+    avatarImage,
+    bannerImage,
     status: normalizedStatus,
-    sessionId: verifiedToken?.sessionId || null
+    sessionId
   });
 
   send(ws, {
@@ -644,8 +665,8 @@ async function loginSocket(ws, user, userAgent = '', ip = '') {
     login: user.login,
     nickname: user.nickname,
     status: normalizedStatus,
-    avatar: buildAvatar(user.login, user.nickname, user.avatarimage),
-    banner: user.bannerimage || null,
+    avatar: buildAvatar(user.login, user.nickname, avatarImage),
+    banner: bannerImage || null,
     friends,
     unread,
     groups,
@@ -964,7 +985,7 @@ async function broadcastOnlineFriends() {
           login: other.login,
           nickname: other.nickname,
           status: effectiveStatus,
-          avatar: buildAvatar(other.login, other.nickname, other.avatarImage),
+          avatar: buildAvatar(other.login, other.nickname, other.avatarImage || null),
           banner: other.bannerImage || null
         });
       }
@@ -1134,9 +1155,7 @@ wss.on('connection', (ws, req) => {
 
         userLogin = user.login;
         const ua2 = typeof req.headers['user-agent'] === 'string' ? req.headers['user-agent'] : '';
-        // Update userAgent/ip for re-auth (token reconnect)
-        await pool.query(`UPDATE sessions SET userAgent = $1, ip = $2 WHERE id = $3`, [ua2.slice(0, 512), clientIp.slice(0, 64), verified.sessionId]);
-        await loginSocket(ws, user, ua2, clientIp);
+        await loginSocket(ws, user, ua2, clientIp, verified.sessionId);
         await broadcastOnlineFriends();
         return;
       }
