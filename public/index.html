@@ -5164,7 +5164,21 @@ profileSaveBtn.onclick = () => {
   closeProfileModal();
 };
 avatarUploadInput.onchange = () => {
-  const file = avatarUploadInput.files?.[0]; if (!file || !ws) return; const reader = new FileReader(); reader.onload = () => ws.send(JSON.stringify({ type:'update_avatar', image:reader.result })); reader.readAsDataURL(file); avatarUploadInput.value = '';
+  const file = avatarUploadInput.files?.[0]; if (!file || !ws) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    const dataUrl = reader.result;
+    // мгновенное превью
+    myAvatar = { ...myAvatar, image: dataUrl };
+    const newA = createAvatar(myAvatar, myStatus, true);
+    const oldA = document.getElementById('profileAvatar');
+    if (oldA) { oldA.replaceWith(newA); newA.id = 'profileAvatar'; }
+    const newModalA = createAvatar(myAvatar, myStatus, true);
+    const oldModalA = document.getElementById('profileModalAvatar');
+    if (oldModalA) { oldModalA.replaceWith(newModalA); newModalA.id = 'profileModalAvatar'; }
+    ws.send(JSON.stringify({ type:'update_avatar', image: dataUrl }));
+  };
+  reader.readAsDataURL(file); avatarUploadInput.value = '';
 };
 bannerUploadInput.onchange = () => {
   const file = bannerUploadInput.files?.[0]; if (!file || !ws) return; const reader = new FileReader(); reader.onload = () => { setProfileBanner(reader.result); ws.send(JSON.stringify({ type:'update_banner', image:reader.result })); }; reader.readAsDataURL(file); bannerUploadInput.value = '';
