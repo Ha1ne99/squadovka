@@ -1236,6 +1236,7 @@ body[data-theme='midnight'] { --bg:#101217; --bg2:#0b0d12; }
   <input id="passwordInput" type="password" placeholder="Пароль">
   <button id="loginBtn">Войти</button>
   <div id="switchMode">Нет аккаунта? Зарегистрироваться</div>
+  <div id="forgotPasswordLink" style="font-size:13px;color:var(--muted);cursor:pointer;text-align:center;margin-top:2px;">Забыли пароль?</div>
 </div>
 
 <!-- 2FA CODE SCREEN -->
@@ -1249,6 +1250,36 @@ body[data-theme='midnight'] { --bg:#101217; --bg2:#0b0d12; }
   <input id="twoFaCodeInput" class="profileInput" type="text" placeholder="000000" maxlength="6" style="width:200px;text-align:center;letter-spacing:6px;font-size:22px;padding:14px;">
   <button id="twoFaSubmitBtn" style="width:200px;padding:12px;border-radius:12px;background:linear-gradient(135deg,var(--accent),var(--accent-2));border:none;color:#fff;font-weight:800;font-size:15px;cursor:pointer;">Войти</button>
   <button id="twoFaBackBtn" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:13px;">← Назад</button>
+</div>
+
+<!-- FORGOT PASSWORD SCREEN -->
+<div id="forgotScreen" style="display:none;position:fixed;inset:0;align-items:center;justify-content:center;background:var(--bg,#0d1117);z-index:9999;padding:24px;">
+  <div style="width:min(92vw,380px);background:var(--panel,rgba(21,24,31,.92));border:1px solid var(--line,rgba(255,255,255,.08));border-radius:24px;padding:28px;display:flex;flex-direction:column;gap:14px;box-shadow:0 16px 40px rgba(0,0,0,.35);">
+    <div class="loginBrand"><div class="brandLogo">S</div><div class="brandText"><b>Squadovka</b></div></div>
+    <div id="fpStep1">
+      <h2 style="margin:0 0 6px;">Восстановление пароля</h2>
+      <p style="color:var(--muted);font-size:13px;margin:0 0 12px;">Введи свой логин. Для сброса пароля потребуется двухфакторная аутентификация.</p>
+      <input id="fpLoginInput" class="profileInput" placeholder="Логин" style="margin-bottom:10px;">
+      <div id="fpStep1Error" style="color:#ed4245;font-size:13px;min-height:18px;"></div>
+      <button id="fpStep1Btn" style="width:100%;padding:12px;background:linear-gradient(135deg,var(--accent),var(--accent-2));border:none;border-radius:14px;color:#fff;font-weight:700;cursor:pointer;margin-top:4px;">Далее</button>
+    </div>
+    <div id="fpStep2" style="display:none;">
+      <h2 style="margin:0 0 6px;">Код подтверждения</h2>
+      <p style="color:var(--muted);font-size:13px;margin:0 0 12px;">Введи код из приложения-аутентификатора.</p>
+      <input id="fpCodeInput" class="profileInput" type="text" placeholder="000000" maxlength="6" style="text-align:center;letter-spacing:6px;font-size:22px;padding:14px;margin-bottom:10px;">
+      <div id="fpStep2Error" style="color:#ed4245;font-size:13px;min-height:18px;"></div>
+      <button id="fpStep2Btn" style="width:100%;padding:12px;background:linear-gradient(135deg,var(--accent),var(--accent-2));border:none;border-radius:14px;color:#fff;font-weight:700;cursor:pointer;margin-top:4px;">Подтвердить</button>
+    </div>
+    <div id="fpStep3" style="display:none;">
+      <h2 style="margin:0 0 6px;">Новый пароль</h2>
+      <p style="color:var(--muted);font-size:13px;margin:0 0 12px;">Придумай новый пароль для своего аккаунта.</p>
+      <input id="fpNewPass" class="profileInput" type="password" placeholder="Новый пароль" style="margin-bottom:8px;">
+      <input id="fpNewPass2" class="profileInput" type="password" placeholder="Повтор пароля" style="margin-bottom:10px;">
+      <div id="fpStep3Error" style="color:#ed4245;font-size:13px;min-height:18px;"></div>
+      <button id="fpStep3Btn" style="width:100%;padding:12px;background:linear-gradient(135deg,var(--accent),var(--accent-2));border:none;border-radius:14px;color:#fff;font-weight:700;cursor:pointer;margin-top:4px;">Сохранить</button>
+    </div>
+    <button id="fpBackBtn" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:13px;text-align:center;">← Назад к входу</button>
+  </div>
 </div>
 
 <!-- APP -->
@@ -4980,6 +5011,90 @@ twoFaBackBtn?.addEventListener('click', () => {
   if (twoFaCodeInput) twoFaCodeInput.value = '';
   if (ws) { try { ws.close(); } catch {} ws = null; }
 });
+
+// ── Forgot password ───────────────────────────────────────────────────────
+const forgotScreen = document.getElementById('forgotScreen');
+const forgotPasswordLink = document.getElementById('forgotPasswordLink');
+const fpBackBtn = document.getElementById('fpBackBtn');
+const fpStep1 = document.getElementById('fpStep1');
+const fpStep2 = document.getElementById('fpStep2');
+const fpStep3 = document.getElementById('fpStep3');
+const fpLoginInput = document.getElementById('fpLoginInput');
+const fpCodeInput = document.getElementById('fpCodeInput');
+const fpNewPass = document.getElementById('fpNewPass');
+const fpNewPass2 = document.getElementById('fpNewPass2');
+const fpStep1Btn = document.getElementById('fpStep1Btn');
+const fpStep2Btn = document.getElementById('fpStep2Btn');
+const fpStep3Btn = document.getElementById('fpStep3Btn');
+const fpStep1Error = document.getElementById('fpStep1Error');
+const fpStep2Error = document.getElementById('fpStep2Error');
+const fpStep3Error = document.getElementById('fpStep3Error');
+let fpResetToken = null;
+let fpWs = null;
+
+function fpShowStep(n) {
+  fpStep1.style.display = n === 1 ? '' : 'none';
+  fpStep2.style.display = n === 2 ? '' : 'none';
+  fpStep3.style.display = n === 3 ? '' : 'none';
+}
+function fpOpenWs(cb) {
+  if (fpWs && fpWs.readyState === WebSocket.OPEN) { cb(fpWs); return; }
+  const proto = location.protocol === 'https:' ? 'wss://' : 'ws://';
+  fpWs = new WebSocket(proto + location.host);
+  fpWs.onopen = () => cb(fpWs);
+  fpWs.onmessage = e => {
+    const d = JSON.parse(e.data);
+    if (d.type === 'forgot_no_2fa') {
+      fpStep1Error.textContent = 'У этого аккаунта не настроена двухфакторная аутентификация. Сброс пароля невозможен.';
+    } else if (d.type === 'forgot_need_2fa') {
+      fpStep1Error.textContent = ''; fpShowStep(2); fpCodeInput.value = ''; fpCodeInput.focus();
+    } else if (d.type === 'forgot_2fa_ok') {
+      fpResetToken = d.resetToken; fpStep2Error.textContent = ''; fpShowStep(3); fpNewPass.value = ''; fpNewPass2.value = ''; fpNewPass.focus();
+    } else if (d.type === 'forgot_password_done') {
+      if (fpWs) { try { fpWs.close(); } catch {} fpWs = null; }
+      forgotScreen.style.display = 'none'; loginDiv.style.display = 'flex';
+      fpShowStep(1); fpLoginInput.value = ''; fpCodeInput.value = ''; fpNewPass.value = ''; fpNewPass2.value = ''; fpResetToken = null;
+    } else if (d.type === 'error') {
+      if (fpStep3.style.display !== 'none') fpStep3Error.textContent = d.message;
+      else if (fpStep2.style.display !== 'none') fpStep2Error.textContent = d.message;
+      else fpStep1Error.textContent = d.message;
+    }
+  };
+  fpWs.onerror = () => { fpStep1Error.textContent = 'Ошибка подключения'; };
+}
+forgotPasswordLink?.addEventListener('click', () => {
+  loginDiv.style.display = 'none'; forgotScreen.style.display = 'flex';
+  fpShowStep(1); fpLoginInput.value = ''; fpStep1Error.textContent = '';
+  setTimeout(() => fpLoginInput?.focus(), 50);
+});
+fpBackBtn?.addEventListener('click', () => {
+  if (fpWs) { try { fpWs.close(); } catch {} fpWs = null; }
+  forgotScreen.style.display = 'none'; loginDiv.style.display = 'flex'; fpShowStep(1); fpResetToken = null;
+});
+fpStep1Btn?.addEventListener('click', () => {
+  fpStep1Error.textContent = '';
+  const login = fpLoginInput.value.trim();
+  if (!login) { fpStep1Error.textContent = 'Введите логин'; return; }
+  fpOpenWs(ws => ws.send(JSON.stringify({ type: 'forgot_check_login', login })));
+});
+fpLoginInput?.addEventListener('keydown', e => { if (e.key === 'Enter') fpStep1Btn.click(); });
+fpStep2Btn?.addEventListener('click', () => {
+  fpStep2Error.textContent = '';
+  const code = fpCodeInput.value.replace(/\s/g, '').trim();
+  if (!code) { fpStep2Error.textContent = 'Введите код'; return; }
+  fpOpenWs(ws => ws.send(JSON.stringify({ type: 'forgot_verify_2fa', login: fpLoginInput.value.trim(), code })));
+});
+fpCodeInput?.addEventListener('keydown', e => { if (e.key === 'Enter') fpStep2Btn.click(); });
+fpStep3Btn?.addEventListener('click', () => {
+  fpStep3Error.textContent = '';
+  const p1 = fpNewPass.value, p2 = fpNewPass2.value;
+  if (p1.length < 4) { fpStep3Error.textContent = 'Пароль слишком короткий (минимум 4 символа)'; return; }
+  if (p1 !== p2) { fpStep3Error.textContent = 'Пароли не совпадают'; return; }
+  if (!fpResetToken) { fpStep3Error.textContent = 'Токен сброса не найден. Начните заново.'; return; }
+  fpOpenWs(ws => ws.send(JSON.stringify({ type: 'forgot_set_password', resetToken: fpResetToken, password: p1 })));
+});
+fpNewPass2?.addEventListener('keydown', e => { if (e.key === 'Enter') fpStep3Btn.click(); });
+// ─────────────────────────────────────────────────────────────────────────
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape' && profileModalOverlay?.style.display === 'flex' && !activeHotkeyCaptureAction) closeProfileModal();
   handleGlobalHotkeys(e);
