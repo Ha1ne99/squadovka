@@ -1688,7 +1688,6 @@ const switchMode = document.getElementById('switchMode');
 const online = document.getElementById('online');
 const profileNick = document.getElementById('profileNick');
 const profileLogin = document.getElementById('profileLogin');
-const profileTagDisplay = document.getElementById('profileTagDisplay');
 const profileCard = document.getElementById('profileCard');
 const profileStatusPill = document.getElementById('profileStatusPill');
 const profileSettingsBtn = document.getElementById('profileSettingsBtn');
@@ -3303,7 +3302,6 @@ function compactStoredMessage(message) {
     readAt: message.readAt || null,
     receiptStatus: message.receiptStatus || null,
     fromNick: message.fromNick || null,
-    fromTag: message.fromTag || null,
     attachment: message.attachment || null,
     replyTo: message.replyTo || null
   };
@@ -3865,8 +3863,8 @@ function handle(d) {
     return;
   }
   if (d.type === 'login_ok') {
-    login = d.login; nickname = d.nickname; myStatus = normalizeClientStatus(d.status || 'online'); myTag = d.tag || ''; selectedTag = myTag; rtcConfig = { iceServers:Array.isArray(d.iceServers) && d.iceServers.length ? d.iceServers : [{ urls:['stun:stun.l.google.com:19302'] }] }; localStorage.setItem('login', login); authToken = typeof d.token === 'string' ? d.token : authToken; if (authToken) localStorage.setItem('messenger_token', authToken); localStorage.removeItem('password'); loadLocalChatState(login); friends = Array.isArray(d.friends) ? d.friends : friends; groups = Array.isArray(d.groups) ? d.groups : groups; unread = d.unread || unread || {};
-    loginDiv.style.display = 'none'; if (twoFaScreen) twoFaScreen.style.display = 'none'; pending2FALogin = null; appDiv.style.display = 'flex'; profileNick.textContent = nickname; profileLogin.textContent = login; updateSidebarTag();
+    login = d.login; nickname = d.nickname; myStatus = normalizeClientStatus(d.status || 'online'); rtcConfig = { iceServers:Array.isArray(d.iceServers) && d.iceServers.length ? d.iceServers : [{ urls:['stun:stun.l.google.com:19302'] }] }; localStorage.setItem('login', login); authToken = typeof d.token === 'string' ? d.token : authToken; if (authToken) localStorage.setItem('messenger_token', authToken); localStorage.removeItem('password'); loadLocalChatState(login); friends = Array.isArray(d.friends) ? d.friends : friends; groups = Array.isArray(d.groups) ? d.groups : groups; unread = d.unread || unread || {};
+    loginDiv.style.display = 'none'; if (twoFaScreen) twoFaScreen.style.display = 'none'; pending2FALogin = null; appDiv.style.display = 'flex'; profileNick.textContent = nickname; profileLogin.textContent = login;
     myAvatar = d.avatar || { letter:(nickname || login || '?')[0]?.toUpperCase() || '?', color:'#5865f2' }; myBanner = d.banner || null; const avatarEl = createAvatar(myAvatar, myStatus, true); const old = document.getElementById('profileAvatar'); old.replaceWith(avatarEl); avatarEl.id = 'profileAvatar';
     profileModalLoginPreview.textContent = login;
     syncPresenceFromOnline();
@@ -3978,10 +3976,8 @@ function handle(d) {
     myStatus = normalizeClientStatus(d.status || myStatus);
     myAvatar = d.avatar || myAvatar;
     if (Object.prototype.hasOwnProperty.call(d, 'banner')) myBanner = d.banner || null;
-    if (typeof d.tag === 'string') { myTag = d.tag; selectedTag = myTag; }
     profileNick.textContent = nickname;
     profileLogin.textContent = login;
-    updateSidebarTag();
     const newA = createAvatar(myAvatar, myStatus, true);
     const oldA = document.getElementById('profileAvatar');
     if (oldA) oldA.replaceWith(newA);
@@ -4189,7 +4185,7 @@ function renderMessage(message) {
   const replyHtml = renderReplyBlockHtml(message.replyTo);
   const menuOpen = openMessageMenuId === Number(message.id);
   const menuHtml = `<div class="messageMenuWrap">${receiptHtml}<button class="messageMenuTrigger ${menuOpen ? 'active' : ''}" onclick="toggleMessageMenu(${message.id}); event.stopPropagation();" title="Меню">⋯</button><div class="messageMenu ${menuOpen ? 'open' : ''}" onclick="event.stopPropagation()"><button class="messageMenuItem" onclick="setReplyMessage(${message.id}); closeMessageMenu();">${escapeHtml(t('reply'))}</button>${isOwn ? `<button class="messageMenuItem" onclick="beginEditMessage(${message.id}); closeMessageMenu();">${escapeHtml(t('edit'))}</button><button class="messageMenuItem danger" onclick="deleteMessage(${message.id}); closeMessageMenu();">${escapeHtml(t('delete'))}</button>` : ''}</div></div>`;
-  let inner = `<div class="messageHeader"><b>${escapeHtml(message.fromNick || message.from)}</b>${message.fromTag ? renderProfileTag(message.fromTag) : ''}<span class="messageTime">${escapeHtml(formatMessageTime(message.time))}</span>${editedLabel}${menuHtml}</div>`;
+  let inner = `<div class="messageHeader"><b>${escapeHtml(message.fromNick || message.from)}</b><span class="messageTime">${escapeHtml(formatMessageTime(message.time))}</span>${editedLabel}${menuHtml}</div>`;
   if (editingMessageId === Number(message.id) && isOwn) {
     inner += replyHtml;
     inner += `<div class="editBox"><input class="editInput" data-message-id="${message.id}" value="${escapeHtml(message.text || '')}"><button class="messageActionBtn" onclick="saveEditMessage(${message.id})">${escapeHtml(t('save'))}</button><button class="messageActionBtn" onclick="cancelEditMessage()">${escapeHtml(t('cancel'))}</button></div>`;
@@ -4995,18 +4991,16 @@ profileSaveBtn.onclick = () => {
   if (!newNickname || !ws || ws.readyState !== WebSocket.OPEN) return;
   customization.bio = (profileBioInput?.value || '').trim();
   nickname = newNickname;
-  myTag = selectedTag;
   myStatus = normalizeClientStatus(selectedProfileStatus);
   profileNick.textContent = nickname;
   profileLogin.textContent = login;
-  updateSidebarTag();
   const newA = createAvatar(myAvatar || { letter:(nickname||login||'?')[0]?.toUpperCase() || '?', color:'#5865f2' }, myStatus, true);
   const oldA = document.getElementById('profileAvatar');
   if (oldA) oldA.replaceWith(newA);
   newA.id = 'profileAvatar';
   applyCustomization();
   applyProfileUpdateLocal({ login, nickname, avatar: myAvatar, banner: myBanner, status: myStatus === 'invisible' ? 'offline' : myStatus });
-  ws.send(JSON.stringify({ type:'update_profile', nickname:newNickname, status:selectedProfileStatus, tag:selectedTag }));
+  ws.send(JSON.stringify({ type:'update_profile', nickname:newNickname, status:selectedProfileStatus }));
   closeProfileModal();
 };
 avatarUploadInput.onchange = () => {
