@@ -155,6 +155,11 @@ button:hover { transform: translateY(-1px); }
   gap:12px;
   backdrop-filter: blur(12px);
   min-height:0;
+  transition: padding-top .2s ease;
+}
+/* Push sidebar content down when call bar is active */
+body.call-active #sidebar {
+  padding-top: calc(14px + var(--call-bar-h, 58px));
 }
 .sidebarBrand {
   display:flex;
@@ -284,6 +289,29 @@ button:hover { transform: translateY(-1px); }
 #chatTitle { font-weight:800; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 #chatStatus { color:var(--muted); font-size:12px; }
 .headerActions { display:flex; align-items:center; gap:8px; }
+
+/* Call banner in chat header */
+#chatCallBanner {
+  display: none;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 12px;
+  background: rgba(67,181,129,.12);
+  border: 1px solid rgba(67,181,129,.3);
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #43b581;
+  cursor: pointer;
+  transition: background .15s;
+  white-space: nowrap;
+}
+#chatCallBanner:hover { background: rgba(67,181,129,.2); }
+#chatCallBanner .callBannerDot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: #43b581;
+  animation: blink 1.4s infinite;
+}
 .ghostBtn {
   border:none;
   border-radius:12px;
@@ -1136,15 +1164,15 @@ body[data-theme='midnight'] { --bg:#101217; --bg2:#0b0d12; }
 #callBtn { display:none; }
 #callBtn.activeCall { border-color: rgba(65,194,114,.5); box-shadow: 0 0 0 1px rgba(65,194,114,.2) inset; }
 #groupCallBtn.activeCall { border-color: rgba(65,194,114,.5); box-shadow: 0 0 0 1px rgba(65,194,114,.2) inset; }
-/* ── CALL BAR (Discord-style — sidebar bottom) ─────────────────────── */
+/* ── CALL BAR (Discord-style — sidebar top) ─────────────────────── */
 #callOverlay {
   position: fixed;
-  bottom: 0;
+  top: 0;
   left: 0;
   width: 290px;
   display: none;
   background: #1e2a1e;
-  border-top: 1px solid rgba(67,181,129,.3);
+  border-bottom: 1px solid rgba(67,181,129,.3);
   z-index: 6000;
   animation: fadeIn .2s ease;
 }
@@ -1333,11 +1361,11 @@ body[data-theme='midnight'] { --bg:#101217; --bg2:#0b0d12; }
 #groupCallOverlay {
   display: none;
   position: fixed;
-  bottom: 0;
+  top: 0;
   left: 0;
   width: 290px;
   background: #1e2a1e;
-  border-top: 1px solid rgba(67,181,129,.3);
+  border-bottom: 1px solid rgba(67,181,129,.3);
   z-index: 6000;
 }
 #groupCallModal {
@@ -1521,6 +1549,10 @@ body[data-theme='midnight'] { --bg:#101217; --bg2:#0b0d12; }
         </div>
         <button id="callBtn" class="ghostBtn">📞 <span id="callBtnLabel">Звонок</span></button>
         <button id="groupCallBtn" class="ghostBtn" style="display:none;">📞 <span id="groupCallBtnLabel">Голосовой</span></button>
+        <div id="chatCallBanner" title="Открыть звонок">
+          <span class="callBannerDot"></span>
+          <span id="chatCallBannerText">В звонке</span>
+        </div>
         <button id="headerFriendsBtn" class="ghostBtn">👥 <span id="headerFriendsBtnLabel">Друзья</span></button>
       </div>
     </div>
@@ -2876,12 +2908,31 @@ function setCallButtonVisible(visible) {
   callBtn.style.display = visible ? 'inline-flex' : 'none';
 }
 function showCallOverlay() {
-  if (callOverlay) callOverlay.style.display = 'block';
+  if (callOverlay) {
+    callOverlay.style.display = 'block';
+    document.body.classList.add('call-active');
+    // sync bar height to CSS var
+    requestAnimationFrame(() => {
+      const h = callOverlay.offsetHeight;
+      document.documentElement.style.setProperty('--call-bar-h', h + 'px');
+    });
+  }
 }
 function hideCallOverlay() {
   if (callOverlay) callOverlay.style.display = 'none';
+  document.body.classList.remove('call-active');
+  document.documentElement.style.removeProperty('--call-bar-h');
   const popup = document.getElementById('callIncomingPopup');
   if (popup) popup.style.display = 'none';
+  updateChatCallBanner();
+}
+
+function updateChatCallBanner() {
+  const banner = document.getElementById('chatCallBanner');
+  if (!banner) return;
+  const active = ['calling','connecting','connected'].includes(callState);
+  const inCallWithCurrent = active && callPeerLogin && currentDM === callPeerLogin;
+  banner.style.display = inCallWithCurrent ? 'flex' : 'none';
 }
 function updateCallAvatar(user) {
   if (!callAvatar) return;
@@ -2933,10 +2984,12 @@ function updateCallUi() {
     // calling / connecting / connected — show bar
     if (popup) popup.style.display = 'none';
     if (callOverlay) callOverlay.style.display = 'block';
+    showCallOverlay();
     if (callState === 'calling') callStatusText.textContent = t('calling');
     else if (callState === 'connecting') callStatusText.textContent = t('connecting');
     else if (callState === 'connected') callStatusText.textContent = t('connected');
   }
+  updateChatCallBanner();
 }
 async function ensureLocalCallStream() {
   if (localCallStream) return localCallStream;
@@ -3248,7 +3301,14 @@ async function startGroupCall(groupId) {
   // Set gain to 1 (full volume) for group call
   if (localCallGainNode) localCallGainNode.gain.value = 1;
   startGroupCallVoiceMeter(localCallSourceStream || localCallStream);
-  if (groupCallOverlay) groupCallOverlay.style.display = 'block';
+  if (groupCallOverlay) {
+    groupCallOverlay.style.display = 'block';
+    document.body.classList.add('call-active');
+    requestAnimationFrame(() => {
+      const h = groupCallOverlay.offsetHeight;
+      document.documentElement.style.setProperty('--call-bar-h', h + 'px');
+    });
+  }
   if (groupCallTitle) { const g = findGroupData(groupId); groupCallTitle.textContent = g?.name || 'Групповой звонок'; }
   renderGroupCallParticipants();
   updateChatHeader();
@@ -4373,6 +4433,7 @@ function openDM(l, n, avatar = null) {
   currentDM = l; currentDMNick = n; currentDMAvatar = avatar; editingMessageId = null; openMessageMenuId = null; closeDmListMenu(); clearReplyMessage(); emptyChat.style.display = 'none'; messages.style.display = 'block'; unread[l] = 0; saveLocalChatState(); applyChatWallpaper();
   const peer = findFriendData(l) || { nickname:n, avatar, status:'offline' };
   updateChatHeader(l, peer.nickname || n, peer.avatar || avatar); renderTypingIndicator(); ws.send(JSON.stringify({ type:'get_messages', with:l })); ws.send(JSON.stringify({ type:'read', from:l })); scheduleRenderCurrentChat(true); renderOnline(); renderGroups();
+  updateChatCallBanner();
 }
 
 function openGroup(groupId) {
@@ -5418,6 +5479,10 @@ callBtn.onclick = async () => {
 callAcceptBtn.onclick = () => { acceptIncomingCall().catch(() => { alert(t('allowMic')); resetCallState(); }); };
 callDeclineBtn.onclick = declineIncomingCall;
 callHangupBtn.onclick = () => endCurrentCall(true);
+
+// Chat call banner click — scroll to call bar
+const chatCallBanner = document.getElementById('chatCallBanner');
+if (chatCallBanner) chatCallBanner.onclick = () => showCallOverlay();
 callMuteBtn.onclick = toggleMuteCall;
 callSpeakerBtn.onclick = toggleSpeakerMute;
 if (callMicVolumeSlider) callMicVolumeSlider.oninput = () => setLocalMicVolume(callMicVolumeSlider.value);
