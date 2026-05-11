@@ -1142,46 +1142,250 @@ body[data-theme='midnight'] { --bg:#101217; --bg2:#0b0d12; }
   display: none;
   align-items: center;
   justify-content: center;
-  background: rgba(0,0,0,.56);
+  background: #1a1d23;
   z-index: 7000;
-  backdrop-filter: blur(8px);
   animation: fadeIn .22s ease;
+  flex-direction: column;
 }
 #callModal {
-  width: min(92vw, 430px);
-  background: linear-gradient(180deg, rgba(23,27,35,.98), rgba(12,15,22,.98));
-  border: 1px solid rgba(255,255,255,.08);
-  border-radius: 26px;
-  padding: 22px;
-  box-shadow: 0 24px 70px rgba(0,0,0,.45);
-  animation: popIn .22s ease;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  height: 100%;
+  padding: 48px 24px 40px;
+  position: relative;
 }
-.callTop { display:flex; align-items:center; gap:14px; }
-.callMeta b { display:block; font-size:22px; }
-.callMeta span { color:var(--muted); font-size:13px; }
-#callStatusText { margin-top:14px; color:#dbe1f0; font-weight:700; }
-#callHintText { margin-top:6px; color:var(--muted); font-size:13px; line-height:1.4; }
-.callMeterWrap { margin-top:16px; }
-.callMeterBar { width:100%; height:10px; background:#0f131a; border:1px solid var(--line); border-radius:999px; overflow:hidden; }
-#callVoiceBar { height:100%; width:6%; background:linear-gradient(90deg, var(--green), var(--accent)); transition:width .12s ease; }
-.callRow { display:flex; gap:10px; margin-top:18px; flex-wrap:wrap; }
-.callActionBtn {
-  flex:1;
-  min-width:120px;
-  padding:12px 14px;
-  border-radius:14px;
-  border:1px solid var(--line);
-  background:#171b23;
-  color:white;
-  cursor:pointer;
-  font-weight:800;
+/* Animated background blobs */
+#callModal::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 60% 50% at 30% 20%, rgba(107,124,255,.18), transparent),
+    radial-gradient(ellipse 50% 40% at 70% 80%, rgba(65,194,114,.10), transparent);
+  pointer-events: none;
+  z-index: 0;
 }
-.callActionBtn:hover { box-shadow:0 12px 28px rgba(0,0,0,.22); }
-.callActionBtn.primary { background:linear-gradient(135deg, var(--accent), var(--accent-2)); }
-.callActionBtn.good { background:linear-gradient(135deg, #2ea86d, #45c979); }
-.callActionBtn.danger { background:linear-gradient(135deg, #b93139, #ed4245); }
-.callInfoPill { margin-top:14px; padding:10px 12px; border:1px solid var(--line); border-radius:14px; background:#101520; color:var(--muted); font-size:13px; }
-#remoteAudio { display:none; }
+#callModal > * { position: relative; z-index: 1; }
+.callCenter {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+  flex: 1;
+  justify-content: center;
+}
+/* Big avatar */
+#callAvatar {
+  width: 120px !important;
+  height: 120px !important;
+  border-radius: 50% !important;
+  font-size: 48px !important;
+  font-weight: 800;
+  box-shadow: 0 0 0 6px rgba(255,255,255,.06), 0 24px 60px rgba(0,0,0,.5);
+  transition: box-shadow .3s ease;
+  background-size: cover !important;
+  background-position: center !important;
+  flex-shrink: 0;
+}
+#callAvatar.speaking {
+  box-shadow: 0 0 0 4px #43b581, 0 0 0 8px rgba(67,181,129,.25), 0 24px 60px rgba(0,0,0,.5);
+}
+#callPeerName {
+  font-size: 28px;
+  font-weight: 800;
+  color: #fff;
+  text-align: center;
+}
+#callStatusText {
+  font-size: 15px;
+  color: #b9bec9;
+  font-weight: 500;
+  text-align: center;
+  margin-top: 0;
+}
+#callHintText {
+  font-size: 13px;
+  color: #6b7280;
+  text-align: center;
+  margin-top: 0;
+}
+/* Voice meter — thin bar under avatar */
+.callMeterWrap {
+  width: min(280px, 80vw);
+  margin-top: 0;
+}
+.callMeterBar {
+  width: 100%;
+  height: 3px;
+  background: rgba(255,255,255,.08);
+  border-radius: 999px;
+  overflow: hidden;
+  border: none;
+}
+#callVoiceBar {
+  height: 100%;
+  width: 6%;
+  background: linear-gradient(90deg, var(--green), var(--accent));
+  transition: width .12s ease;
+  border-radius: 999px;
+}
+.callInfoPill { display: none; }
+/* Incoming actions */
+#callIncomingActions {
+  display: none;
+  gap: 32px;
+  justify-content: center;
+  margin-top: 0;
+  flex-wrap: nowrap;
+}
+/* Round action buttons — Discord style */
+.callRoundBtn {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  transition: transform .18s ease, box-shadow .18s ease, background .18s ease;
+  flex-shrink: 0;
+}
+.callRoundBtn:hover { transform: scale(1.08); }
+.callRoundBtn.muted { background: #ed4245 !important; }
+.callRoundBtn-accept { background: #3ba55d; box-shadow: 0 8px 24px rgba(59,165,93,.35); }
+.callRoundBtn-accept:hover { background: #45c96a; box-shadow: 0 12px 32px rgba(59,165,93,.45); }
+.callRoundBtn-decline { background: #ed4245; box-shadow: 0 8px 24px rgba(237,66,69,.35); }
+.callRoundBtn-decline:hover { background: #f04747; box-shadow: 0 12px 32px rgba(237,66,69,.45); }
+.callRoundBtn-neutral { background: rgba(255,255,255,.1); }
+.callRoundBtn-neutral:hover { background: rgba(255,255,255,.18); }
+.callRoundBtn-hangup { background: #ed4245; box-shadow: 0 8px 24px rgba(237,66,69,.35); }
+.callRoundBtn-hangup:hover { background: #f04747; }
+.callBtnLabel {
+  font-size: 12px;
+  color: #8e9297;
+  margin-top: 8px;
+  text-align: center;
+  white-space: nowrap;
+}
+.callBtnWrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+/* Main controls bar */
+#callMainActions {
+  display: flex;
+  gap: 20px;
+  justify-content: center;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  margin-top: 0;
+}
+/* Volume sliders — hidden by default, shown in expanded panel */
+.callVolumeControl { display: none !important; }
+/* Expand panel */
+#callExpandPanel {
+  display: none;
+  flex-direction: column;
+  gap: 12px;
+  background: rgba(255,255,255,.04);
+  border: 1px solid rgba(255,255,255,.07);
+  border-radius: 16px;
+  padding: 16px;
+  width: min(340px, 90vw);
+  margin-top: 16px;
+}
+.callSliderRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 13px;
+  color: #b9bec9;
+}
+.callSliderRow span { white-space: nowrap; min-width: 110px; }
+.callSliderRow input[type=range] { flex: 1; accent-color: var(--accent); }
+/* Old callRow — hide */
+.callRow { display: flex; gap: 10px; margin-top: 0; flex-wrap: wrap; }
+.callActionBtn { display: none !important; }
+
+/* GROUP CALL — Discord style */
+#groupCallOverlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  align-items: center;
+  justify-content: center;
+  background: #1a1d23;
+  z-index: 7100;
+  flex-direction: column;
+}
+#groupCallModal {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  height: 100%;
+  padding: 48px 24px 40px;
+  position: relative;
+}
+#groupCallModal::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse 60% 50% at 40% 30%, rgba(107,124,255,.15), transparent);
+  pointer-events: none;
+  z-index: 0;
+}
+#groupCallModal > * { position: relative; z-index: 1; }
+#groupCallTitle {
+  font-size: 20px;
+  font-weight: 800;
+  color: #fff;
+  text-align: center;
+  display: block;
+  margin-bottom: 8px;
+}
+#groupCallParticipants {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+  justify-content: center;
+  align-items: center;
+  flex: 1;
+}
+.gcParticipant {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+.gcParticipant .avatar {
+  width: 72px !important;
+  height: 72px !important;
+  border-radius: 50% !important;
+  font-size: 28px !important;
+  box-shadow: 0 0 0 3px rgba(255,255,255,.06);
+  transition: box-shadow .2s;
+}
+.gcParticipant.speaking .avatar {
+  box-shadow: 0 0 0 3px #43b581, 0 0 0 6px rgba(67,181,129,.2);
+}
+.gcParticipant span {
+  font-size: 12px;
+  color: #b9bec9;
+  max-width: 80px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: center;
+}
+#groupCallVoiceBar { height:100%;width:6%;background:linear-gradient(90deg,var(--green),var(--accent));transition:width .12s ease; }
 
 #groupsSidebar { display:none !important; }
 .callVolumeControl {
@@ -1663,47 +1867,97 @@ body[data-theme='midnight'] { --bg:#101217; --bg2:#0b0d12; }
 
 <div id="callOverlay">
   <div id="callModal">
-    <div class="callTop">
-      <div id="callAvatar" class="avatar" style="width:58px;height:58px;background:#5865f2">?</div>
-      <div class="callMeta">
+    <!-- Center: avatar + name + status -->
+    <div class="callCenter">
+      <div id="callAvatar" class="avatar" style="background:#5865f2">?</div>
+      <div style="display:flex;flex-direction:column;align-items:center;gap:6px;">
         <b id="callPeerName">Звонок</b>
-        <span id="callPeerSub">Squadovka Call</span>
+        <div id="callStatusText">Ожидание</div>
+        <div id="callHintText"></div>
+      </div>
+      <div class="callMeterWrap">
+        <div class="callMeterBar"><div id="callVoiceBar"></div></div>
+      </div>
+      <!-- Expand panel (volume sliders) -->
+      <div id="callExpandPanel">
+        <div class="callSliderRow">
+          <span id="callMicVolumeLabel">🎙️ Микрофон</span>
+          <input id="callMicVolumeSlider" type="range" min="0" max="200" step="1" value="100">
+        </div>
+        <div class="callSliderRow">
+          <span id="callVolumeLabel">🔊 Собеседник</span>
+          <input id="callVolumeSlider" type="range" min="0" max="300" step="1" value="100">
+        </div>
       </div>
     </div>
-    <div id="callStatusText">Ожидание</div>
-    <div id="callHintText"></div>
-    <div class="callMeterWrap">
-      <div class="callInfoPill" id="callInfoPill">TURN improves reliability for difficult NAT networks.</div>
-      <div style="margin:12px 0 8px;color:var(--muted);font-size:13px;">Уровень голоса</div>
-      <div class="callMeterBar"><div id="callVoiceBar"></div></div>
+
+    <!-- Incoming: accept / decline -->
+    <div id="callIncomingActions">
+      <div class="callBtnWrap">
+        <button id="callDeclineBtn" class="callRoundBtn callRoundBtn-decline">📵</button>
+        <div class="callBtnLabel">Отклонить</div>
+      </div>
+      <div class="callBtnWrap">
+        <button id="callAcceptBtn" class="callRoundBtn callRoundBtn-accept">📞</button>
+        <div class="callBtnLabel">Принять</div>
+      </div>
     </div>
-    <div class="callRow" id="callIncomingActions" style="display:none;">
-      <button id="callAcceptBtn" class="callActionBtn good">Принять</button>
-      <button id="callDeclineBtn" class="callActionBtn danger">Отклонить</button>
+
+    <!-- Active call controls -->
+    <div id="callMainActions">
+      <div class="callBtnWrap">
+        <button id="callMuteBtn" class="callRoundBtn callRoundBtn-neutral" title="Микрофон">🎙️</button>
+        <div class="callBtnLabel" id="callMuteBtnLabel">Микрофон</div>
+      </div>
+      <div class="callBtnWrap">
+        <button id="callHangupBtn" class="callRoundBtn callRoundBtn-hangup" title="Сбросить">📵</button>
+        <div class="callBtnLabel">Сбросить</div>
+      </div>
+      <div class="callBtnWrap">
+        <button id="callSpeakerBtn" class="callRoundBtn callRoundBtn-neutral" title="Звук">🔊</button>
+        <div class="callBtnLabel" id="callSpeakerBtnLabel">Звук</div>
+      </div>
+      <div class="callBtnWrap">
+        <button id="callSettingsBtn" class="callRoundBtn callRoundBtn-neutral" title="Настройки">⚙️</button>
+        <div class="callBtnLabel">Настройки</div>
+      </div>
+      <div class="callBtnWrap">
+        <button id="callCloseBtn" class="callRoundBtn callRoundBtn-neutral" title="Свернуть">✕</button>
+        <div class="callBtnLabel">Свернуть</div>
+      </div>
     </div>
-    <div class="callRow" id="callMainActions">
-      <button id="callMuteBtn" class="callActionBtn">🎙️ Микрофон</button>
-      <button id="callSpeakerBtn" class="callActionBtn">🔊 Звук</button>
-      <label class="callVolumeControl"><span id="callMicVolumeLabel">🎙️ Микрофон:</span><input id="callMicVolumeSlider" type="range" min="0" max="200" step="1" value="100"></label>
-      <label class="callVolumeControl"><span id="callVolumeLabel">🔊 Собеседник:</span><input id="callVolumeSlider" type="range" min="0" max="300" step="1" value="100"></label>
-      <button id="callHangupBtn" class="callActionBtn danger">Сбросить</button>
-      <button id="callCloseBtn" class="callActionBtn">Закрыть</button>
+
+    <!-- Hidden legacy elements for JS compatibility -->
+    <div class="callRow" id="callIncomingActionsLegacy" style="display:none;">
+      <button class="callActionBtn good" style="display:none!important;"></button>
+      <button class="callActionBtn danger" style="display:none!important;"></button>
     </div>
+    <label class="callVolumeControl" style="display:none!important;"><span id="callMicVolumeLabelHidden">🎙️ Микрофон:</span><input id="callMicVolumeSliderHidden" type="range" min="0" max="200" step="1" value="100"></label>
+    <label class="callVolumeControl" style="display:none!important;"><span id="callVolumeLabelHidden">🔊 Собеседник:</span><input id="callVolumeSliderHidden" type="range" min="0" max="300" step="1" value="100"></label>
+    <div id="callInfoPill" style="display:none;"></div>
     <audio id="remoteAudio" autoplay playsinline></audio>
   </div>
 </div>
 
 <!-- GROUP CALL OVERLAY -->
-<div id="groupCallOverlay" style="display:none;position:fixed;inset:0;align-items:center;justify-content:center;background:rgba(0,0,0,.56);z-index:7100;backdrop-filter:blur(8px);">
-  <div id="groupCallModal" style="width:min(92vw,460px);background:linear-gradient(180deg,rgba(23,27,35,.98),rgba(12,15,22,.98));border:1px solid rgba(255,255,255,.08);border-radius:26px;padding:22px;box-shadow:0 24px 70px rgba(0,0,0,.45);">
-    <div style="font-size:18px;font-weight:800;margin-bottom:14px;">📞 <span id="groupCallTitle">Групповой звонок</span></div>
-    <div id="groupCallParticipants" style="display:flex;flex-wrap:wrap;gap:10px;min-height:48px;margin-bottom:16px;"></div>
-    <div style="margin-bottom:14px;">
-      <div class="callMeterBar"><div id="groupCallVoiceBar" style="height:100%;width:6%;background:linear-gradient(90deg,var(--green),var(--accent));transition:width .12s ease;"></div></div>
+<div id="groupCallOverlay">
+  <div id="groupCallModal">
+    <div style="text-align:center;">
+      <span id="groupCallTitle">Групповой звонок</span>
     </div>
-    <div style="display:flex;gap:10px;flex-wrap:wrap;">
-      <button id="groupCallMuteBtn" class="callActionBtn">🎙️ Микрофон</button>
-      <button id="groupCallLeaveBtn" class="callActionBtn danger">📵 Выйти</button>
+    <div id="groupCallParticipants"></div>
+    <div style="width:min(280px,80vw);">
+      <div class="callMeterBar"><div id="groupCallVoiceBar"></div></div>
+    </div>
+    <div style="display:flex;gap:20px;justify-content:center;align-items:flex-end;">
+      <div class="callBtnWrap">
+        <button id="groupCallMuteBtn" class="callRoundBtn callRoundBtn-neutral">🎙️</button>
+        <div class="callBtnLabel" id="groupCallMuteBtnLabel">Микрофон</div>
+      </div>
+      <div class="callBtnWrap">
+        <button id="groupCallLeaveBtn" class="callRoundBtn callRoundBtn-hangup">📵</button>
+        <div class="callBtnLabel">Выйти</div>
+      </div>
     </div>
   </div>
 </div>
@@ -2697,14 +2951,21 @@ function updateCallUi() {
   const user = callPeerData || (callPeerLogin ? findFriendData(callPeerLogin) : null) || { login:callPeerLogin, nickname:callPeerLogin };
   updateCallAvatar(user);
   callPeerName.textContent = user?.nickname || user?.login || 'Call';
-  callPeerSub.textContent = callPeerLogin ? '@' + callPeerLogin : 'Squadovka Call';
   callBtn.classList.toggle('activeCall', ['calling','incoming','connecting','connected'].includes(callState));
   // Only show DM call button when in a DM chat (never in group view)
   setCallButtonVisible(currentChatType === 'dm' && !!currentDM && currentChatType !== 'group');
   callBtnLabel.textContent = ['calling','incoming','connecting','connected'].includes(callState) ? t('hang') : t('call');
   callInfoPill.textContent = callState === 'connected' ? ((isMicMuted ? t('micOff') : t('micOn')) + ' · ' + (isSpeakerMuted ? t('soundOff') : t('soundOn'))) : t('natHint');
-  callMuteBtn.textContent = isMicMuted ? '🎙️ ' + t('unmute') : '🎙️ ' + t('mute');
-  if (callSpeakerBtn) callSpeakerBtn.textContent = isSpeakerMuted ? '🔇 ' + t('speakerUnmute') : '🔊 ' + t('speakerMute');
+  callMuteBtn.textContent = isMicMuted ? '🔇' : '🎙️';
+  callMuteBtn.classList.toggle('muted', isMicMuted);
+  const muteLbl = document.getElementById('callMuteBtnLabel');
+  if (muteLbl) muteLbl.textContent = isMicMuted ? t('unmute') : t('mute');
+  if (callSpeakerBtn) {
+    callSpeakerBtn.textContent = isSpeakerMuted ? '🔇' : '🔊';
+    callSpeakerBtn.classList.toggle('muted', isSpeakerMuted);
+    const spkLbl = document.getElementById('callSpeakerBtnLabel');
+    if (spkLbl) spkLbl.textContent = isSpeakerMuted ? t('speakerUnmute') : t('speakerMute');
+  }
   if (callMicVolumeLabel) callMicVolumeLabel.textContent = t('micVolume');
   if (callMicVolumeSlider) callMicVolumeSlider.value = String(localMicVolume);
   if (callVolumeLabel) callVolumeLabel.textContent = t('volume');
@@ -3292,8 +3553,8 @@ function applyLanguage() {
   if (callBtnLabel) callBtnLabel.textContent = ['calling','incoming','connecting','connected'].includes(callState) ? t('hang') : t('call');
   if (callAcceptBtn) callAcceptBtn.textContent = t('accept');
   if (callDeclineBtn) callDeclineBtn.textContent = t('decline');
-  if (callMuteBtn) callMuteBtn.textContent = isMicMuted ? '🎙️ ' + t('unmute') : '🎙️ ' + t('mute');
-  if (callSpeakerBtn) callSpeakerBtn.textContent = isSpeakerMuted ? '🔇 ' + t('speakerUnmute') : '🔊 ' + t('speakerMute');
+  if (callMuteBtn) { callMuteBtn.textContent = isMicMuted ? '🔇' : '🎙️'; callMuteBtn.classList.toggle('muted', isMicMuted); }
+  if (callSpeakerBtn) { callSpeakerBtn.textContent = isSpeakerMuted ? '🔇' : '🔊'; callSpeakerBtn.classList.toggle('muted', isSpeakerMuted); }
   if (callMicVolumeLabel) callMicVolumeLabel.textContent = t('micVolume');
   if (callVolumeLabel) callVolumeLabel.textContent = t('volume');
   if (callHangupBtn) callHangupBtn.textContent = t('hang');
@@ -5216,6 +5477,16 @@ callMuteBtn.onclick = toggleMuteCall;
 callSpeakerBtn.onclick = toggleSpeakerMute;
 if (callMicVolumeSlider) callMicVolumeSlider.oninput = () => setLocalMicVolume(callMicVolumeSlider.value);
 callVolumeSlider.oninput = () => setOpponentVolume(callVolumeSlider.value);
+// Settings button toggles volume panel
+const callSettingsBtn = document.getElementById('callSettingsBtn');
+const callExpandPanel = document.getElementById('callExpandPanel');
+if (callSettingsBtn && callExpandPanel) {
+  callSettingsBtn.onclick = () => {
+    const open = callExpandPanel.style.display === 'flex';
+    callExpandPanel.style.display = open ? 'none' : 'flex';
+    callSettingsBtn.classList.toggle('muted', !open);
+  };
+}
 callCloseBtn.onclick = () => { if (callState === 'incoming') declineIncomingCall(); else hideCallOverlay(); };
 callOverlay.addEventListener('click', e => { if (e.target === callOverlay && callState === 'idle') hideCallOverlay(); });
 
@@ -5239,7 +5510,10 @@ if (groupCallMuteBtn) {
     if (localCallGainNode) localCallGainNode.gain.value = groupCallMicMuted ? 0 : 1;
     if (localCallStream) localCallStream.getAudioTracks().forEach(t => { t.enabled = !groupCallMicMuted; });
     if (localCallSourceStream) localCallSourceStream.getAudioTracks().forEach(t => { t.enabled = !groupCallMicMuted; });
-    groupCallMuteBtn.textContent = groupCallMicMuted ? '🎙️ Включить' : '🎙️ Выключить';
+    groupCallMuteBtn.textContent = groupCallMicMuted ? '🔇' : '🎙️';
+    groupCallMuteBtn.classList.toggle('muted', groupCallMicMuted);
+    const lbl = document.getElementById('groupCallMuteBtnLabel');
+    if (lbl) lbl.textContent = groupCallMicMuted ? 'Включить' : 'Микрофон';
   };
 }
 if (groupCallOverlay) {
