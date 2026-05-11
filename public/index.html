@@ -1138,40 +1138,33 @@ body[data-theme='midnight'] { --bg:#101217; --bg2:#0b0d12; }
 #groupCallBtn.activeCall { border-color: rgba(65,194,114,.5); box-shadow: 0 0 0 1px rgba(65,194,114,.2) inset; }
 /* ── CALL BAR (Discord-style — sidebar bottom) ─────────────────────── */
 #callOverlay {
-  position: static;
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  width: 290px;
   display: none;
-  background: transparent;
-  z-index: auto;
-  animation: none;
-  flex-direction: column;
+  background: #1e2a1e;
+  border-top: 1px solid rgba(67,181,129,.3);
+  z-index: 6000;
+  animation: fadeIn .2s ease;
 }
-/* Active call bar — sits at bottom of sidebar above profile card */
 #callModal {
   display: flex;
   flex-direction: column;
   gap: 0;
-  background: #1e2a1e;
-  border-top: 1px solid rgba(67,181,129,.25);
   padding: 10px 12px 8px;
   width: 100%;
-  position: relative;
 }
 #callModal::before { display: none; }
 #callModal > * { position: relative; z-index: 1; }
 
-/* Top row: avatar + name + status */
-.callCenter {
-  display: flex;
-  flex-direction: column;
-  gap: 0;
-  flex: 1;
-  justify-content: flex-start;
-}
+.callCenter { display: none; }
+
 .callTopRow {
   display: flex;
   align-items: center;
   gap: 10px;
-  margin-bottom: 8px;
+  margin-bottom: 6px;
 }
 #callAvatar {
   width: 36px !important;
@@ -1183,10 +1176,6 @@ body[data-theme='midnight'] { --bg:#101217; --bg2:#0b0d12; }
   background-size: cover !important;
   background-position: center !important;
   box-shadow: 0 0 0 2px rgba(67,181,129,.4);
-  transition: box-shadow .3s ease;
-}
-#callAvatar.speaking {
-  box-shadow: 0 0 0 2px #43b581, 0 0 0 4px rgba(67,181,129,.25);
 }
 .callNameBlock { min-width: 0; flex: 1; }
 #callPeerName {
@@ -1202,12 +1191,10 @@ body[data-theme='midnight'] { --bg:#101217; --bg2:#0b0d12; }
   font-size: 11px;
   color: #43b581;
   font-weight: 600;
-  margin-top: 0;
 }
 #callHintText { display: none; }
 
-/* Voice meter */
-.callMeterWrap { margin-bottom: 8px; }
+.callMeterWrap { margin-bottom: 0; }
 .callMeterBar {
   width: 100%;
   height: 2px;
@@ -1224,27 +1211,18 @@ body[data-theme='midnight'] { --bg:#101217; --bg2:#0b0d12; }
   border-radius: 999px;
 }
 .callInfoPill { display: none; }
+#callIncomingActions { display: none !important; }
 
-/* Incoming call — small popup */
-#callIncomingActions {
-  display: none;
-  gap: 8px;
-  justify-content: flex-end;
-  flex-wrap: nowrap;
-  align-items: center;
-}
-
-/* Round buttons — smaller for sidebar bar */
 .callRoundBtn {
-  width: 32px;
-  height: 32px;
+  width: 30px;
+  height: 30px;
   border-radius: 50%;
   border: none;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 15px;
+  font-size: 14px;
   transition: transform .15s ease, background .15s ease;
   flex-shrink: 0;
 }
@@ -1262,52 +1240,49 @@ body[data-theme='midnight'] { --bg:#101217; --bg2:#0b0d12; }
 .callBtnLabel { display: none; }
 .callBtnWrap { display: contents; }
 
-/* Main controls — horizontal row of small buttons */
 #callMainActions {
   display: flex;
   gap: 6px;
   justify-content: flex-end;
   align-items: center;
-  flex-wrap: nowrap;
 }
 
-/* Volume sliders panel */
 .callVolumeControl { display: none !important; }
 #callExpandPanel {
   display: none;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
   background: rgba(0,0,0,.2);
   border-radius: 10px;
-  padding: 10px;
-  margin-top: 8px;
+  padding: 8px 10px;
+  margin-top: 6px;
 }
 .callSliderRow {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 12px;
+  font-size: 11px;
   color: #b9bec9;
 }
-.callSliderRow span { white-space: nowrap; min-width: 90px; font-size: 11px; }
+.callSliderRow span { white-space: nowrap; min-width: 80px; }
 .callSliderRow input[type=range] { flex: 1; accent-color: var(--accent); }
 
-.callRow { display: flex; gap: 6px; margin-top: 0; flex-wrap: wrap; }
+.callRow { display: none !important; }
 .callActionBtn { display: none !important; }
 
 /* ── INCOMING CALL POPUP ─────────────────────────────────────────────── */
 #callIncomingPopup {
   display: none;
   position: fixed;
-  bottom: 80px;
+  bottom: 24px;
   left: 50%;
   transform: translateX(-50%);
   z-index: 8000;
   background: linear-gradient(135deg, #1e2a1e, #1a2030);
-  border: 1px solid rgba(67,181,129,.35);
+  border: 1px solid rgba(67,181,129,.4);
   border-radius: 18px;
   padding: 16px 20px;
-  box-shadow: 0 16px 48px rgba(0,0,0,.5);
+  box-shadow: 0 16px 48px rgba(0,0,0,.6);
   animation: popIn .22s ease;
   min-width: 280px;
   max-width: min(92vw, 340px);
@@ -1335,11 +1310,10 @@ body[data-theme='midnight'] { --bg:#101217; --bg2:#0b0d12; }
 .callPopupMeta span { font-size: 12px; color: #43b581; font-weight: 600; }
 .callPopupActions {
   display: flex;
-  gap: 12px;
+  gap: 24px;
   justify-content: center;
 }
 .callPopupBtn {
-  flex: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -1355,34 +1329,29 @@ body[data-theme='midnight'] { --bg:#101217; --bg2:#0b0d12; }
   color: #8e9297;
 }
 
-/* GROUP CALL — sidebar bar style */
+/* GROUP CALL — sidebar bar */
 #groupCallOverlay {
   display: none;
-  position: static;
-  align-items: stretch;
-  justify-content: flex-start;
-  background: transparent;
-  z-index: auto;
-  flex-direction: column;
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  width: 290px;
+  background: #1e2a1e;
+  border-top: 1px solid rgba(67,181,129,.3);
+  z-index: 6000;
 }
 #groupCallModal {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  background: #1e2a1e;
-  border-top: 1px solid rgba(67,181,129,.25);
   padding: 10px 12px 8px;
-  width: 100%;
-  position: relative;
 }
 #groupCallModal::before { display: none; }
-#groupCallModal > * { position: relative; z-index: 1; }
 #groupCallTitle {
   font-size: 12px;
   font-weight: 700;
   color: #43b581;
   display: block;
-  margin-bottom: 0;
 }
 #groupCallParticipants {
   display: flex;
@@ -1404,9 +1373,7 @@ body[data-theme='midnight'] { --bg:#101217; --bg2:#0b0d12; }
   box-shadow: 0 0 0 2px rgba(255,255,255,.06);
   transition: box-shadow .2s;
 }
-.gcParticipant.speaking .avatar {
-  box-shadow: 0 0 0 2px #43b581;
-}
+.gcParticipant.speaking .avatar { box-shadow: 0 0 0 2px #43b581; }
 .gcParticipant span {
   font-size: 10px;
   color: #8e9297;
@@ -1517,70 +1484,6 @@ body[data-theme='midnight'] { --bg:#101217; --bg2:#0b0d12; }
     <div class="sectionLabel" id="onlineSectionLabel">Личные сообщения</div>
     <div id="online"></div>
       <div id="groupsSidebar"></div>
-
-    <!-- CALL BAR (shown during active call) -->
-    <div id="callOverlay">
-      <div id="callModal">
-        <div class="callTopRow">
-          <div id="callAvatar" class="avatar" style="background:#5865f2">?</div>
-          <div class="callNameBlock">
-            <b id="callPeerName">Звонок</b>
-            <div id="callStatusText"></div>
-          </div>
-          <div id="callMainActions">
-            <div class="callBtnWrap">
-              <button id="callMuteBtn" class="callRoundBtn callRoundBtn-neutral" title="Микрофон">🎙️</button>
-            </div>
-            <div class="callBtnWrap">
-              <button id="callSettingsBtn" class="callRoundBtn callRoundBtn-neutral" title="Настройки">⚙️</button>
-            </div>
-            <div class="callBtnWrap">
-              <button id="callHangupBtn" class="callRoundBtn callRoundBtn-hangup" title="Сбросить">📵</button>
-            </div>
-            <div class="callBtnWrap">
-              <button id="callCloseBtn" class="callRoundBtn callRoundBtn-neutral" title="Свернуть" style="display:none;">✕</button>
-            </div>
-          </div>
-        </div>
-        <div class="callMeterWrap">
-          <div class="callMeterBar"><div id="callVoiceBar"></div></div>
-        </div>
-        <div id="callExpandPanel">
-          <div class="callSliderRow">
-            <span id="callMicVolumeLabel">🎙️ Микрофон</span>
-            <input id="callMicVolumeSlider" type="range" min="0" max="200" step="1" value="100">
-          </div>
-          <div class="callSliderRow">
-            <span id="callVolumeLabel">🔊 Собеседник</span>
-            <input id="callVolumeSlider" type="range" min="0" max="300" step="1" value="100">
-          </div>
-        </div>
-        <!-- hidden compat -->
-        <div id="callHintText" style="display:none;"></div>
-        <div id="callInfoPill" style="display:none;"></div>
-        <div id="callIncomingActions" style="display:none;"></div>
-        <button id="callSpeakerBtn" class="callRoundBtn callRoundBtn-neutral" style="display:none;">🔊</button>
-        <audio id="remoteAudio" autoplay playsinline></audio>
-        <div class="callRow" style="display:none;"></div>
-      </div>
-    </div>
-
-    <!-- GROUP CALL BAR -->
-    <div id="groupCallOverlay">
-      <div id="groupCallModal">
-        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
-          <span id="groupCallTitle">Групповой звонок</span>
-          <div style="display:flex;gap:6px;">
-            <button id="groupCallMuteBtn" class="callRoundBtn callRoundBtn-neutral">🎙️</button>
-            <button id="groupCallLeaveBtn" class="callRoundBtn callRoundBtn-hangup">📵</button>
-          </div>
-        </div>
-        <div id="groupCallParticipants"></div>
-        <div class="callMeterWrap" style="margin-bottom:0;">
-          <div class="callMeterBar"><div id="groupCallVoiceBar"></div></div>
-        </div>
-      </div>
-    </div>
 
     <!-- PROFILE -->
     <div class="profileCard" id="profileCard">
@@ -1946,29 +1849,40 @@ body[data-theme='midnight'] { --bg:#101217; --bg2:#0b0d12; }
 
 <div id="callOverlay">
   <div id="callModal">
-    <!-- Center: avatar + name + status -->
-    <div class="callCenter">
+    <div class="callTopRow">
       <div id="callAvatar" class="avatar" style="background:#5865f2">?</div>
-      <div style="display:flex;flex-direction:column;align-items:center;gap:6px;">
+      <div class="callNameBlock">
         <b id="callPeerName">Звонок</b>
-        <div id="callStatusText">Ожидание</div>
-        <div id="callHintText"></div>
+        <div id="callStatusText"></div>
       </div>
-      <div class="callMeterWrap">
-        <div class="callMeterBar"><div id="callVoiceBar"></div></div>
-      </div>
-      <!-- Expand panel (volume sliders) -->
-      <div id="callExpandPanel">
-        <div class="callSliderRow">
-          <span id="callMicVolumeLabel">🎙️ Микрофон</span>
-          <input id="callMicVolumeSlider" type="range" min="0" max="200" step="1" value="100">
-        </div>
-        <div class="callSliderRow">
-          <span id="callVolumeLabel">🔊 Собеседник</span>
-          <input id="callVolumeSlider" type="range" min="0" max="300" step="1" value="100">
-        </div>
+      <div id="callMainActions">
+        <button id="callMuteBtn" class="callRoundBtn callRoundBtn-neutral" title="Микрофон">🎙️</button>
+        <button id="callSettingsBtn" class="callRoundBtn callRoundBtn-neutral" title="Настройки">⚙️</button>
+        <button id="callHangupBtn" class="callRoundBtn callRoundBtn-hangup" title="Сбросить">📵</button>
+        <button id="callCloseBtn" class="callRoundBtn callRoundBtn-neutral" title="Свернуть" style="display:none;">✕</button>
       </div>
     </div>
+    <div class="callMeterWrap">
+      <div class="callMeterBar"><div id="callVoiceBar"></div></div>
+    </div>
+    <div id="callExpandPanel">
+      <div class="callSliderRow">
+        <span id="callMicVolumeLabel">🎙️ Микрофон</span>
+        <input id="callMicVolumeSlider" type="range" min="0" max="200" step="1" value="100">
+      </div>
+      <div class="callSliderRow">
+        <span id="callVolumeLabel">🔊 Собеседник</span>
+        <input id="callVolumeSlider" type="range" min="0" max="300" step="1" value="100">
+      </div>
+    </div>
+    <!-- compat -->
+    <div id="callHintText" style="display:none;"></div>
+    <div id="callInfoPill" style="display:none;"></div>
+    <div id="callIncomingActions" style="display:none;"></div>
+    <button id="callSpeakerBtn" style="display:none;"></button>
+    <audio id="remoteAudio" autoplay playsinline></audio>
+  </div>
+</div>
 
 <!-- INCOMING CALL POPUP -->
 <div id="callIncomingPopup">
@@ -3334,7 +3248,7 @@ async function startGroupCall(groupId) {
   // Set gain to 1 (full volume) for group call
   if (localCallGainNode) localCallGainNode.gain.value = 1;
   startGroupCallVoiceMeter(localCallSourceStream || localCallStream);
-  if (groupCallOverlay) groupCallOverlay.style.display = 'flex';
+  if (groupCallOverlay) groupCallOverlay.style.display = 'block';
   if (groupCallTitle) { const g = findGroupData(groupId); groupCallTitle.textContent = g?.name || 'Групповой звонок'; }
   renderGroupCallParticipants();
   updateChatHeader();
@@ -3354,7 +3268,7 @@ async function joinGroupCall(groupId) {
   // Set gain to 1 (full volume) for group call
   if (localCallGainNode) localCallGainNode.gain.value = 1;
   startGroupCallVoiceMeter(localCallSourceStream || localCallStream);
-  if (groupCallOverlay) groupCallOverlay.style.display = 'flex';
+  if (groupCallOverlay) groupCallOverlay.style.display = 'block';
   if (groupCallTitle) { const g = findGroupData(groupId); groupCallTitle.textContent = g?.name || 'Групповой звонок'; }
   ws.send(JSON.stringify({ type: 'group_call_join', groupId }));
 }
