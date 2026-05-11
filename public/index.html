@@ -1558,13 +1558,9 @@ body[data-theme='midnight'] { --bg:#101217; --bg2:#0b0d12; }
         <!-- hidden compat -->
         <div id="callHintText" style="display:none;"></div>
         <div id="callInfoPill" style="display:none;"></div>
-        <div id="callIncomingActions" style="display:none;">
-          <button id="callAcceptBtn" class="callRoundBtn callRoundBtn-accept" style="display:none;">📞</button>
-          <button id="callDeclineBtn" class="callRoundBtn callRoundBtn-decline" style="display:none;">📵</button>
-        </div>
+        <div id="callIncomingActions" style="display:none;"></div>
         <button id="callSpeakerBtn" class="callRoundBtn callRoundBtn-neutral" style="display:none;">🔊</button>
         <audio id="remoteAudio" autoplay playsinline></audio>
-        <!-- legacy compat -->
         <div class="callRow" style="display:none;"></div>
       </div>
     </div>
@@ -1973,77 +1969,6 @@ body[data-theme='midnight'] { --bg:#101217; --bg2:#0b0d12; }
         </div>
       </div>
     </div>
-
-    <!-- Incoming: accept / decline -->
-    <div id="callIncomingActions">
-      <div class="callBtnWrap">
-        <button id="callDeclineBtn" class="callRoundBtn callRoundBtn-decline">📵</button>
-        <div class="callBtnLabel">Отклонить</div>
-      </div>
-      <div class="callBtnWrap">
-        <button id="callAcceptBtn" class="callRoundBtn callRoundBtn-accept">📞</button>
-        <div class="callBtnLabel">Принять</div>
-      </div>
-    </div>
-
-    <!-- Active call controls -->
-    <div id="callMainActions">
-      <div class="callBtnWrap">
-        <button id="callMuteBtn" class="callRoundBtn callRoundBtn-neutral" title="Микрофон">🎙️</button>
-        <div class="callBtnLabel" id="callMuteBtnLabel">Микрофон</div>
-      </div>
-      <div class="callBtnWrap">
-        <button id="callHangupBtn" class="callRoundBtn callRoundBtn-hangup" title="Сбросить">📵</button>
-        <div class="callBtnLabel">Сбросить</div>
-      </div>
-      <div class="callBtnWrap">
-        <button id="callSpeakerBtn" class="callRoundBtn callRoundBtn-neutral" title="Звук">🔊</button>
-        <div class="callBtnLabel" id="callSpeakerBtnLabel">Звук</div>
-      </div>
-      <div class="callBtnWrap">
-        <button id="callSettingsBtn" class="callRoundBtn callRoundBtn-neutral" title="Настройки">⚙️</button>
-        <div class="callBtnLabel">Настройки</div>
-      </div>
-      <div class="callBtnWrap">
-        <button id="callCloseBtn" class="callRoundBtn callRoundBtn-neutral" title="Свернуть">✕</button>
-        <div class="callBtnLabel">Свернуть</div>
-      </div>
-    </div>
-
-    <!-- Hidden legacy elements for JS compatibility -->
-    <div class="callRow" id="callIncomingActionsLegacy" style="display:none;">
-      <button class="callActionBtn good" style="display:none!important;"></button>
-      <button class="callActionBtn danger" style="display:none!important;"></button>
-    </div>
-    <label class="callVolumeControl" style="display:none!important;"><span id="callMicVolumeLabelHidden">🎙️ Микрофон:</span><input id="callMicVolumeSliderHidden" type="range" min="0" max="200" step="1" value="100"></label>
-    <label class="callVolumeControl" style="display:none!important;"><span id="callVolumeLabelHidden">🔊 Собеседник:</span><input id="callVolumeSliderHidden" type="range" min="0" max="300" step="1" value="100"></label>
-    <div id="callInfoPill" style="display:none;"></div>
-    <audio id="remoteAudio" autoplay playsinline></audio>
-  </div>
-</div>
-
-<!-- GROUP CALL OVERLAY -->
-<div id="groupCallOverlay">
-  <div id="groupCallModal">
-    <div style="text-align:center;">
-      <span id="groupCallTitle">Групповой звонок</span>
-    </div>
-    <div id="groupCallParticipants"></div>
-    <div style="width:min(280px,80vw);">
-      <div class="callMeterBar"><div id="groupCallVoiceBar"></div></div>
-    </div>
-    <div style="display:flex;gap:20px;justify-content:center;align-items:flex-end;">
-      <div class="callBtnWrap">
-        <button id="groupCallMuteBtn" class="callRoundBtn callRoundBtn-neutral">🎙️</button>
-        <div class="callBtnLabel" id="groupCallMuteBtnLabel">Микрофон</div>
-      </div>
-      <div class="callBtnWrap">
-        <button id="groupCallLeaveBtn" class="callRoundBtn callRoundBtn-hangup">📵</button>
-        <div class="callBtnLabel">Выйти</div>
-      </div>
-    </div>
-  </div>
-</div>
 
 <!-- INCOMING CALL POPUP -->
 <div id="callIncomingPopup">
@@ -3665,8 +3590,6 @@ function applyLanguage() {
   if (callSpeakerBtn) { callSpeakerBtn.textContent = isSpeakerMuted ? '🔇' : '🔊'; callSpeakerBtn.classList.toggle('muted', isSpeakerMuted); }
   if (callMicVolumeLabel) callMicVolumeLabel.textContent = t('micVolume');
   if (callVolumeLabel) callVolumeLabel.textContent = t('volume');
-  if (callHangupBtn) callHangupBtn.textContent = t('hang');
-  if (callCloseBtn) callCloseBtn.textContent = t('close');
   document.getElementById('statusOnlineLabel').textContent = t('status_online');
   document.getElementById('statusIdleLabel').textContent = t('status_idle');
   document.getElementById('statusDndLabel').textContent = t('status_dnd');
