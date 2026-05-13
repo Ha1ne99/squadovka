@@ -48,6 +48,7 @@ const ACTION_LIMITS = {
   edit_group_message: 40,
   delete_group_message: 40,
   update_group: 20,
+  update_group_avatar: 6,
   add_group_members: 20,
   remove_group_member: 20,
   leave_group: 20,
@@ -481,6 +482,8 @@ async function initDb() {
     )
   `);
 
+  await pool.query(`ALTER TABLE chat_groups ADD COLUMN IF NOT EXISTS avatarImage TEXT`);
+
   await pool.query(`
     CREATE TABLE IF NOT EXISTS group_members (
       groupId BIGINT NOT NULL,
@@ -832,7 +835,7 @@ async function getGroupMembers(groupId, viewerLogin = null) {
 
 async function getGroupPublic(groupId, viewerLogin = null) {
   const result = await pool.query(`
-    SELECT id, name, ownerLogin, createdAt
+    SELECT id, name, ownerLogin, createdAt, avatarImage
     FROM chat_groups
     WHERE id = $1
     LIMIT 1
@@ -846,6 +849,7 @@ async function getGroupPublic(groupId, viewerLogin = null) {
     name: group.name,
     ownerLogin: group.ownerlogin,
     createdAt: Number(group.createdat),
+    avatarImage: group.avatarimage || null,
     members
   };
 }
@@ -854,7 +858,7 @@ async function getGroupsForUser(login) {
   // Single query to get all groups with their members
   const result = await pool.query(`
     SELECT
-      g.id, g.name, g.ownerLogin, g.createdAt,
+      g.id, g.name, g.ownerLogin, g.createdAt, g.avatarImage AS groupAvatarImage,
       gm2.userLogin AS memberLogin, gm2.role,
       u.nickname AS memberNick, u.avatarImage AS memberAvatar, u.status AS memberStatus
     FROM chat_groups g
@@ -873,6 +877,7 @@ async function getGroupsForUser(login) {
         name: row.name,
         ownerLogin: row.ownerlogin,
         createdAt: Number(row.createdat),
+        avatarImage: row.groupavatarimage || null,
         members: []
       });
     }
@@ -1600,6 +1605,44 @@ wss.on('connection', (ws, req) => {
         await sendGroupToMembers(groupId, { type: 'group_updated', group: updated });
         const members = updated?.members || [];
         for (const member of members) await sendGroupList(member.login);
+        return;
+      }
+
+      if (data.type === 'update_group_avatar') {
+        if (!requireActionAllowed(ws, clientIp, 'update_group_avatar')) return;
+        const groupId = Number(data.groupId);
+        if (!Number.isFinite(groupId)) return;
+
+        const groupResult = await pool.query(`SELECT ownerLogin FROM chat_groups WHERE id = $1 LIMIT 1`, [groupId]);
+        const groupRow = groupResult.rows[0];
+        if (!groupRow || groupRow.ownerlogin !== userLogin) return;
+        if (!(await isGroupMember(groupId, userLogin))) return;
+
+        const image = typeof data.image === 'string' ? data.image : '';
+        const clear = data.clear === true || image === '';
+
+        if (clear) {
+          await pool.query(`UPDATE chat_groups SET avatarImage = NULL WHERE id = $1`, [groupId]);
+        } else {
+          if (!/^data:image\/(png|jpeg|jpg|webp|gif);base64,/i.test(image)) {
+            send(ws, { type: 'error', message: 'Неверный формат аватара' });
+            return;
+          }
+          if (image.length > 1400000) {
+            send(ws, { type: 'error', message: 'Аватар слишком большой' });
+            return;
+          }
+          const rawSizeEstimate = Math.floor((image.split(',')[1]?.length || 0) * 0.75);
+          if (rawSizeEstimate > 1024 * 1024) {
+            send(ws, { type: 'error', message: 'Аватар слишком большой' });
+            return;
+          }
+          await pool.query(`UPDATE chat_groups SET avatarImage = $1 WHERE id = $2`, [image, groupId]);
+        }
+
+        const updated = await getGroupPublic(groupId, userLogin);
+        await sendGroupToMembers(groupId, { type: 'group_updated', group: updated });
+        for (const member of updated?.members || []) await sendGroupList(member.login);
         return;
       }
 

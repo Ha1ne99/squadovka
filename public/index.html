@@ -2338,7 +2338,14 @@ function saveGroupWallpapers() { try { localStorage.setItem('messenger_group_wal
 function saveGroupAvatars() { try { localStorage.setItem('messenger_group_avatars', JSON.stringify(groupAvatars)); } catch {} }
 function getGroupWallpaper(gid) { const v = groupWallpapers?.[String(gid)]; return typeof v === 'string' && v ? v : null; }
 function setGroupWallpaper(gid, data) { if (data) groupWallpapers[String(gid)] = data; else delete groupWallpapers[String(gid)]; saveGroupWallpapers(); applyChatWallpaper(); }
-function getGroupAvatar(gid) { const v = groupAvatars?.[String(gid)]; return typeof v === 'string' && v ? v : null; }
+function getGroupAvatar(gid) {
+  const g = findGroupData(gid);
+  if (g && Object.prototype.hasOwnProperty.call(g, 'avatarImage')) {
+    return typeof g.avatarImage === 'string' && g.avatarImage ? g.avatarImage : null;
+  }
+  const v = groupAvatars?.[String(gid)];
+  return typeof v === 'string' && v ? v : null;
+}
 function setGroupAvatar(gid, data) { if (data) groupAvatars[String(gid)] = data; else delete groupAvatars[String(gid)]; saveGroupAvatars(); renderGroups(); renderOnline(); updateChatHeader(); }
 function applyChatWallpaper() {
   const chatEl = document.getElementById('chat');
@@ -4160,7 +4167,14 @@ function handle(d) {
     return;
   }
   if (d.type === 'login_ok') {
-    login = d.login; nickname = d.nickname; myStatus = normalizeClientStatus(d.status || 'online'); rtcConfig = { iceServers:Array.isArray(d.iceServers) && d.iceServers.length ? d.iceServers : [{ urls:['stun:stun.l.google.com:19302'] }] }; localStorage.setItem('login', login); authToken = typeof d.token === 'string' ? d.token : authToken; if (authToken) localStorage.setItem('messenger_token', authToken); localStorage.removeItem('password'); loadLocalChatState(login); friends = Array.isArray(d.friends) ? d.friends : friends; groups = Array.isArray(d.groups) ? d.groups : groups; unread = d.unread || unread || {};
+    login = d.login; nickname = d.nickname; myStatus = normalizeClientStatus(d.status || 'online'); rtcConfig = { iceServers:Array.isArray(d.iceServers) && d.iceServers.length ? d.iceServers : [{ urls:['stun:stun.l.google.com:19302'] }] }; localStorage.setItem('login', login); authToken = typeof d.token === 'string' ? d.token : authToken; if (authToken) localStorage.setItem('messenger_token', authToken); localStorage.removeItem('password'); loadLocalChatState(login); friends = Array.isArray(d.friends) ? d.friends : friends; groups = Array.isArray(d.groups) ? d.groups : groups;
+    if (Array.isArray(groups)) {
+      for (const g of groups) {
+        if (g && g.id != null && Object.prototype.hasOwnProperty.call(g, 'avatarImage')) delete groupAvatars[String(g.id)];
+      }
+      saveGroupAvatars();
+    }
+    unread = d.unread || unread || {};
     loginDiv.style.display = 'none'; if (twoFaScreen) twoFaScreen.style.display = 'none'; pending2FALogin = null; appDiv.style.display = 'flex'; profileNick.textContent = nickname; profileLogin.textContent = login;
     myAvatar = d.avatar || { letter:(nickname || login || '?')[0]?.toUpperCase() || '?', color:'#5865f2' }; myBanner = d.banner || null; const avatarEl = createAvatar(myAvatar, myStatus, true); const old = document.getElementById('profileAvatar'); old.replaceWith(avatarEl); avatarEl.id = 'profileAvatar';
     profileModalLoginPreview.textContent = login;
@@ -4358,9 +4372,34 @@ function handle(d) {
     }
     return;
   }
-  if (d.type === 'groups_list') { groups = Array.isArray(d.groups) ? d.groups : []; renderGroups(); renderOnline(); if (currentChatType === 'group' && currentGroupId && !findGroupData(currentGroupId)) { currentGroupId = null; currentChatType = 'dm'; emptyChat.style.display = 'flex'; messages.style.display = 'none'; updateChatHeader(); } return; }
-  if (d.type === 'group_created') { if (d.group) { groups = [d.group, ...(groups || []).filter(g => Number(g.id) !== Number(d.group.id))]; renderGroups(); renderOnline(); if (login && d.group.ownerLogin === login) openGroup(d.group.id); } return; }
-  if (d.type === 'group_updated') { if (d.group) { groups = (groups || []).filter(g => Number(g.id) !== Number(d.group.id)); groups.unshift(d.group); renderGroups(); renderOnline(); if (currentChatType === 'group' && Number(currentGroupId) === Number(d.group.id)) { updateChatHeader(); scheduleRenderCurrentChat(); } } return; }
+  if (d.type === 'groups_list') {
+    groups = Array.isArray(d.groups) ? d.groups : [];
+    for (const g of groups) {
+      if (g && g.id != null && Object.prototype.hasOwnProperty.call(g, 'avatarImage')) delete groupAvatars[String(g.id)];
+    }
+    saveGroupAvatars();
+    renderGroups(); renderOnline();
+    if (currentChatType === 'group' && currentGroupId && !findGroupData(currentGroupId)) { currentGroupId = null; currentChatType = 'dm'; emptyChat.style.display = 'flex'; messages.style.display = 'none'; updateChatHeader(); }
+    return;
+  }
+  if (d.type === 'group_created') {
+    if (d.group) {
+      if (Object.prototype.hasOwnProperty.call(d.group, 'avatarImage')) delete groupAvatars[String(d.group.id)];
+      saveGroupAvatars();
+      groups = [d.group, ...(groups || []).filter(g => Number(g.id) !== Number(d.group.id))]; renderGroups(); renderOnline();
+      if (login && d.group.ownerLogin === login) openGroup(d.group.id);
+    }
+    return;
+  }
+  if (d.type === 'group_updated') {
+    if (d.group) {
+      if (Object.prototype.hasOwnProperty.call(d.group, 'avatarImage')) delete groupAvatars[String(d.group.id)];
+      saveGroupAvatars();
+      groups = (groups || []).filter(g => Number(g.id) !== Number(d.group.id)); groups.unshift(d.group); renderGroups(); renderOnline();
+      if (currentChatType === 'group' && Number(currentGroupId) === Number(d.group.id)) { updateChatHeader(); scheduleRenderCurrentChat(); }
+    }
+    return;
+  }
   if (d.type === 'group_left') { groups = (groups || []).filter(g => Number(g.id) !== Number(d.groupId)); delete chats[getGroupChatKey(d.groupId)]; saveLocalChatState(); if (currentChatType === 'group' && Number(currentGroupId) === Number(d.groupId)) { currentGroupId = null; currentChatType = 'dm'; emptyChat.style.display = 'flex'; messages.style.display = 'none'; updateChatHeader(); } renderGroups(); renderOnline(); return; }
   if (d.type === 'group_message') { if (d.attachment) d.attachment = normalizeAttachment(d.attachment); if (d.replyTo) d.replyTo = normalizeReplyPayload(d.replyTo); upsertGroupMessage(d.groupId, d); saveLocalChatState(); if (currentChatType === 'group' && Number(currentGroupId) === Number(d.groupId)) scheduleRenderCurrentChat(true); return; }
   if (d.type === 'group_message_edited') { updateGroupMessageLocally(d.groupId, d.id, { text:d.text, edited:d.edited, editedAt:d.editedAt }); saveLocalChatState(); if (currentChatType === 'group' && Number(currentGroupId) === Number(d.groupId)) scheduleRenderCurrentChat(); return; }
@@ -4969,6 +5008,9 @@ function openGroupMenu(groupId, anchorEl) {
   if (isOwner) {
     items.push({ icon: '✏️', label: 'Переименовать', action: () => { closeGroupMenu(); openGroupRenameModal(groupId); } });
     items.push({ icon: '🖼️', label: 'Аватар группы', action: () => { closeGroupMenu(); suppressProfileOpenUntil = Date.now() + 1200; pendingGroupAvatarId = groupId; groupAvatarUploadInput?.click(); } });
+    if (getGroupAvatar(groupId)) {
+      items.push({ icon: '🗑️', label: 'Убрать аватар', action: () => { closeGroupMenu(); ws.send(JSON.stringify({ type: 'update_group_avatar', groupId, clear: true })); } });
+    }
     items.push({ icon: '🖼️', label: 'Фон чата', action: () => { closeGroupMenu(); suppressProfileOpenUntil = Date.now() + 1200; pendingGroupWallpaperId = groupId; groupWallpaperUploadInput?.click(); } });
     items.push({ sep: true });
     items.push({ icon: '➕', label: 'Добавить участников', action: () => { closeGroupMenu(); openGroupAddMembersModal(groupId); } });
@@ -5124,7 +5166,7 @@ function getChatSortMeta(item) {
 function renderOnline() {
   online.innerHTML = '';
   const dmItems = dedupeUsers(friends).map(user => ({ kind:'dm', ...user }));
-  const groupItems = (Array.isArray(groups) ? groups : []).map(group => ({ kind:'group', id:Number(group.id), name:group.name, members:group.members || [] }));
+  const groupItems = (Array.isArray(groups) ? groups : []).map(group => ({ kind:'group', id:Number(group.id), name:group.name, members:group.members || [], avatarImage: group.avatarImage }));
   const items = [...dmItems, ...groupItems].sort((a, b) => {
     const metaA = getChatSortMeta(a);
     const metaB = getChatSortMeta(b);
@@ -5422,7 +5464,12 @@ if (groupAvatarUploadInput) {
     pendingGroupAvatarId = null;
     if (!file || !gid) { groupAvatarUploadInput.value = ''; return; }
     const reader = new FileReader();
-    reader.onload = () => { setGroupAvatar(gid, reader.result); };
+    reader.onload = () => {
+      const image = reader.result;
+      if (typeof image === 'string' && ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'update_group_avatar', groupId: gid, image }));
+      }
+    };
     reader.readAsDataURL(file);
     groupAvatarUploadInput.value = '';
   };
