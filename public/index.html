@@ -1206,20 +1206,6 @@ body[data-theme='midnight'] { --bg:#101217; --bg2:#0b0d12; }
   box-shadow: 0 0 0 2px rgba(67,181,129,.4);
 }
 .callNameBlock { min-width: 0; flex: 1; }
-#callPeerName {
-  font-size: 13px;
-  font-weight: 700;
-  color: #fff;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  display: block;
-}
-#callStatusText {
-  font-size: 11px;
-  color: #43b581;
-  font-weight: 600;
-}
 #callHintText { display: none; }
 
 .callMeterWrap { margin-bottom: 0; }
@@ -1268,15 +1254,8 @@ body[data-theme='midnight'] { --bg:#101217; --bg2:#0b0d12; }
 .callBtnLabel { display: none; }
 .callBtnWrap { display: contents; }
 
-#callMainActions {
-  display: flex;
-  gap: 6px;
-  justify-content: flex-end;
-  align-items: center;
-}
-
 .callVolumeControl { display: none !important; }
-#callExpandPanel {
+#callExpandPanel, #groupCallExpandPanel {
   display: none;
   flex-direction: column;
   gap: 8px;
@@ -1357,7 +1336,7 @@ body[data-theme='midnight'] { --bg:#101217; --bg2:#0b0d12; }
   color: #8e9297;
 }
 
-/* GROUP CALL — sidebar bar */
+/* GROUP CALL — та же верхняя панель, что и у ЛС */
 #groupCallOverlay {
   display: none;
   position: fixed;
@@ -1367,25 +1346,56 @@ body[data-theme='midnight'] { --bg:#101217; --bg2:#0b0d12; }
   background: #1e2a1e;
   border-bottom: 1px solid rgba(67,181,129,.3);
   z-index: 6000;
+  animation: fadeIn .2s ease;
 }
 #groupCallModal {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 0;
   padding: 10px 12px 8px;
+  width: 100%;
 }
 #groupCallModal::before { display: none; }
-#groupCallTitle {
-  font-size: 12px;
+#groupCallModal > * { position: relative; z-index: 1; }
+#groupCallBarAvatar {
+  width: 36px !important;
+  height: 36px !important;
+  border-radius: 50% !important;
+  font-size: 14px !important;
+  font-weight: 800;
+  flex-shrink: 0;
+  background-size: cover !important;
+  background-position: center !important;
+  box-shadow: 0 0 0 2px rgba(67,181,129,.4);
+}
+#callPeerName, #groupCallTitle {
+  font-size: 13px;
   font-weight: 700;
-  color: #43b581;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   display: block;
+}
+#callStatusText, #groupCallStatusText {
+  font-size: 11px;
+  color: #43b581;
+  font-weight: 600;
+}
+#callMainActions, #groupCallMainActions {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+  align-items: center;
 }
 #groupCallParticipants {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
   align-items: center;
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid rgba(255,255,255,.06);
 }
 .gcParticipant {
   display: flex;
@@ -1414,7 +1424,8 @@ body[data-theme='midnight'] { --bg:#101217; --bg2:#0b0d12; }
 
 #groupsSidebar { display:none !important; }
 .user.groupUser .userSub { color:#b4bdd1; }
-.user.groupUser .avatar { background:#5865f2 !important; }
+/* Только цвет по умолчанию — без !important, иначе перекрывается inline background-image у аватарки группы */
+.user.groupUser .avatar { background-color: #5865f2; }
 /* Emoji picker */
 .epTab:hover { background:rgba(255,255,255,.05); }
 .epCatBtn { background:none;border:none;font-size:18px;padding:4px 6px;border-radius:8px;cursor:pointer;opacity:.55;transition:opacity .15s,background .15s; }
@@ -1937,6 +1948,36 @@ body[data-theme='midnight'] { --bg:#101217; --bg2:#0b0d12; }
   </div>
 </div>
 
+<!-- GROUP CALL — та же панель, что у звонка в ЛС -->
+<div id="groupCallOverlay">
+  <div id="groupCallModal">
+    <div class="callTopRow">
+      <div id="groupCallBarAvatar" class="avatar" style="background:#5865f2">G</div>
+      <div class="callNameBlock">
+        <b id="groupCallTitle">Групповой звонок</b>
+        <div id="groupCallStatusText"></div>
+      </div>
+      <div id="groupCallMainActions">
+        <button id="groupCallMuteBtn" type="button" class="callRoundBtn callRoundBtn-neutral" title="Микрофон">🎙️</button>
+        <button id="groupCallSpeakerBtn" type="button" class="callRoundBtn callRoundBtn-neutral" title="Звук участников">🔊</button>
+        <button id="groupCallSettingsBtn" type="button" class="callRoundBtn callRoundBtn-neutral" title="Настройки">⚙️</button>
+        <button id="groupCallLeaveBtn" type="button" class="callRoundBtn callRoundBtn-hangup" title="Выйти из звонка">📵</button>
+        <button id="groupCallCloseBtn" type="button" class="callRoundBtn callRoundBtn-neutral" title="Свернуть">✕</button>
+      </div>
+    </div>
+    <div class="callMeterWrap">
+      <div class="callMeterBar"><div id="groupCallVoiceBar"></div></div>
+    </div>
+    <div id="groupCallExpandPanel">
+      <div class="callSliderRow">
+        <span id="groupCallMicVolumeLabel">🎙️ Микрофон</span>
+        <input id="groupCallMicVolumeSlider" type="range" min="0" max="200" step="1" value="100">
+      </div>
+    </div>
+    <div id="groupCallParticipants"></div>
+  </div>
+</div>
+
 <script>
 const loginDiv = document.getElementById('login');
 const appDiv = document.getElementById('app');
@@ -2124,6 +2165,13 @@ const groupCallParticipants = document.getElementById('groupCallParticipants');
 const groupCallMuteBtn = document.getElementById('groupCallMuteBtn');
 const groupCallLeaveBtn = document.getElementById('groupCallLeaveBtn');
 const groupCallVoiceBar = document.getElementById('groupCallVoiceBar');
+const groupCallBarAvatar = document.getElementById('groupCallBarAvatar');
+const groupCallStatusText = document.getElementById('groupCallStatusText');
+const groupCallSettingsBtn = document.getElementById('groupCallSettingsBtn');
+const groupCallExpandPanel = document.getElementById('groupCallExpandPanel');
+const groupCallMicVolumeSlider = document.getElementById('groupCallMicVolumeSlider');
+const groupCallCloseBtn = document.getElementById('groupCallCloseBtn');
+const groupCallSpeakerBtn = document.getElementById('groupCallSpeakerBtn');
 
 let ws;
 let authToken = localStorage.getItem('messenger_token') || '';
@@ -2178,6 +2226,7 @@ let groupCallPeerConnections = {};    // login -> RTCPeerConnection
 let groupCallRemoteStreams = {};      // login -> MediaStream
 let groupCallRemoteAudios = {};       // login -> <audio> element
 let groupCallMicMuted = false;
+let isGroupSpeakerMuted = false;
 let groupCallVoiceMeterTimer = null;
 // Map of groupId -> participant count for groups with active calls (for non-participants)
 const activeGroupCallsClient = new Map();
@@ -2645,16 +2694,20 @@ function matchesHotkeyEvent(e, config) {
   return sameMainKey && !!e.ctrlKey === !!config.ctrl && !!e.shiftKey === !!config.shift && !!e.altKey === !!config.alt && !!e.metaKey === !!config.meta;
 }
 function triggerHotkeyAction(action) {
-  if (callState === 'idle') return false;
+  const inGroupCall = !!groupCallGroupId;
+  if (callState === 'idle' && !inGroupCall) return false;
   if (action === 'muteMic') {
+    if (inGroupCall) { toggleGroupCallMic(); return true; }
     toggleMuteCall();
     return true;
   }
   if (action === 'muteSound') {
+    if (inGroupCall) { toggleGroupSpeakerMute(); return true; }
     toggleSpeakerMute();
     return true;
   }
   if (action === 'hangup') {
+    if (inGroupCall) { leaveGroupCall(); return true; }
     if (callState === 'incoming') declineIncomingCall();
     else endCurrentCall(true);
     return true;
@@ -2927,12 +2980,89 @@ function hideCallOverlay() {
   updateChatCallBanner();
 }
 
+function syncGroupCallOverlayLayout() {
+  if (!groupCallOverlay || groupCallOverlay.style.display === 'none') return;
+  document.body.classList.add('call-active');
+  requestAnimationFrame(() => {
+    const h = groupCallOverlay.offsetHeight;
+    document.documentElement.style.setProperty('--call-bar-h', h + 'px');
+  });
+}
+function hideGroupCallOverlay() {
+  if (groupCallExpandPanel) groupCallExpandPanel.style.display = 'none';
+  if (groupCallSettingsBtn) groupCallSettingsBtn.classList.remove('muted');
+  if (groupCallOverlay) groupCallOverlay.style.display = 'none';
+  document.body.classList.remove('call-active');
+  document.documentElement.style.removeProperty('--call-bar-h');
+  updateChatCallBanner();
+}
+function showGroupCallOverlay() {
+  if (!groupCallGroupId || !groupCallOverlay) return;
+  groupCallOverlay.style.display = 'block';
+  syncGroupCallOverlayLayout();
+  updateGroupCallBarUi();
+}
+function applyGroupRemoteSpeakerSettings() {
+  for (const audio of Object.values(groupCallRemoteAudios)) {
+    if (audio) audio.muted = !!isGroupSpeakerMuted;
+  }
+}
+function toggleGroupSpeakerMute() {
+  if (!groupCallGroupId) return;
+  isGroupSpeakerMuted = !isGroupSpeakerMuted;
+  applyGroupRemoteSpeakerSettings();
+  updateGroupCallBarUi();
+}
+function updateGroupCallBarUi() {
+  if (!groupCallGroupId) return;
+  const gid = groupCallGroupId;
+  const g = findGroupData(gid);
+  const name = g?.name || 'Групповой звонок';
+  if (groupCallTitle) groupCallTitle.textContent = name;
+  if (groupCallBarAvatar) {
+    const gImg = getGroupAvatar(gid);
+    const letter = (name || 'G')[0]?.toUpperCase() || 'G';
+    groupCallBarAvatar.textContent = letter;
+    groupCallBarAvatar.style.backgroundImage = '';
+    groupCallBarAvatar.style.background = '#5865f2';
+    if (gImg) {
+      groupCallBarAvatar.textContent = '';
+      groupCallBarAvatar.style.backgroundImage = `url(${gImg})`;
+      groupCallBarAvatar.style.backgroundColor = '#2a2f3a';
+    }
+  }
+  const n = groupCallParticipantLogins?.length || 1;
+  if (groupCallStatusText) {
+    groupCallStatusText.textContent = n > 1 ? `${n} в звонке` : t('connecting');
+  }
+  if (groupCallMuteBtn) {
+    groupCallMuteBtn.textContent = groupCallMicMuted ? '🔇' : '🎙️';
+    groupCallMuteBtn.classList.toggle('muted', groupCallMicMuted);
+  }
+  if (groupCallSpeakerBtn) {
+    groupCallSpeakerBtn.textContent = isGroupSpeakerMuted ? '🔇' : '🔊';
+    groupCallSpeakerBtn.classList.toggle('muted', isGroupSpeakerMuted);
+  }
+  if (groupCallMicVolumeSlider) groupCallMicVolumeSlider.value = String(localMicVolume);
+  const btext = document.getElementById('chatCallBannerText');
+  if (btext) btext.textContent = `В звонке: ${name}`;
+}
+function toggleGroupCallMic() {
+  if (!groupCallGroupId) return;
+  groupCallMicMuted = !groupCallMicMuted;
+  applyLocalMicSettings();
+  updateGroupCallBarUi();
+}
+
 function updateChatCallBanner() {
   const banner = document.getElementById('chatCallBanner');
   if (!banner) return;
   const active = ['calling','connecting','connected'].includes(callState);
   const inCallWithCurrent = active && callPeerLogin && currentDM === callPeerLogin;
-  banner.style.display = inCallWithCurrent ? 'flex' : 'none';
+  const inGroupCallWithCurrent = currentChatType === 'group' && currentGroupId && groupCallGroupId && Number(currentGroupId) === Number(groupCallGroupId);
+  banner.style.display = (inCallWithCurrent || inGroupCallWithCurrent) ? 'flex' : 'none';
+  const btext = document.getElementById('chatCallBannerText');
+  if (btext && inCallWithCurrent && !inGroupCallWithCurrent) btext.textContent = 'В звонке';
 }
 function updateCallAvatar(user) {
   if (!callAvatar) return;
@@ -3032,7 +3162,8 @@ function persistCallAudioSetting(key, value) {
   try { localStorage.setItem(key, String(value)); } catch {}
 }
 function applyLocalMicSettings() {
-  const gainValue = isMicMuted ? 0 : getLocalMicGain();
+  const muted = groupCallGroupId ? groupCallMicMuted : isMicMuted;
+  const gainValue = muted ? 0 : getLocalMicGain();
   if (localCallGainNode) localCallGainNode.gain.value = gainValue;
   if (localCallStream) localCallStream.getAudioTracks().forEach(track => { track.enabled = true; });
   if (localCallSourceStream) localCallSourceStream.getAudioTracks().forEach(track => { track.enabled = true; });
@@ -3146,8 +3277,14 @@ function renderGroupCallParticipants() {
     av.className = 'avatar';
     av.style.cssText = 'width:44px;height:44px;font-size:18px;background:#5865f2;';
     av.textContent = (friend.nickname || l)[0]?.toUpperCase() || '?';
-    if (friend.avatar?.image) { av.textContent = ''; av.style.backgroundImage = `url(${friend.avatar.image})`; av.style.backgroundColor = '#2a2f3a'; }
-    else if (friend.avatar?.color) av.style.background = friend.avatar.color;
+    if (friend.avatar?.image) {
+      av.textContent = '';
+      av.style.backgroundImage = `url(${friend.avatar.image})`;
+      av.style.backgroundSize = 'cover';
+      av.style.backgroundPosition = 'center';
+      av.style.backgroundColor = '#2a2f3a';
+    }
+    else if (friend.avatar?.color) { av.style.background = friend.avatar.color; }
     const name = document.createElement('span');
     name.style.cssText = 'font-size:11px;color:var(--muted);max-width:52px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
     name.textContent = l === login ? 'Вы' : (friend.nickname || l);
@@ -3155,6 +3292,8 @@ function renderGroupCallParticipants() {
     div.appendChild(name);
     groupCallParticipants.appendChild(div);
   }
+  updateGroupCallBarUi();
+  updateChatCallBanner();
 }
 
 function startGroupCallVoiceMeter(stream) {
@@ -3194,9 +3333,10 @@ function cleanupGroupCall() {
   groupCallParticipantLogins = [];
   groupCallGroupId = null;
   groupCallMicMuted = false;
+  isGroupSpeakerMuted = false;
   stopLocalCallStream();
-  if (groupCallOverlay) groupCallOverlay.style.display = 'none';
   if (prevGroupId) activeGroupCallsClient.delete(prevGroupId);
+  hideGroupCallOverlay();
   updateChatHeader();
 }
 
@@ -3207,10 +3347,8 @@ async function createGroupCallPeerConnection(peerLogin) {
   if (localCallAudioContext && localCallAudioContext.state === 'suspended') {
     try { await localCallAudioContext.resume(); } catch {}
   }
-  // Ensure gain is not zero for group call
-  if (localCallGainNode) {
-    localCallGainNode.gain.value = groupCallMicMuted ? 0 : 1;
-  }
+  // Уровень микрофона как в ЛС (учёт mute и ползунка)
+  applyLocalMicSettings();
   const pc = new RTCPeerConnection(rtcConfig || { iceServers: [{ urls: ['stun:stun.l.google.com:19302'] }] });
   stream.getTracks().forEach(track => pc.addTrack(track, stream));
   // Buffer ICE candidates until remote description is set
@@ -3237,6 +3375,7 @@ async function createGroupCallPeerConnection(peerLogin) {
     }
     groupCallRemoteAudios[peerLogin].srcObject = groupCallRemoteStreams[peerLogin];
     groupCallRemoteAudios[peerLogin].play().catch(() => {});
+    applyGroupRemoteSpeakerSettings();
   };
   groupCallPeerConnections[peerLogin] = pc;
   return pc;
@@ -3298,18 +3437,9 @@ async function startGroupCall(groupId) {
   groupCallGroupId = groupId;
   groupCallParticipantLogins = [login];
   groupCallMicMuted = false;
-  // Set gain to 1 (full volume) for group call
-  if (localCallGainNode) localCallGainNode.gain.value = 1;
+  applyLocalMicSettings();
   startGroupCallVoiceMeter(localCallSourceStream || localCallStream);
-  if (groupCallOverlay) {
-    groupCallOverlay.style.display = 'block';
-    document.body.classList.add('call-active');
-    requestAnimationFrame(() => {
-      const h = groupCallOverlay.offsetHeight;
-      document.documentElement.style.setProperty('--call-bar-h', h + 'px');
-    });
-  }
-  if (groupCallTitle) { const g = findGroupData(groupId); groupCallTitle.textContent = g?.name || 'Групповой звонок'; }
+  showGroupCallOverlay();
   renderGroupCallParticipants();
   updateChatHeader();
   ws.send(JSON.stringify({ type: 'group_call_start', groupId }));
@@ -3325,11 +3455,12 @@ async function joinGroupCall(groupId) {
   }
   groupCallGroupId = groupId;
   groupCallMicMuted = false;
-  // Set gain to 1 (full volume) for group call
-  if (localCallGainNode) localCallGainNode.gain.value = 1;
+  applyLocalMicSettings();
   startGroupCallVoiceMeter(localCallSourceStream || localCallStream);
-  if (groupCallOverlay) groupCallOverlay.style.display = 'block';
-  if (groupCallTitle) { const g = findGroupData(groupId); groupCallTitle.textContent = g?.name || 'Групповой звонок'; }
+  groupCallParticipantLogins = [login];
+  showGroupCallOverlay();
+  renderGroupCallParticipants();
+  updateChatHeader();
   ws.send(JSON.stringify({ type: 'group_call_join', groupId }));
 }
 
@@ -3516,6 +3647,7 @@ function setLocalMicVolume(value) {
   persistCallAudioSetting('call_mic_volume', localMicVolume);
   applyLocalMicSettings();
   updateCallUi();
+  if (groupCallGroupId) updateGroupCallBarUi();
 }
 function setOpponentVolume(value) {
   opponentVolume = Math.max(0, Math.min(300, Number(value) || 0));
@@ -3931,6 +4063,7 @@ function updateChatHeader(peerLogin = null, peerNick = null, avatar = null) {
       groupCallBtn.classList.toggle('activeCall', inCall);
       if (groupCallBtnLabel) groupCallBtnLabel.textContent = inCall ? '📵 Выйти' : (callParticipants ? `📞 Войти (${callParticipants})` : '📞 Голосовой');
     }
+    updateChatCallBanner();
     return;
   }
   if (groupCallBtn) groupCallBtn.style.display = 'none';
@@ -4380,6 +4513,7 @@ function handle(d) {
     if (groupCallGroupId === gid) {
       groupCallParticipantLogins = participants;
       renderGroupCallParticipants();
+      updateGroupCallBarUi();
     }
     // Refresh header if viewing this group
     if (currentChatType === 'group' && Number(currentGroupId) === gid) {
@@ -4392,6 +4526,7 @@ function handle(d) {
     const existingParticipants = Array.isArray(d.participants) ? d.participants : [];
     groupCallParticipantLogins = [login, ...existingParticipants];
     renderGroupCallParticipants();
+    updateGroupCallBarUi();
     // Initiate offers to everyone already in the call
     for (const peer of existingParticipants) {
       groupCallSendOffer(peer).catch(() => {});
@@ -4455,6 +4590,7 @@ function openGroup(groupId) {
   renderOnline();
   renderGroups();
   ws.send(JSON.stringify({ type:'get_group_messages', groupId:currentGroupId }));
+  updateChatCallBanner();
 }
 
 
@@ -5093,7 +5229,7 @@ function renderGroups() {
     const avEl = document.createElement('div');
     avEl.className = 'avatar';
     avEl.style.cssText = 'width:38px;height:38px;font-size:15px;flex-shrink:0;background:#5865f2;border-radius:50%;display:flex;align-items:center;justify-content:center;';
-    if (gAvatar) { avEl.style.backgroundImage = `url(${gAvatar})`; avEl.style.backgroundSize = 'cover'; avEl.style.backgroundPosition = 'center'; avEl.style.backgroundColor = '#2a2f3a'; }
+    if (gAvatar) { avEl.textContent = ''; avEl.style.backgroundImage = `url(${gAvatar})`; avEl.style.backgroundSize = 'cover'; avEl.style.backgroundPosition = 'center'; avEl.style.backgroundColor = '#2a2f3a'; }
     else avEl.textContent = (group.name || 'G')[0]?.toUpperCase() || 'G';
 
     const info = document.createElement('div');
@@ -5147,8 +5283,8 @@ function renderOnline() {
       const gAvatar = getGroupAvatar(item.id);
       const avEl = document.createElement('div');
       avEl.className = 'avatar';
-      if (gAvatar) { avEl.style.backgroundImage = `url(${gAvatar})`; avEl.style.backgroundSize = 'cover'; avEl.style.backgroundPosition = 'center'; avEl.style.backgroundColor = '#2a2f3a'; }
-      else { avEl.textContent = (item.name || 'G')[0]?.toUpperCase() || 'G'; avEl.style.background = '#5865f2'; }
+      if (gAvatar) { avEl.textContent = ''; avEl.style.backgroundImage = `url(${gAvatar})`; avEl.style.backgroundSize = 'cover'; avEl.style.backgroundPosition = 'center'; avEl.style.backgroundColor = '#2a2f3a'; }
+      else { avEl.textContent = (item.name || 'G')[0]?.toUpperCase() || 'G'; avEl.style.backgroundImage = ''; avEl.style.background = '#5865f2'; }
       div.appendChild(avEl);
       const info = document.createElement('div');
       info.className = 'userInfo';
@@ -5482,7 +5618,10 @@ callHangupBtn.onclick = () => endCurrentCall(true);
 
 // Chat call banner click — scroll to call bar
 const chatCallBanner = document.getElementById('chatCallBanner');
-if (chatCallBanner) chatCallBanner.onclick = () => showCallOverlay();
+if (chatCallBanner) chatCallBanner.onclick = () => {
+  if (groupCallGroupId && currentChatType === 'group' && Number(currentGroupId) === Number(groupCallGroupId)) showGroupCallOverlay();
+  else showCallOverlay();
+};
 callMuteBtn.onclick = toggleMuteCall;
 callSpeakerBtn.onclick = toggleSpeakerMute;
 if (callMicVolumeSlider) callMicVolumeSlider.oninput = () => setLocalMicVolume(callMicVolumeSlider.value);
@@ -5514,20 +5653,22 @@ if (groupCallBtn) {
   };
 }
 if (groupCallLeaveBtn) groupCallLeaveBtn.onclick = leaveGroupCall;
-if (groupCallMuteBtn) {
-  groupCallMuteBtn.onclick = () => {
-    groupCallMicMuted = !groupCallMicMuted;
-    if (localCallGainNode) localCallGainNode.gain.value = groupCallMicMuted ? 0 : 1;
-    if (localCallStream) localCallStream.getAudioTracks().forEach(t => { t.enabled = !groupCallMicMuted; });
-    if (localCallSourceStream) localCallSourceStream.getAudioTracks().forEach(t => { t.enabled = !groupCallMicMuted; });
-    groupCallMuteBtn.textContent = groupCallMicMuted ? '🔇' : '🎙️';
-    groupCallMuteBtn.classList.toggle('muted', groupCallMicMuted);
-    const lbl = document.getElementById('groupCallMuteBtnLabel');
-    if (lbl) lbl.textContent = groupCallMicMuted ? 'Включить' : 'Микрофон';
+if (groupCallMuteBtn) groupCallMuteBtn.onclick = toggleGroupCallMic;
+if (groupCallSpeakerBtn) groupCallSpeakerBtn.onclick = toggleGroupSpeakerMute;
+if (groupCallCloseBtn) groupCallCloseBtn.onclick = hideGroupCallOverlay;
+if (groupCallSettingsBtn && groupCallExpandPanel) {
+  groupCallSettingsBtn.onclick = () => {
+    const open = groupCallExpandPanel.style.display === 'flex';
+    groupCallExpandPanel.style.display = open ? 'none' : 'flex';
+    groupCallSettingsBtn.classList.toggle('muted', !open);
+    syncGroupCallOverlayLayout();
   };
 }
+if (groupCallMicVolumeSlider) {
+  groupCallMicVolumeSlider.oninput = () => setLocalMicVolume(groupCallMicVolumeSlider.value);
+}
 if (groupCallOverlay) {
-  // group call overlay is now a sidebar bar, no click-to-close
+  /* sidebar bar: no click-outside to end call */
 }
 
 
